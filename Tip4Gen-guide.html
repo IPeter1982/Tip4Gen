@@ -1,0 +1,954 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Foci VB Tippjáték — Hivatalos szabályzat</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;600;700&family=Newsreader:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f0ece1;
+    --bg-alt: #e8e2d3;
+    --ink: #16241a;
+    --ink-soft: #3d4a3f;
+    --pitch: #2d5016;
+    --accent: #d94f1e;
+    --accent-soft: #e8a05c;
+    --line: #16241a;
+    --paper: #f7f4ea;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Newsreader', Georgia, serif;
+    font-size: 17px;
+    line-height: 1.6;
+    overflow-x: hidden;
+    background-image:
+      radial-gradient(circle at 1px 1px, rgba(22, 36, 26, 0.08) 1px, transparent 0);
+    background-size: 24px 24px;
+  }
+
+  .display { font-family: 'Antonio', 'Impact', sans-serif; font-weight: 700; letter-spacing: -0.01em; text-transform: uppercase; }
+  .mono { font-family: 'JetBrains Mono', monospace; }
+
+  /* ─── HEADER BAR ─── */
+  .topbar {
+    border-bottom: 1px solid var(--ink);
+    padding: 14px 40px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    background: var(--bg);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    backdrop-filter: blur(8px);
+    background: rgba(240, 236, 225, 0.92);
+  }
+  .topbar .dot {
+    display: inline-block;
+    width: 8px; height: 8px;
+    background: var(--accent);
+    border-radius: 50%;
+    margin-right: 8px;
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.6; transform: scale(1.2); }
+  }
+
+  /* ─── HERO ─── */
+  .hero {
+    padding: 80px 40px 60px;
+    border-bottom: 3px solid var(--ink);
+    position: relative;
+    overflow: hidden;
+  }
+  .hero-grid {
+    max-width: 1280px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 60px;
+    align-items: end;
+  }
+  .hero-eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    color: var(--accent);
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .hero-eyebrow::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--ink);
+    max-width: 200px;
+  }
+  .hero h1 {
+    font-family: 'Antonio', sans-serif;
+    font-weight: 700;
+    font-size: clamp(64px, 11vw, 168px);
+    line-height: 0.85;
+    letter-spacing: -0.02em;
+    text-transform: uppercase;
+    color: var(--ink);
+  }
+  .hero h1 .word-2 {
+    display: block;
+    color: var(--pitch);
+    font-style: italic;
+  }
+  .hero h1 .word-3 {
+    display: block;
+    color: var(--accent);
+  }
+  .hero-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    text-align: right;
+    padding-bottom: 12px;
+  }
+  .hero-meta .label { color: var(--ink-soft); }
+  .hero-meta .value { color: var(--ink); font-weight: 600; }
+
+  /* ─── BALL DECOR ─── */
+  .ball-decor {
+    position: absolute;
+    right: -80px;
+    top: 40%;
+    width: 200px;
+    height: 200px;
+    opacity: 0.08;
+    animation: spin 30s linear infinite;
+  }
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  /* ─── INTRO ─── */
+  .intro {
+    padding: 60px 40px;
+    border-bottom: 1px solid var(--ink);
+  }
+  .intro-grid {
+    max-width: 1280px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    gap: 60px;
+  }
+  .intro-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--ink-soft);
+    padding-top: 8px;
+  }
+  .intro-text {
+    font-family: 'Newsreader', serif;
+    font-size: clamp(22px, 2.4vw, 30px);
+    line-height: 1.4;
+    font-style: italic;
+    color: var(--ink);
+    max-width: 800px;
+  }
+  .intro-text strong {
+    font-style: normal;
+    font-weight: 600;
+    background: var(--accent);
+    color: var(--paper);
+    padding: 0 8px;
+  }
+
+  /* ─── TOC ─── */
+  .toc {
+    padding: 50px 40px;
+    border-bottom: 1px solid var(--ink);
+    background: var(--bg-alt);
+  }
+  .toc-wrap { max-width: 1280px; margin: 0 auto; }
+  .toc-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    margin-bottom: 30px;
+    color: var(--ink-soft);
+  }
+  .toc-list {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0;
+    list-style: none;
+  }
+  .toc-list li {
+    border-top: 1px solid var(--ink);
+    padding: 14px 0;
+  }
+  .toc-list li:nth-last-child(1),
+  .toc-list li:nth-last-child(2) { border-bottom: 1px solid var(--ink); }
+  .toc-list a {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    color: var(--ink);
+    text-decoration: none;
+    font-family: 'Antonio', sans-serif;
+    text-transform: uppercase;
+    font-size: 22px;
+    transition: all 0.2s;
+  }
+  .toc-list a:hover { color: var(--accent); padding-left: 12px; }
+  .toc-list .num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--ink-soft);
+    font-weight: 400;
+  }
+
+  /* ─── SECTION ─── */
+  .section {
+    padding: 80px 40px;
+    border-bottom: 1px solid var(--ink);
+    position: relative;
+  }
+  .section:nth-of-type(even) { background: var(--bg-alt); }
+  .section-wrap {
+    max-width: 1280px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: 60px;
+  }
+  .section-head {
+    position: sticky;
+    top: 80px;
+    align-self: start;
+  }
+  .section-num {
+    font-family: 'Antonio', sans-serif;
+    font-size: 96px;
+    line-height: 0.9;
+    color: var(--accent);
+    font-weight: 700;
+  }
+  .section-num.green { color: var(--pitch); }
+  .section-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    color: var(--ink-soft);
+    margin-top: 4px;
+  }
+  .section-body { max-width: 760px; }
+  .section-body h2 {
+    font-family: 'Antonio', sans-serif;
+    font-weight: 700;
+    font-size: clamp(36px, 4vw, 52px);
+    line-height: 1.0;
+    text-transform: uppercase;
+    margin-bottom: 36px;
+    letter-spacing: -0.01em;
+  }
+  .section-body h3 {
+    font-family: 'Antonio', sans-serif;
+    font-weight: 600;
+    font-size: 22px;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    margin-top: 32px;
+    margin-bottom: 12px;
+    color: var(--pitch);
+  }
+  .section-body p { margin-bottom: 16px; }
+  .section-body p:last-child { margin-bottom: 0; }
+  .section-body ul { margin: 16px 0; padding-left: 0; list-style: none; }
+  .section-body ul li {
+    padding-left: 28px;
+    margin-bottom: 10px;
+    position: relative;
+  }
+  .section-body ul li::before {
+    content: "→";
+    position: absolute;
+    left: 0;
+    color: var(--accent);
+    font-weight: 700;
+    font-family: 'Antonio', sans-serif;
+  }
+  .section-body strong { font-weight: 600; color: var(--ink); }
+
+  /* ─── POINT TABLE ─── */
+  .points-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 24px 0;
+    font-family: 'Newsreader', serif;
+    background: var(--paper);
+    border: 2px solid var(--ink);
+  }
+  .points-table thead {
+    background: var(--ink);
+    color: var(--paper);
+  }
+  .points-table th {
+    text-align: left;
+    padding: 12px 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    font-weight: 400;
+  }
+  .points-table th:last-child { text-align: right; }
+  .points-table td {
+    padding: 14px 16px;
+    border-top: 1px solid var(--ink);
+    vertical-align: middle;
+  }
+  .points-table td:last-child {
+    text-align: right;
+    font-family: 'Antonio', sans-serif;
+    font-size: 28px;
+    color: var(--accent);
+    font-weight: 700;
+    width: 100px;
+  }
+  .points-table tr.zero td:last-child { color: var(--ink-soft); }
+
+  /* ─── MULTIPLIER GRID ─── */
+  .mult-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    margin: 24px 0;
+  }
+  .mult-card {
+    background: var(--paper);
+    border: 2px solid var(--ink);
+    padding: 20px 16px;
+    text-align: center;
+  }
+  .mult-card .stage {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--ink-soft);
+    margin-bottom: 8px;
+  }
+  .mult-card .value {
+    font-family: 'Antonio', sans-serif;
+    font-size: 42px;
+    line-height: 1;
+    color: var(--pitch);
+    font-weight: 700;
+  }
+  .mult-card.final .value { color: var(--accent); }
+  .mult-card.final { border-color: var(--accent); border-width: 3px; }
+
+  /* ─── LONG BET CARDS ─── */
+  .long-bets {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 24px 0;
+  }
+  .long-bet {
+    background: var(--ink);
+    color: var(--paper);
+    padding: 28px;
+    position: relative;
+    overflow: hidden;
+  }
+  .long-bet.gold { background: var(--accent); color: var(--paper); }
+  .long-bet .bet-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    opacity: 0.7;
+    margin-bottom: 8px;
+  }
+  .long-bet .bet-title {
+    font-family: 'Antonio', sans-serif;
+    font-size: 28px;
+    text-transform: uppercase;
+    line-height: 1;
+    margin-bottom: 16px;
+  }
+  .long-bet .bet-points {
+    font-family: 'Antonio', sans-serif;
+    font-size: 64px;
+    line-height: 1;
+    font-weight: 700;
+  }
+  .long-bet .bet-points small {
+    font-size: 16px;
+    font-family: 'JetBrains Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    opacity: 0.7;
+    margin-left: 4px;
+  }
+
+  /* ─── CALLOUT ─── */
+  .callout {
+    border-left: 4px solid var(--accent);
+    background: var(--paper);
+    padding: 20px 24px;
+    margin: 24px 0;
+    font-style: italic;
+    font-size: 16px;
+  }
+  .callout strong {
+    font-style: normal;
+    display: block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--accent);
+    margin-bottom: 6px;
+  }
+
+  /* ─── TEAM DIAGRAM ─── */
+  .team-diagram {
+    background: var(--pitch);
+    color: var(--paper);
+    padding: 36px;
+    margin: 24px 0;
+    border-radius: 0;
+    position: relative;
+  }
+  .team-diagram::before {
+    content: "";
+    position: absolute;
+    inset: 12px;
+    border: 1px solid rgba(247, 244, 234, 0.3);
+    pointer-events: none;
+  }
+  .team-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    position: relative;
+  }
+  .player {
+    background: rgba(247, 244, 234, 0.08);
+    border: 1px solid rgba(247, 244, 234, 0.25);
+    padding: 16px 12px;
+    text-align: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+  .player.ai {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--paper);
+  }
+  .player .role {
+    font-size: 9px;
+    opacity: 0.6;
+    margin-bottom: 4px;
+  }
+  .player.dropped {
+    opacity: 0.35;
+    text-decoration: line-through;
+  }
+  .team-caption {
+    text-align: center;
+    margin-top: 20px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    opacity: 0.8;
+  }
+
+  /* ─── AI MODES ─── */
+  .ai-modes {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin: 24px 0;
+  }
+  .ai-mode {
+    background: var(--paper);
+    border: 2px solid var(--ink);
+    padding: 20px;
+  }
+  .ai-mode .mode-name {
+    font-family: 'Antonio', sans-serif;
+    font-size: 22px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .ai-mode.cons { border-color: var(--pitch); }
+  .ai-mode.cons .mode-name { color: var(--pitch); }
+  .ai-mode.bal .mode-name { color: var(--ink-soft); }
+  .ai-mode.bold { border-color: var(--accent); }
+  .ai-mode.bold .mode-name { color: var(--accent); }
+  .ai-mode .mode-desc {
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  /* ─── FOOTER ─── */
+  .footer {
+    padding: 60px 40px;
+    background: var(--ink);
+    color: var(--paper);
+    text-align: center;
+  }
+  .footer-mark {
+    font-family: 'Antonio', sans-serif;
+    font-size: 84px;
+    line-height: 0.9;
+    text-transform: uppercase;
+    letter-spacing: -0.02em;
+  }
+  .footer-mark span { color: var(--accent); font-style: italic; }
+  .footer-meta {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    margin-top: 24px;
+    opacity: 0.6;
+  }
+
+  /* ─── RESPONSIVE ─── */
+  @media (max-width: 900px) {
+    .hero-grid, .intro-grid, .section-wrap, .toc-list, .long-bets, .ai-modes {
+      grid-template-columns: 1fr;
+      gap: 32px;
+    }
+    .section-head { position: static; }
+    .section-num { font-size: 64px; }
+    .hero, .intro, .section, .toc { padding: 50px 24px; }
+    .topbar { padding: 12px 24px; flex-wrap: wrap; gap: 8px; }
+    .team-row { grid-template-columns: repeat(2, 1fr); }
+    .mult-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  /* ─── ANIMATIONS ─── */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .hero-eyebrow { animation: fadeUp 0.6s ease-out 0.1s both; }
+  .hero h1 .word-1 { animation: fadeUp 0.7s ease-out 0.2s both; display: block; }
+  .hero h1 .word-2 { animation: fadeUp 0.7s ease-out 0.35s both; }
+  .hero h1 .word-3 { animation: fadeUp 0.7s ease-out 0.5s both; }
+  .hero-meta { animation: fadeUp 0.6s ease-out 0.7s both; }
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div><span class="dot"></span>HIVATALOS SZABÁLYZAT</div>
+  <div>v1.0 · 11 PONT · MAGYAR</div>
+</div>
+
+<!-- HERO -->
+<section class="hero">
+  <svg class="ball-decor" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="50" cy="50" r="48" fill="none" stroke="currentColor" stroke-width="1.5"/>
+    <polygon points="50,30 60,38 56,50 44,50 40,38" fill="currentColor"/>
+    <line x1="50" y1="2" x2="50" y2="30" stroke="currentColor" stroke-width="1"/>
+    <line x1="60" y1="38" x2="85" y2="25" stroke="currentColor" stroke-width="1"/>
+    <line x1="40" y1="38" x2="15" y2="25" stroke="currentColor" stroke-width="1"/>
+    <line x1="56" y1="50" x2="80" y2="75" stroke="currentColor" stroke-width="1"/>
+    <line x1="44" y1="50" x2="20" y2="75" stroke="currentColor" stroke-width="1"/>
+  </svg>
+  <div class="hero-grid">
+    <div>
+      <div class="hero-eyebrow">⚽ Foci VB · Tippjáték</div>
+      <h1>
+        <span class="word-1">A nagy</span>
+        <span class="word-2">világbajnoki</span>
+        <span class="word-3">tippliga</span>
+      </h1>
+    </div>
+    <div class="hero-meta">
+      <div><span class="label">Csapat:</span> <span class="value">4 fős</span></div>
+      <div><span class="label">AI tag:</span> <span class="value">max 1</span></div>
+      <div><span class="label">Joker:</span> <span class="value">3 db</span></div>
+      <div><span class="label">Max / meccs:</span> <span class="value">30 pont</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- INTRO -->
+<section class="intro">
+  <div class="intro-grid">
+    <div class="intro-label">Bevezetés</div>
+    <div class="intro-text">
+      Tippeld meg minden meccs eredményét, állj össze egy <strong>4 fős</strong> csapatba, és vidd diadalra a barátaidat — vagy az algoritmusodat. A kieséses szakaszban már nincs joker, a döntőben minden pont háromszorozódik. Olvasd el a szabályokat, mielőtt feltennéd a kérdést, hogy „de hát miért nem kaptam érte pontot?"
+    </div>
+  </div>
+</section>
+
+<!-- TOC -->
+<section class="toc">
+  <div class="toc-wrap">
+    <div class="toc-title">Tartalomjegyzék</div>
+    <ul class="toc-list">
+      <li><a href="#s1"><span>Tippelhető események</span><span class="num">01</span></a></li>
+      <li><a href="#s2"><span>Tippelési határidő</span><span class="num">02</span></a></li>
+      <li><a href="#s3"><span>Pontozás meccsenként</span><span class="num">03</span></a></li>
+      <li><a href="#s4"><span>Szakasz-szorzók</span><span class="num">04</span></a></li>
+      <li><a href="#s5"><span>Hosszú távú tippek</span><span class="num">05</span></a></li>
+      <li><a href="#s6"><span>Joker tippek</span><span class="num">06</span></a></li>
+      <li><a href="#s7"><span>Csapatok</span><span class="num">07</span></a></li>
+      <li><a href="#s8"><span>Ranglisták</span><span class="num">08</span></a></li>
+      <li><a href="#s9"><span>Holtverseny-eldöntés</span><span class="num">09</span></a></li>
+      <li><a href="#s10"><span>Értesítések</span><span class="num">10</span></a></li>
+      <li><a href="#s11"><span>Különleges esetek</span><span class="num">11</span></a></li>
+    </ul>
+  </div>
+</section>
+
+<!-- SECTION 1 -->
+<section class="section" id="s1">
+  <div class="section-wrap">
+    <div class="section-head">
+      <div class="section-num">01</div>
+      <div class="section-label">Tippelhető események</div>
+    </div>
+    <div class="section-body">
+      <h2>Mire lehet tippelni</h2>
+      <h3>Meccsenkénti tippek</h3>
+      <p>A torna <strong>minden mérkőzésére</strong> le lehet adni tippet. A tipp a 90 perc rendes játékidő végén kialakult eredményre vonatkozik (FIFA hivatalos eredmény). Hosszabbítás és büntetőpárbaj nem számít bele.</p>
+      <h3>Hosszú távú tippek</h3>
+      <p>A torna első mérkőzésének kezdete előtt egyszer leadható, később nem módosítható:</p>
+      <ul>
+        <li>Torna győztese</li>
+        <li>Gólkirály <em>(holtverseny esetén a hivatalos FIFA-sorrend dönt)</em></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- SECTION 2 -->
+<section class="section" id="s2">
+  <div class="section-wrap">
+    <div class="section-head">
+      <div class="section-num green">02</div>
+      <div class="section-label">Tippelési határidő</div>
+    </div>
+    <div class="section-body">
+      <h2>Mikor zárul a tippelés</h2>
+      <p>Meccs-tippet a mérkőzés kezdete előtt <strong>1 órával</strong> lehet leadni vagy módosítani. Utána a tippelés zárul, a leadott tippek mindenki számára láthatóvá válnak. A határidő előtt minden tipp titkos.</p>
+      <p>A határidő előtt <strong>látható, ki tippelt már</strong> (név melletti jelzés a csapat- és játékoslistában), de hogy <em>mit</em>, az csak a zárás után derül ki — így mindenki nyomon követheti, ki az, akit még ráncigálni kell, anélkül hogy bárki ellesné a többiek tippjeit.</p>
+      <div class="callout">
+        <strong>Elfelejtett tipp</strong>
+        Aki nem tippel egy meccsre: 0 pont, nincs negatív pontozás. A büntetés a kihagyott lehetőség.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SECTION 3 -->
+<section class="section" id="s3">
+  <div class="section-wrap">
+    <div class="section-head">
+      <div class="section-num">03</div>
+      <div class="section-label">Pontozás meccsenként</div>
+    </div>
+    <div class="section-body">
+      <h2>Csak a legjobb kategória számít</h2>
+      <p>Minden mérkőzésre <strong>egyetlen</strong> kategória pontját kapod, mégpedig a legmagasabb értékűt, amibe a tipped beleillik.</p>
+
+      <table class="points-table">
+        <thead>
+          <tr><th>Kategória</th><th>Pont</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Pontos eredmény</td><td>10</td></tr>
+          <tr><td>Helyes győztes + helyes gólkülönbség <em>(pl. 2-1 tipp, 3-2 eredmény)</em></td><td>5</td></tr>
+          <tr><td>Helyes győztes</td><td>3</td></tr>
+          <tr><td>Helyes döntetlen, rossz gólszámmal <em>(pl. 1-1 tipp, 2-2 eredmény)</em></td><td>3</td></tr>
+          <tr><td>Csak az egyik csapat gólszáma stimmel</td><td>1</td></tr>
+          <tr class="zero"><td>Semmi nem stimmel</td><td>0</td></tr>
+        </tbody>
+      </table>
+
+      <p>Az „egyik csapat gólszáma stimmel" <strong>csapatra szabott</strong>: a hazaira hazai tipp, a vendégre vendég tipp. Nem cserélhető össze.</p>
+    </div>
+  </div>
+</section>
+
+<!-- SECTION 4 -->
+<section class="section" id="s4">
+  <div class="section-wrap">
+    <div class="section-head">
+      <div class="section-num green">04</div>
+      <div class="section-label">Szakasz-szorzók</div>
+    </div>
+    <div class="section-body">
+      <h2>A vége felé nő a tét</h2>
+      <p>A meccsre kapott pontot az alábbi szorzóval szorozzuk. A 48 csapatos lebonyolítás miatt a kieséses szakasz a tizenhatoddöntővel indul. A torna előrehaladtával a tippek súlya egyre nagyobb — egy döntős telitalálat háromszorosa egy csoportkörös telitalálatnak.</p>
+
+      <div class="mult-grid">
+        <div class="mult-card">
+          <div class="stage">Csoportkör</div>
+          <div class="value">1×</div>
+        </div>
+        <div class="mult-card">
+          <div class="stage">Tizenhatoddöntő</div>
+          <div class="value">1.5×</div>
+        </div>
+        <div class="mult-card">
+          <div class="stage">Nyolcaddöntő</div>
+          <div class="value">1.5×</div>
+        </div>
+        <div class="mult-card">
+          <div class="stage">Negyeddöntő</div>
+          <div class="value">2×</div>
+        </div>
+        <div class="mult-card">
+          <div class="stage">Elődöntő</div>
+          <div class="value">2.5×</div>
+        </div>
+        <div class="mult-card">
+          <div class="stage">Bronzmeccs</div>
+          <div class="value">2×</div>
+        </div>
+        <div class="mult-card final">
+          <div class="stage">Döntő</div>
+          <div class="value">3×</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SECTION 5 -->
+<section class="section" id="s5">
+  <div class="section-wrap">
+    <div class="section-head">
+      <div class="section-num">05</div>
+      <div class="section-label">Hosszú távú tippek</div>
+    </div>
+    <div class="section-body">
+      <h2>A nagy fogadások</h2>
+      <p>Ezeket csak a torna kezdete előtt lehet leadni. Egyszer, és nincs módosítás. A pontok a torna végén kerülnek jóváírásra.</p>
+
+      <div class="long-bets">
+        <div class="long-bet gold">
+          <div class="bet-label">A nagy díj</div>
+          <div class="bet-title">Torna győztese</div>
+          <div class="bet-points">50<small>pont</small></div>
+        </div>
+        <div class="long-bet">
+          <div class="bet-label">A gólvágó</div>
+          <div class="bet-title">Gólkirály</div>
+          <div class="bet-points">30<small>pont</small></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SECTION 6 -->
+<section class="section" id="s6">
+  <div class="section-wrap">
+    <div class="section-head">
+      <div class="section-num green">06</div>
+      <div class="section-label">Joker tippek</div>
+    </div>
+    <div class="section-body">
+      <h2>3 lapod van. Tedd jól ki.</h2>
+      <p>Mindenki <strong>3 jokert</strong> kap a tornára. Egy jokert egy meccsre lehet eljátszani, legkésőbb a tippelési határidőig. A jokeres meccsen szerzett pont <strong>duplázódik</strong> (a szakasz-szorzó után).</p>
+      <ul>
+        <li>Rossz tippnél is jokert vesztesz — valódi kockázat.</li>
+        <li>Egy meccsre csak egy joker tehető.</li>
+        <li><strong>Joker kizárólag a csoportkör mérkőzéseire játszható ki</strong> — a kieséses szakaszban már nem.</li>
+      </ul>
+      <div class="callout">
+        <strong>Tipp</strong>
+        A joker akkor a legjobb, ha tudod, kire teszed. Egy szoros csoport utolsó fordulójában, vagy egy formában lévő csapat nyitómeccsén — ezek a klasszikus joker-pillanatok.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SECTION 7 -->
+<section class="section" id="s7">
+  <div class="section-wrap">
+    <div class="section-head">
+      <div class="section-num">07</div>
+      <div class="section-label">Csapatok</div>
+    </div>
+    <div class="section-body">
+      <h2>4 fő, ebből 3 számít</h2>
+      <p><strong>Méret:</strong> 4 fős csapatok. Mindenki csak egy csapatban szerepelhet.</p>
+
+      <h3>Csapat életciklus</h3>
+      <p>A csapatok a torna kezdetéig állnak össze. Bárki létrehozhat csapatot és meghívhat másokat — <strong>nincs kapitány</strong>, minden tag egyenrangú, mindenki saját jogon tippel, és bárki módosíthatja a csapat nevét vagy az AI tag beállítását, amíg a csapat nyitva van.</p>
+      <p>A torna első mérkőzésének sípszavakor minden csapat <strong>véglegesen lezárul</strong>: a tagok nem cserélhetők, új tag nem csatlakozhat, senki nem léphet ki, a csapat nem oszlatható fel, és az AI mód is fixálódik.</p>
+      <p>Az a csapat, amelyik a torna kezdetére <strong>nem ér el 4 főt</strong>, a csapat-ranglistából kiesik — a tagjai csak az egyéni ranglistán versenyeznek tovább.</p>
+      <p>Ha egy tag a torna közben „eltűnik" (nem tippel többé), a csapat 4 fős marad, de az ő pontja 0 lesz minden hátralévő meccsen. A „legjobb 3" szabály miatt ez gyakorlatilag 3 fős csapatot eredményez — ő minden meccsen automatikusan kiesik a számításból.</p>
+
+      <h3>AI csapattag</h3>
+      <p>Csapatonként legfeljebb <strong>1 AI tag</strong> lehet a 4-ből. A csapat saját nevet adhat neki, de a felületen mindenhol külön jelölés (ikon vagy „AI" címke) mutatja, hogy ő mesterséges játékos. Az AI minden meccsre automatikusan tippel, beállítható „vállalkozószellem" szinttel:</p>
+
+      <div class="ai-modes">
+        <div class="ai-mode cons">
+          <div class="mode-name">Konzervatív</div>
+          <div class="mode-desc">Ranglista és forma szerint tippel, szűk gólkülönbséggel, ritkán döntetlen.</div>
+        </div>
+        <div class="ai-mode bal">
+          <div class="mode-name">Kiegyensúlyozott</div>
+          <div class="mode-desc">A valószínű eredményt adja, néha mer meglepetésre menni.</div>
+        </div>
+        <div class="ai-mode bold">
+          <div class="mode-name">Merész</div>
+          <div class="mode-desc">Gyakrabban tippel döntetlent, meglepetést, magasabb gólszámokat.</div>
+        </div>
+      </div>
+
+      <p>A beállítást a torna kezdete előtt kell rögzíteni, később nem módosítható. Az AI tippjéhez rövid indoklás is jár, ami a határidő után válik láthatóvá.</p>
+
+      <div class="callout">
+        <strong>AI hibatűrés</strong>
+        Ha az AI nem ad érvényes tippet a határidőig (provider hiba, hibás válasz), a rendszer automatikusan <strong>1–1-et</strong> rögzít helyette, „AI-fallback" jelöléssel. Az AI tehát sosem „felejti el" a meccset, de a fallback-tippek megkülönböztethetőek a valódi predikcióktól.
+      </div>
+
+      <h3>Csapat pontszáma meccsenként</h3>
+      <p>A 4 tag pontjai közül a <strong>legjobb 3</strong> összege számít. A leggyengébb tag eredménye automatikusan kiesik az adott meccsen.</p>
+
+      <div class="team-diagram">
+        <div class="team-row">
+          <div class="player"><div class="role">Tag 1</div>András · 7 pt</div>
+          <div class="player"><div class="role">Tag 2</div>Bea · 10 pt</div>
+          <div class="player ai"><div class="role">AI Tag</div>RoboFoci · 5 pt</div>
+          <div class="player dropped"><div class="role">Tag 4</div>Dani · 0 pt</div>
+        </div>
+        <div class="team-caption">Példa egy meccsre · csapat összesen: 22 pont · áthúzva: legrosszabb (kiesik)</div>
+      </div>
+
+      <p>Az AI tag így akkor éri meg, ha legalább a középmezőnyben teljesít — különben minden meccsen ő esik ki, és lényegében 3 fős csapatként versenyeztek.</p>
+
+      <p>A hosszú távú tippek és jokerek pontjai a csapatszámításban szintén a „legjobb 3" logika szerint kerülnek be: minden tag saját jogon játszhat velük, de egy adott tipp pontja csak akkor kerül a csapat összesébe, ha a tag az adott meccsen vagy a torna végi elszámoláson a top 3-ban van.</p>
+    </div>
+  </div>
+</section>
+
+<!-- SECTION 8 -->
+<section class="section" id="s8">
+  <div class="section-wrap">
+    <div class="section-head">
+      <div class="section-num green">08</div>
+      <div class="section-label">Ranglisták</div>
+    </div>
+    <div class="section-body">
+      <h2>Két párhuzamos verseny</h2>
+      <ul>
+        <li><strong>Egyéni ranglista:</strong> minden játékos összes pontja (meccsek + jokerek + hosszú tippek).</li>
+        <li><strong>Csapat ranglista:</strong> meccsenként a legjobb 3 tag pontjának összege, plusz a hosszú tippek és jokerek „legjobb 3" logikája szerint.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- SECTION 9 -->
+<section class="section" id="s9">
+  <div class="section-wrap">
+    <div class="section-head">
+      <div class="section-num">09</div>
+      <div class="section-label">Holtverseny</div>
+    </div>
+    <div class="section-body">
+      <h2>Ha ketten ugyanott állnak</h2>
+      <p>Pontegyenlőség esetén, ebben a sorrendben:</p>
+      <ul>
+        <li>Pontos eredmény tippek száma <em>(10 pontos találatok)</em></li>
+        <li>Helyes torna győztese tipp</li>
+        <li>Helyes gólkirály tipp</li>
+        <li>Leghosszabb sorozat, amikor egymás utáni meccseken legalább 3 pontot szerzett</li>
+      </ul>
+      <p>Ha mind a négy szempont után is döntetlen az állás, a játékosok <strong>megosztott helyezést</strong> kapnak — mindketten ugyanazon a helyen szerepelnek a ranglistán.</p>
+    </div>
+  </div>
+</section>
+
+<!-- SECTION 10 -->
+<section class="section" id="s10">
+  <div class="section-wrap">
+    <div class="section-head">
+      <div class="section-num green">10</div>
+      <div class="section-label">Értesítések</div>
+    </div>
+    <div class="section-body">
+      <h2>Sose maradj le egy tippről</h2>
+      <ul>
+        <li><strong>24 órával meccs előtt:</strong> emlékeztető azoknak, akik még nem tippeltek.</li>
+        <li><strong>2 órával meccs előtt:</strong> utolsó figyelmeztetés.</li>
+        <li><strong>Meccs után:</strong> pontösszesítő.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- SECTION 11 -->
+<section class="section" id="s11">
+  <div class="section-wrap">
+    <div class="section-head">
+      <div class="section-num">11</div>
+      <div class="section-label">Különleges esetek</div>
+    </div>
+    <div class="section-body">
+      <h2>Amikor a valóság közbeszól</h2>
+      <h3>Késői csatlakozás</h3>
+      <p>A torna közben is be lehet lépni, a kimaradt meccsekért 0 pont jár. A 3 joker és a hosszú tippek nem visszamenőlegesek — aki a torna kezdete után csatlakozik, hosszú tippet már nem adhat le, és a jokereiből annyi vész el, ahány csoportkörös meccs már lezárult.</p>
+      <h3>Halasztott meccs</h3>
+      <p>Az új időpont előtti 1 óra a tippelési határidő. Akinek volt érvényes tippje az eredeti határidőre, az automatikusan átkerül, de módosítható az új határidőig.</p>
+      <h3>Megszakított vagy FIFA-által megítélt meccs</h3>
+      <p>Olyan meccs, ami megszakad és nem fejeződik be, vagy amit a FIFA „odaítél" valamelyik csapatnak (forfeit, walkover): a <strong>FIFA hivatalos végeredménye</strong> számít — gyakran 3–0 a vétlen csapat javára. A pontozás úgy megy, mintha ez lett volna a 90 perces eredmény.</p>
+      <h3>Törölt meccs</h3>
+      <p>Olyan meccs, amit egyáltalán nem játszanak le: mindenki 0 pontot kap, a meccsre eljátszott joker visszajár.</p>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer class="footer">
+  <div class="footer-mark">Hajrá<br><span>tippelők!</span></div>
+  <div class="footer-meta">Foci VB Tippjáték · Hivatalos szabályzat · v1.0</div>
+</footer>
+
+</body>
+</html>

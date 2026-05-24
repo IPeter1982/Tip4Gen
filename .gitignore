@@ -1,0 +1,82 @@
+# ─── .NET ───
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+[Ll]og/
+[Ll]ogs/
+*.user
+*.suo
+*.userprefs
+.vs/
+*.swp
+*.swo
+*.userosscache
+*.sln.docstates
+*.pidb
+*.svclog
+*.scc
+*.pfx
+*.publishsettings
+project.lock.json
+project.fragment.lock.json
+artifacts/
+.idea/
+*.received.*
+
+# Rider
+.idea/
+*.sln.iml
+
+# ─── Node / Vite / React ───
+node_modules/
+dist/
+dist-ssr/
+.vite/
+*.local
+.eslintcache
+.parcel-cache/
+.turbo/
+
+# ─── Logs ───
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ─── Env / secrets ───
+.env
+.env.local
+.env.*.local
+.env.production
+appsettings.Production.json
+appsettings.*.Production.json
+secrets.json
+**/secrets/
+Tip4Gen.txt
+
+# ─── Claude Code local state ───
+.claude/
+
+# ─── OS ───
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# ─── Editors ───
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# ─── Tooling caches ───
+.coverage/
+coverage/
+TestResults/
+*.lcov
+
+# ─── EF migrations bundle artifacts ───
+*.efbundle*
