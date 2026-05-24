@@ -1,16 +1,18 @@
 # Implementation Plan — Foci VB Tippjáték
 
 **Target launch:** 2026-06-11 (World Cup opener kickoff).
-**Today:** 2026-05-24 → **18 days runway.**
+**Today:** 2026-05-25 → **17 days runway.**
 **Scope:** 50–200 users, friends-and-extended-circle.
 **Stack:** per `tech-stack.md` — Vite/React SPA + ASP.NET Core 9 API (planned 10, using 9 for speed) + PostgreSQL + Auth0 + Azure.
 
 ## Status snapshot
 
 - **Phase 0:** ✅ done (committed `de66246`). Local Postgres 18 is in use instead of Docker.
-- **Phase 1:** ✅ code-complete. EF Core + Npgsql + `users` table migrated to local `tip4gen_dev`, JwtBearer/Auth0 wired (deny-all until configured), `CurrentUserService` upserts by `sub` claim, `/api/me` + `/api/admin/me` return 200/401/403 correctly, frontend Auth0Provider + Topbar + `/me` protected route shipped. **Blocked:** user must create the Auth0 tenant and populate `Auth0:Domain/Audience/AdminSub` (backend user-secrets) and `VITE_AUTH0_*` (`web/.env.local`).
+- **Phase 1:** ✅ done end-to-end (commits `fe93917` + `f094978`). Auth0 tenant `dev-yifcd0c5p4s0wcj5.eu.auth0.com` live, real Google login → `/api/me` returns user row with `isAdmin: true` for `google-oauth2|115365131932488818447`.
 - **Phases 2–11:** not started.
 - **Open decisions:** hosting swap (Fly.io+Vercel+Neon vs Azure) — see callouts. Auth decision is locked: **Auth0**.
+- **Football data source:** api-football Free plan (100 req/day) verified. WC 2022 (64 fixtures, full results) accessible; WC 2026 is `coverage.fixtures=false` on Free → **dev against `season=2022`, swap to 2026 once we upgrade or change provider**. Admin manual-entry fallback in Phase 8 is now load-bearing, not optional.
+- **Next:** Phase 2 (match data + fixtures), unblocked.
 
 ## How to read this plan
 
@@ -42,66 +44,68 @@ If you're already comfortable with the Azure + Auth0 path, keep it. Otherwise, s
 - [x] End-to-end verified: backend boots on `:5050`, frontend on `:5173`, landing page shows live `/api/health` JSON
 - [x] Both apps build clean (`dotnet build backend/Tip4Gen.sln` + `npm run build --prefix web`)
 
-**Deferred to Phase 1 (when login UI lands):**
+**Done in Phase 1:**
 
-- [ ] `shadcn` init — pulled forward only once auth screens need components
+- [x] Auth0 tenant + SPA app + API audience (see Phase 1 below)
+- [x] First git commit (`de66246`)
 
-**Blocked on external accounts — DO BEFORE PHASE 1 (or swap stack first):**
+**Deferred to a later phase:**
 
-- [ ] Auth0 tenant: create app (SPA + API audience), capture domain + client IDs — *or* swap to Better Auth (Skill installed locally) and skip this
-- [ ] Football API account (API-Football or chosen alternative) — test one fixture-list request
-- [ ] AI provider key (Anthropic or OpenAI) — test one chat completion
-- [ ] Production env: provision DB + API host + SPA host (Azure path *or* the fallback stack from the callouts)
-- [ ] CI: GitHub Actions deploys both apps on push to `main` (blocked on hosting choice)
-- [ ] Secrets: load DB connection string + Auth0 audience + API keys from Key Vault (or platform env vars)
-- [ ] First git commit of Phase 0 scaffolding (not yet made)
+- [ ] `shadcn` init — pull in when an auth screen or admin form needs a component library (Phase 8 most likely)
+
+**Blocked on external accounts — DO BEFORE PHASE 6 / 11:**
+
+- [x] Football API account: api-football Free plan verified, key stored in user-secrets (`FootballApi:*`). League=1, dev season=2022 (2026 needs paid plan; admin manual entry fills the gap).
+- [ ] AI provider key (Anthropic or OpenAI) — test one chat completion. **Needed for Phase 6.**
+- [ ] Production env: provision DB + API host + SPA host (Azure path *or* the fallback stack from the callouts). **Needed for Phase 11.**
+- [ ] CI: GitHub Actions deploys both apps on push to `main` (blocked on hosting choice). **Needed for Phase 11.**
+- [ ] Secrets in prod: DB connection string + Auth0 audience + API keys from Key Vault (or platform env vars). **Needed for Phase 11.**
 
 **Done when:** `git push` → live site shows "hello", backend `/health` returns 200, both reachable from your phone.
 
 ---
 
-# Phase 1 — Auth + user model (Day 2)
+# Phase 1 — Auth + user model (Day 2) — ✅ DONE
 
-**Goal:** users can log in, the backend knows who they are.
+**Shipped 2026-05-24 → 25:**
 
-**Code shipped 2026-05-24:**
-
-- [x] Frontend: `@auth0/auth0-react` provider (`AuthProvider`), login/logout buttons in Topbar, `RequireAuth` route guard, `useApi` hook attaches `Authorization: Bearer` automatically
+- [x] Frontend: `@auth0/auth0-react` provider (`AuthProvider`), login/logout buttons in Topbar, `RequireAuth` route guard, `useApi` hook attaches `Authorization: Bearer` automatically. Vite pinned to `--strictPort` so the callback URL never drifts.
 - [x] Backend: `JwtBearer` middleware validating Auth0 tokens against JWKS via `services.AddAuth0(...)`. When Auth0 isn't configured, all `[Authorize]` endpoints return 401 (deny-all `SignatureValidator`) instead of 500.
-- [x] DB: `users` table — `id` (UUID), `auth0_sub` (unique, max 255), `display_name` (max 120), `created_at` (timestamptz). EF migration `InitialUsers` applied.
-- [x] `CurrentUserService.GetOrCreateAsync` — upserts user by `sub` claim, takes display name from `name`/`nickname`/`email`/`sub` in that order.
+- [x] DB: `users` table — `id` (UUID), `auth0_sub` (unique, max 255), `display_name` (max 120), `created_at` (timestamptz). EF migration `InitialUsers` applied to local Postgres 18.
+- [x] `CurrentUserService.GetOrCreateAsync` — upserts user by `sub` claim, takes display name from `name`/`nickname`/`email`/`sub` in that order. Looks up sub under both `"sub"` and `ClaimTypes.NameIdentifier` (ASP.NET remaps by default).
 - [x] `GET /api/me` returns id, displayName, auth0Sub, createdAt, isAdmin.
-- [x] Frontend: Topbar shows `user.name`/`email`/`sub` when logged in.
-- [x] Single admin: `Auth0:AdminSub` config key, `RequireAdmin` policy denies-all when unset.
+- [x] Frontend: Topbar shows `user.name`/`email`/`sub` when logged in; surfaces `useAuth0().error` so silent failures are visible.
+- [x] Single admin: `Auth0:AdminSub` config key, `RequireAdmin` policy denies-all when unset. Currently set to `google-oauth2|115365131932488818447`.
 - [x] `GET /api/admin/me` returns 200 for admin, 403 for non-admin, 401 unauthenticated. Verified.
+- [x] Auth0 tenant configured: SPA app with callback/logout/web-origin `http://localhost:5173`, API with identifier `https://api.tip4gen.local`, "Allow Skipping User Consent" on, API authorized for the SPA via the Application → APIs toggle.
+- [x] User-secrets set: `Auth0:Domain`, `Auth0:Audience`, `Auth0:AdminSub`, `ConnectionStrings:AppDb`. Frontend `web/.env.local` populated.
 
-**Blocked on Auth0 tenant setup (one-time, ~30 min):**
+**Lessons banked (see commit `f094978` for the fixes):**
 
-- [ ] Create Auth0 tenant (EU region recommended)
-- [ ] SPA application — Allowed Callback URLs `http://localhost:5173`, Allowed Logout URLs `http://localhost:5173`, Allowed Web Origins `http://localhost:5173`
-- [ ] API — set Identifier (this becomes `audience`, e.g. `https://api.tip4gen.local`), RS256 signing
-- [ ] Backend user-secrets: `Auth0:Domain`, `Auth0:Audience`, `Auth0:AdminSub` (your `sub` after first login)
-- [ ] Frontend `web/.env.local` from `.env.local.example` with `VITE_AUTH0_*` values
-
-**Done when:** you log in, your name shows up, and `/api/admin/me` returns 200 only for your account.
+- Auth0's leading-/trailing-space typo in the API identifier is silent and unfixable (identifiers can't be edited) — delete and recreate.
+- "Allow Skipping User Consent" alone isn't enough; the application also needs the API enabled in **Application → APIs** tab.
+- ASP.NET JWT handler remaps `sub` → `nameidentifier` by default; either disable mapping or look up both names.
+- Auth0Provider must not send an empty `audience` — Auth0 responds "Service not found".
 
 ---
 
 # Phase 2 — Match data + fixtures (Day 3–4)
 
-**Goal:** every WC 2026 match exists in the DB with correct stage, kickoff, and FIFA ID.
+**Goal:** every tournament match exists in the DB with correct stage, kickoff, and external ID.
 
-- [ ] DB schema: `tournaments`, `stages` (csoport, R32, R16, QF, SF, bronze, döntő), `teams_national`, `matches` (home/away/kickoff_utc/stage/status/score)
-- [ ] Football API client wrapped in `IHttpClientFactory` + Polly retry/circuit-breaker
-- [ ] Seed script: pull WC 2026 fixtures from football API → populate `matches`
-- [ ] Manual sanity-check: confirm all 104 matches loaded, kickoffs in UTC, stages tagged correctly (especially the R32 round)
-- [ ] Match status poller: `BackgroundService` that refreshes match status every N minutes during the tournament
+**Dev data:** until we upgrade api-football (or wire a paid alt), seed against **WC 2022** (`season=2022`, 64 matches, real scores). Schema must support both the 2022 32-team format (no R32) and the 2026 48-team format (groups → R32 → R16 → QF → SF → bronze/final). Provider abstraction lets us swap data source without touching consumers.
+
+- [ ] DB schema: `tournaments`, `stages` (csoport, R32, R16, QF, SF, bronze, döntő), `teams_national`, `matches` (home/away/kickoff_utc/stage/status/score, `external_id` for the provider's fixture id)
+- [ ] Football API client wrapped in `IHttpClientFactory` + Polly retry/circuit-breaker. `IFootballDataProvider` interface; api-football implementation reads `FootballApi:*` from config.
+- [ ] Seed script / admin endpoint: pull league=`FootballApi:LeagueId`, season=`FootballApi:Season` fixtures → upsert matches by `external_id` (idempotent re-run)
+- [ ] Manual sanity-check: matches loaded, kickoffs in UTC, stage names normalize correctly across years
+- [ ] Match status poller: `BackgroundService` that refreshes match status every N minutes during the tournament. **Honor the 100 req/day quota** — at 1 poll/15min that's 96/day, just under.
 - [ ] When a match enters `finished` state and has a final score: emit a domain event (`MatchFinalized`) to trigger scoring later
 - [ ] DB index on `matches(kickoff_utc)` and `matches(status)`
 
-**Done when:** all 104 matches in DB, status auto-updates from the API, you can query "next 5 matches" in under 50ms.
+**Done when:** all WC 2022 matches in DB via the seed, status query for a single tournament returns in <50ms, the poller can be enabled/disabled by config without breaking tests.
 
-**[CRITICAL]** — without this, nothing else works.
+**[CRITICAL]** — without this, nothing else works. Manual admin entry (Phase 8) is the **mandatory fallback** if we don't pay for 2026 coverage by launch.
 
 ---
 

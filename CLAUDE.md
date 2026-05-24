@@ -12,16 +12,24 @@ Hungarian-language Football World Cup tipping game web app. Target launch: **202
 
 ```
 backend/                    ASP.NET Core 9 solution (planned 10, on 9 for speed)
-  src/Tip4Gen.Api           Controllers, Program.cs, Serilog, OpenAPI
+  src/Tip4Gen.Api           Controllers, Program.cs, Serilog, OpenAPI, Auth0
+    Auth/                   Auth0Options, AuthExtensions, CurrentUserService
+    Controllers/            HealthController, MeController, AdminController
   src/Tip4Gen.Domain        Pure domain types — no EF, no ASP.NET refs
-  src/Tip4Gen.Infrastructure  EF Core, external clients (planned)
-  src/Tip4Gen.Workers       BackgroundService host (planned)
+    Users/User.cs
+  src/Tip4Gen.Infrastructure  EF Core, external clients
+    Persistence/AppDbContext.cs + Migrations/
+    DependencyInjection.cs  AddInfrastructure(IConfiguration)
+  src/Tip4Gen.Workers       BackgroundService host (poller lives here, Phase 2)
   tests/Tip4Gen.Domain.Tests  xUnit
 web/                        Vite + React 19 + TS frontend
-  src/App.tsx               Landing page (Phase 0 health check)
-  src/main.tsx              React Router v7 root
+  src/auth/                 AuthProvider, RequireAuth, useApi, authConfig
+  src/components/Topbar.tsx
+  src/pages/{Home,Me}.tsx
+  src/main.tsx              <AuthProvider><BrowserRouter><App/>…
   src/index.css             Single line: @import "tailwindcss"
-  vite.config.ts            Dev proxy: /api → http://localhost:5050
+  vite.config.ts            port 5173, strictPort, dev proxy /api → :5050
+  .env.local                VITE_AUTH0_* (gitignored)
 ```
 
 Dependency direction: **Api → Infrastructure → Domain**; **Workers → Infrastructure**; **Tests → Domain**. Don't add ASP.NET or EF to Domain.
@@ -51,6 +59,23 @@ dotnet test backend/Tip4Gen.sln
 - **CORS** policy applies to non-proxied paths only; in dev, Vite proxies `/api` so CORS rarely fires.
 - **Time zones:** all deadlines and timestamps stored in **UTC**, displayed in **Europe/Budapest**.
 - **Language:** UI copy is **Hungarian**. Code, identifiers, comments in English.
+- **Vite** must run with `strictPort: true` so the SPA always lives on `:5173` — Auth0 callback URLs are hard-coded to that port.
+
+## Secrets
+
+All dev credentials live in `dotnet user-secrets` for `backend/src/Tip4Gen.Api` — never in `appsettings.json`, never in the repo. Current keys:
+
+- `ConnectionStrings:AppDb` — local Postgres 18 (`tip4gen_dev` DB, `tip4gen` role)
+- `Auth0:Domain` / `Auth0:Audience` / `Auth0:AdminSub` — tenant `dev-yifcd0c5p4s0wcj5.eu.auth0.com`, audience `https://api.tip4gen.local`
+- `FootballApi:Provider` / `ApiKey` / `BaseUrl` / `LeagueId` / `Season` — api-football Free plan, league=1, season=2022 (see Data caveat below)
+
+Frontend env in `web/.env.local` (also gitignored): `VITE_AUTH0_DOMAIN`, `VITE_AUTH0_CLIENT_ID`, `VITE_AUTH0_AUDIENCE`.
+
+## Data caveat — WC 2026 fixtures
+
+api-football's Free plan does NOT include WC 2026 fixture coverage (`coverage.fixtures=false`). We develop against **WC 2022** (`FootballApi:Season=2022`, 64 real matches with results) so the scoring engine can be tested with real data. To launch with real 2026 fixtures we must either upgrade api-football, swap to a different provider, OR rely on admin manual entry (Phase 8) — that fallback is **load-bearing**, not optional.
+
+Schema must accommodate both formats: 2022 had 32 teams (no R32 round), 2026 has 48 teams with groups → R32 → R16 → QF → SF → bronze → final.
 
 ## Scoring rules — quick reference (full detail in guide §3–§9)
 
@@ -65,11 +90,19 @@ dotnet test backend/Tip4Gen.sln
 
 ## Admin
 
-Single admin (the project owner). Gated by Auth0 `sub` claim matching `ADMIN_AUTH0_SUB` env var. Every `/api/admin/*` write must record a row in `admin_audit` in the same transaction (before/after JSON).
+Single admin (the project owner). Gated by Auth0 `sub` claim matching the `Auth0:AdminSub` user-secret. Every `/api/admin/*` write must record a row in `admin_audit` in the same transaction (before/after JSON).
+
+## Auth gotchas (learned the hard way — see commit f094978)
+
+- ASP.NET's JWT handler **remaps `sub` → `ClaimTypes.NameIdentifier`** by default. `CurrentUserService.Auth0Sub` looks under both names; don't "simplify" it back to one lookup.
+- Auth0 silently rejects an empty `audience` parameter with "Service not found". The frontend `AuthProvider` only spreads `audience` when it's truthy — don't pass `audience: ''`.
+- Auth0 API identifiers **cannot be edited after creation**. Whitespace typos require delete + recreate.
+- Even with "Allow Skipping User Consent" on, the SPA must be **explicitly enabled** for the API under **Application → APIs** in the Auth0 dashboard.
 
 ## Things not to do
 
 - Don't introduce PostCSS or a `tailwind.config.js` — Tailwind v4 doesn't need them.
 - Don't add EF Core or ASP.NET references to `Tip4Gen.Domain`.
+- Don't put credentials in `appsettings.json` or commit `web/.env.local` — use `dotnet user-secrets` and `.env.local` (both gitignored).
 - Don't fabricate dates from training data — today's date comes from the system context. WC 2026 starts **2026-06-11**.
 - Don't widen scope mid-phase. If something doesn't fit in the current phase, note it in the plan and move on.
