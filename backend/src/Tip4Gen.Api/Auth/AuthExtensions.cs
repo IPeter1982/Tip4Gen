@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
 
 namespace Tip4Gen.Api.Auth;
@@ -9,6 +10,10 @@ public static class AuthExtensions
 
     public static IServiceCollection AddAuth0(this IServiceCollection services, IConfiguration configuration)
     {
+        // Keep Auth0's original claim names ("sub", "name", etc.) instead of letting
+        // ASP.NET remap them to legacy SOAP-style URIs.
+        JsonWebTokenHandler.DefaultMapInboundClaims = false;
+
         var options = configuration.GetSection(Auth0Options.SectionName).Get<Auth0Options>() ?? new Auth0Options();
         services.AddSingleton(options);
 

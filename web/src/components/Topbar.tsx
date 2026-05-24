@@ -3,7 +3,7 @@ import { Link } from 'react-router'
 import { isAuthConfigured } from '../auth/authConfig'
 
 export function Topbar() {
-  const { isAuthenticated, isLoading, user, loginWithRedirect, logout } = useAuth0()
+  const { isAuthenticated, isLoading, user, loginWithRedirect, logout, error } = useAuth0()
 
   return (
     <header className="border-b-2 border-stone-900 bg-white">
@@ -18,6 +18,14 @@ export function Topbar() {
         <div className="ml-auto flex items-center gap-3">
           {!isAuthConfigured && (
             <span className="text-xs font-mono text-orange-600">Auth0 nincs beállítva</span>
+          )}
+          {error && (
+            <span className="text-xs font-mono text-red-700 truncate max-w-[400px]" title={error.message}>
+              auth0 hiba: {error.message}
+            </span>
+          )}
+          {isAuthConfigured && isLoading && (
+            <span className="text-xs font-mono text-stone-500">betöltés…</span>
           )}
           {isAuthConfigured && !isLoading && !isAuthenticated && (
             <button

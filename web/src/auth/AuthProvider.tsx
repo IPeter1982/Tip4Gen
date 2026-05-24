@@ -13,7 +13,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       clientId={authConfig.clientId}
       authorizationParams={{
         redirect_uri: window.location.origin,
-        audience: authConfig.audience,
+        ...(authConfig.audience ? { audience: authConfig.audience } : {}),
       }}
       cacheLocation="localstorage"
     >

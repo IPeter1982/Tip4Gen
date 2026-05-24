@@ -4,5 +4,7 @@ export const authConfig = {
   audience: import.meta.env.VITE_AUTH0_AUDIENCE ?? '',
 }
 
-export const isAuthConfigured =
-  authConfig.domain.length > 0 && authConfig.clientId.length > 0 && authConfig.audience.length > 0
+// Audience is optional: without it, the SPA can still log in (ID token),
+// but the backend won't accept the access token until an Auth0 API
+// (audience) is created and set on both sides.
+export const isAuthConfigured = authConfig.domain.length > 0 && authConfig.clientId.length > 0

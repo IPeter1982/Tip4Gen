@@ -9,7 +9,9 @@ public class CurrentUserService(AppDbContext db, IHttpContextAccessor httpContex
 {
     public bool IsAuthenticated => httpContextAccessor.HttpContext?.User?.Identity?.IsAuthenticated ?? false;
 
-    public string? Auth0Sub => httpContextAccessor.HttpContext?.User?.FindFirstValue("sub");
+    public string? Auth0Sub =>
+        httpContextAccessor.HttpContext?.User?.FindFirstValue("sub")
+        ?? httpContextAccessor.HttpContext?.User?.FindFirstValue(ClaimTypes.NameIdentifier);
 
     public bool IsAdmin =>
         IsAuthenticated
