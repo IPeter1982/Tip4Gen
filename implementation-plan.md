@@ -7,9 +7,10 @@
 
 ## Status snapshot
 
-- **Phase 0:** local scaffolding ✅ done — backend + frontend boot, `/api/health` proxied through Vite, both build clean. **Blocked items:** external accounts (Auth0, Football API, AI key, hosting) + CI workflow + first git commit. See Phase 0 below.
-- **Phases 1–11:** not started.
-- **Open decisions:** auth swap (Better Auth vs Auth0) and hosting swap (Fly.io+Vercel+Neon vs Azure) — see callouts below. Every day on the original stack costs ~0.5–1 day vs the lean alternative.
+- **Phase 0:** ✅ done (committed `de66246`). Local Postgres 18 is in use instead of Docker.
+- **Phase 1:** ✅ code-complete. EF Core + Npgsql + `users` table migrated to local `tip4gen_dev`, JwtBearer/Auth0 wired (deny-all until configured), `CurrentUserService` upserts by `sub` claim, `/api/me` + `/api/admin/me` return 200/401/403 correctly, frontend Auth0Provider + Topbar + `/me` protected route shipped. **Blocked:** user must create the Auth0 tenant and populate `Auth0:Domain/Audience/AdminSub` (backend user-secrets) and `VITE_AUTH0_*` (`web/.env.local`).
+- **Phases 2–11:** not started.
+- **Open decisions:** hosting swap (Fly.io+Vercel+Neon vs Azure) — see callouts. Auth decision is locked: **Auth0**.
 
 ## How to read this plan
 
@@ -63,14 +64,24 @@ If you're already comfortable with the Azure + Auth0 path, keep it. Otherwise, s
 
 **Goal:** users can log in, the backend knows who they are.
 
-- [ ] Frontend: `@auth0/auth0-react` provider, login/logout buttons, protected route guard
-- [ ] Backend: `JwtBearer` middleware validating Auth0 tokens against JWKS
-- [ ] DB: `users` table — `id` (UUID), `auth0_sub` (unique), `display_name`, `created_at`
-- [ ] On first authenticated request: upsert user keyed by `sub` claim (linking middleware or service)
-- [ ] `GET /api/me` endpoint returning current user
-- [ ] Frontend: show logged-in user's name in topbar
-- [ ] Single admin: env var `ADMIN_AUTH0_SUB`, backend policy `RequireAdmin` checking the claim
-- [ ] `GET /api/admin/me` returns 200 for admin, 403 for others
+**Code shipped 2026-05-24:**
+
+- [x] Frontend: `@auth0/auth0-react` provider (`AuthProvider`), login/logout buttons in Topbar, `RequireAuth` route guard, `useApi` hook attaches `Authorization: Bearer` automatically
+- [x] Backend: `JwtBearer` middleware validating Auth0 tokens against JWKS via `services.AddAuth0(...)`. When Auth0 isn't configured, all `[Authorize]` endpoints return 401 (deny-all `SignatureValidator`) instead of 500.
+- [x] DB: `users` table — `id` (UUID), `auth0_sub` (unique, max 255), `display_name` (max 120), `created_at` (timestamptz). EF migration `InitialUsers` applied.
+- [x] `CurrentUserService.GetOrCreateAsync` — upserts user by `sub` claim, takes display name from `name`/`nickname`/`email`/`sub` in that order.
+- [x] `GET /api/me` returns id, displayName, auth0Sub, createdAt, isAdmin.
+- [x] Frontend: Topbar shows `user.name`/`email`/`sub` when logged in.
+- [x] Single admin: `Auth0:AdminSub` config key, `RequireAdmin` policy denies-all when unset.
+- [x] `GET /api/admin/me` returns 200 for admin, 403 for non-admin, 401 unauthenticated. Verified.
+
+**Blocked on Auth0 tenant setup (one-time, ~30 min):**
+
+- [ ] Create Auth0 tenant (EU region recommended)
+- [ ] SPA application — Allowed Callback URLs `http://localhost:5173`, Allowed Logout URLs `http://localhost:5173`, Allowed Web Origins `http://localhost:5173`
+- [ ] API — set Identifier (this becomes `audience`, e.g. `https://api.tip4gen.local`), RS256 signing
+- [ ] Backend user-secrets: `Auth0:Domain`, `Auth0:Audience`, `Auth0:AdminSub` (your `sub` after first login)
+- [ ] Frontend `web/.env.local` from `.env.local.example` with `VITE_AUTH0_*` values
 
 **Done when:** you log in, your name shows up, and `/api/admin/me` returns 200 only for your account.
 

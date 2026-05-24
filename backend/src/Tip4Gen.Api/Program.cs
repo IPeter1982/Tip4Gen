@@ -1,4 +1,6 @@
 using Serilog;
+using Tip4Gen.Api.Auth;
+using Tip4Gen.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -7,6 +9,10 @@ builder.Host.UseSerilog((context, _, configuration) =>
 
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<Tip4Gen.Api.Auth.CurrentUserService>();
+builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddAuth0(builder.Configuration);
 
 const string DevCorsPolicy = "Dev";
 builder.Services.AddCors(options =>
@@ -24,6 +30,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseSerilogRequestLogging();
+app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
