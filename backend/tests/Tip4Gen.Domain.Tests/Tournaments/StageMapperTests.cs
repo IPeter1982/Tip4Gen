@@ -11,11 +11,26 @@ public class StageMapperTests
     [InlineData("Group L - 1", "L")]
     [InlineData("group h - 3", "H")]  // case insensitive
     [InlineData("  Group D - 2  ", "D")]  // surrounding whitespace
-    public void Group_labels_resolve_to_Group_with_extracted_code(string label, string expectedCode)
+    public void Group_labels_with_letter_resolve_to_Group_with_extracted_code(string label, string expectedCode)
     {
         var (stage, group) = StageMapper.FromProviderLabel(label);
         Assert.Equal(Stage.Group, stage);
         Assert.Equal(expectedCode, group);
+    }
+
+    [Theory]
+    [InlineData("Group Stage - 1")]
+    [InlineData("Group Stage - 2")]
+    [InlineData("Group Stage - 3")]
+    [InlineData("group stage - 1")]
+    [InlineData("  Group Stage - 2  ")]
+    public void Matchday_group_labels_resolve_to_Group_with_null_code(string label)
+    {
+        // api-football's WC fixtures use "Group Stage - N" — the group letter
+        // has to be enriched from /standings, not parsed from the round label.
+        var (stage, group) = StageMapper.FromProviderLabel(label);
+        Assert.Equal(Stage.Group, stage);
+        Assert.Null(group);
     }
 
     [Theory]

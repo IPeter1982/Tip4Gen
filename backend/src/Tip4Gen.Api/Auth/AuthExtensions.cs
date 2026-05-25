@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
@@ -53,7 +54,11 @@ public static class AuthExtensions
                 policy.RequireAuthenticatedUser();
                 if (!string.IsNullOrWhiteSpace(options.AdminSub))
                 {
-                    policy.RequireClaim("sub", options.AdminSub);
+                    // JwtBearer still remaps "sub" → ClaimTypes.NameIdentifier in some paths,
+                    // so check both — same pattern as CurrentUserService.Auth0Sub.
+                    policy.RequireAssertion(ctx =>
+                        ctx.User.FindFirstValue("sub") == options.AdminSub
+                        || ctx.User.FindFirstValue(ClaimTypes.NameIdentifier) == options.AdminSub);
                 }
                 else
                 {

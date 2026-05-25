@@ -4,8 +4,12 @@ namespace Tip4Gen.Domain.Tournaments;
 
 public static class StageMapper
 {
-    private static readonly Regex GroupLabel = new(
+    private static readonly Regex GroupLetterLabel = new(
         @"^\s*group\s+([a-l])\b",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Regex GroupMatchdayLabel = new(
+        @"^\s*group\s+stage\b",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     public static (Stage Stage, string? GroupCode) FromProviderLabel(string label)
@@ -13,9 +17,15 @@ public static class StageMapper
         if (string.IsNullOrWhiteSpace(label))
             throw new ArgumentException("Provider label must not be empty.", nameof(label));
 
-        var groupMatch = GroupLabel.Match(label);
-        if (groupMatch.Success)
-            return (Stage.Group, groupMatch.Groups[1].Value.ToUpperInvariant());
+        // "Group A - 1" → carries the letter in the label (Euros-style).
+        var letterMatch = GroupLetterLabel.Match(label);
+        if (letterMatch.Success)
+            return (Stage.Group, letterMatch.Groups[1].Value.ToUpperInvariant());
+
+        // "Group Stage - 1" → matchday-style (FIFA WC on api-football); group letter
+        // has to be enriched separately from /standings.
+        if (GroupMatchdayLabel.IsMatch(label))
+            return (Stage.Group, null);
 
         var normalized = label.Trim().ToLowerInvariant();
 

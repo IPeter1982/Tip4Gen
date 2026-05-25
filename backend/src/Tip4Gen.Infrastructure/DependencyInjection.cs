@@ -6,6 +6,7 @@ using Microsoft.Extensions.Options;
 using Tip4Gen.Domain.Football;
 using Tip4Gen.Infrastructure.Football;
 using Tip4Gen.Infrastructure.Persistence;
+using Tip4Gen.Infrastructure.Tournaments;
 
 namespace Tip4Gen.Infrastructure;
 
@@ -30,6 +31,8 @@ public static class DependencyInjection
                 http.DefaultRequestHeaders.Add("x-apisports-key", opts.ApiKey);
             })
             .AddStandardResilienceHandler();
+
+        services.AddScoped<IFixtureSeedService, FixtureSeedService>();
 
         return services;
     }
