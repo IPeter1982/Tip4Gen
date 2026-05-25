@@ -8,12 +8,12 @@ namespace Tip4Gen.Api.Controllers;
 [ApiController]
 [Route("api/admin/fixtures")]
 [Authorize(Policy = AuthExtensions.AdminPolicy)]
-public class FixturesAdminController(IFixtureSeedService seed) : ControllerBase
+public class FixturesAdminController(IFixtureSyncService sync) : ControllerBase
 {
     [HttpPost("seed")]
     public async Task<IActionResult> Seed(CancellationToken ct)
     {
-        var result = await seed.SeedAsync(ct);
+        var result = await sync.SyncAsync(includeTeamsRoster: true, ct);
         return Ok(result);
     }
 }

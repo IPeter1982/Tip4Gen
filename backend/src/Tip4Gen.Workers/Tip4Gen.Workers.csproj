@@ -4,7 +4,9 @@
     <TargetFramework>net9.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <UserSecretsId>dotnet-Tip4Gen.Workers-5d63aefc-6fb3-4aef-bc43-376456a50c49</UserSecretsId>
+    <!-- Share the API's user-secrets store so FootballApi:* and ConnectionStrings:AppDb
+         are available to the poller without duplicating secrets. -->
+    <UserSecretsId>f1078d9a-68d0-4476-9537-d89fb18e8a6f</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>

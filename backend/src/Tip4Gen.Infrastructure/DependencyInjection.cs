@@ -32,7 +32,7 @@ public static class DependencyInjection
             })
             .AddStandardResilienceHandler();
 
-        services.AddScoped<IFixtureSeedService, FixtureSeedService>();
+        services.AddScoped<IFixtureSyncService, FixtureSyncService>();
 
         return services;
     }

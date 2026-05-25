@@ -3,40 +3,53 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Tip4Gen.Domain.Football;
 using Tip4Gen.Domain.Tournaments;
+using Tip4Gen.Domain.Tournaments.Events;
 using Tip4Gen.Infrastructure.Football;
 using Tip4Gen.Infrastructure.Persistence;
 
 namespace Tip4Gen.Infrastructure.Tournaments;
 
-public record FixtureSeedResult(
+public record FixtureSyncResult(
     Guid TournamentId,
     int TeamsCreated,
     int TeamsUpdated,
     int MatchesCreated,
-    int MatchesUpdated);
+    int MatchesUpdated,
+    IReadOnlyList<Guid> FinalizedMatchIds);
 
-public interface IFixtureSeedService
+public interface IFixtureSyncService
 {
-    Task<FixtureSeedResult> SeedAsync(CancellationToken ct);
+    /// <summary>
+    /// Pulls fixtures (and optionally the teams roster) from the football provider
+    /// and upserts tournament/teams/matches. Idempotent. Dispatches MatchFinalized
+    /// for every match that transitioned to Finished during this run.
+    /// </summary>
+    /// <param name="includeTeamsRoster">When true, calls /teams as well as /fixtures.
+    /// The poller passes false to halve its API quota usage; missing teams are still
+    /// backfilled from the fixtures payload.</param>
+    Task<FixtureSyncResult> SyncAsync(bool includeTeamsRoster, CancellationToken ct);
 }
 
-public class FixtureSeedService(
+public class FixtureSyncService(
     IFootballDataProvider provider,
     AppDbContext db,
     IOptions<ApiFootballOptions> opts,
-    ILogger<FixtureSeedService> logger) : IFixtureSeedService
+    IEnumerable<IMatchFinalizedHandler> matchFinalizedHandlers,
+    ILogger<FixtureSyncService> logger) : IFixtureSyncService
 {
-    public async Task<FixtureSeedResult> SeedAsync(CancellationToken ct)
+    public async Task<FixtureSyncResult> SyncAsync(bool includeTeamsRoster, CancellationToken ct)
     {
         var leagueId = opts.Value.LeagueId;
         var season = opts.Value.Season;
 
-        var providerTeams = await provider.GetTeamsAsync(leagueId, season, ct);
         var providerFixtures = await provider.GetFixturesAsync(leagueId, season, ct);
-
         if (providerFixtures.Count == 0)
             throw new InvalidOperationException(
-                $"Provider returned no fixtures for league={leagueId}, season={season}. Refusing to seed an empty tournament.");
+                $"Provider returned no fixtures for league={leagueId}, season={season}. Refusing to sync an empty tournament.");
+
+        var providerTeams = includeTeamsRoster
+            ? await provider.GetTeamsAsync(leagueId, season, ct)
+            : Array.Empty<ProviderTeam>();
 
         var startsAt = providerFixtures.Min(f => f.KickoffUtc);
         var endsAt = providerFixtures.Max(f => f.KickoffUtc);
@@ -62,8 +75,8 @@ public class FixtureSeedService(
             UpsertTeam(pt.ExternalId, pt.Name, pt.Code, teamsByExternalId, ref teamsCreated, ref teamsUpdated);
         }
 
-        // Some teams may appear in fixtures but not in the /teams payload (rare, but possible
-        // mid-tournament if a late qualifier is added). Backfill from the fixtures pass.
+        // Backfill any teams that appear in fixtures but were missing from /teams
+        // (or skipped because includeTeamsRoster was false).
         foreach (var pf in providerFixtures)
         {
             UpsertTeam(pf.HomeTeamExternalId, pf.HomeTeamName, null, teamsByExternalId, ref teamsCreated, ref teamsUpdated);
@@ -76,7 +89,9 @@ public class FixtureSeedService(
             .Where(m => m.TournamentId == tournament.Id)
             .ToDictionaryAsync(m => m.ExternalId, ct);
 
+        var finalizedMatches = new List<Match>();
         int matchesCreated = 0, matchesUpdated = 0;
+
         foreach (var pf in providerFixtures)
         {
             var (stage, groupCode) = StageMapper.FromProviderLabel(pf.RoundLabel);
@@ -86,8 +101,13 @@ public class FixtureSeedService(
 
             if (matchesByExternalId.TryGetValue(pf.ExternalId, out var match))
             {
+                var wasFinished = match.Status == MatchStatus.Finished;
                 if (UpdateExistingMatch(match, pf, domainStatus))
+                {
                     matchesUpdated++;
+                    if (!wasFinished && match.Status == MatchStatus.Finished)
+                        finalizedMatches.Add(match);
+                }
             }
             else
             {
@@ -103,16 +123,38 @@ public class FixtureSeedService(
                 ApplyStatusAndScore(newMatch, domainStatus, pf.HomeGoalsFullTime, pf.AwayGoalsFullTime);
                 db.Matches.Add(newMatch);
                 matchesCreated++;
+                if (newMatch.Status == MatchStatus.Finished)
+                    finalizedMatches.Add(newMatch);
             }
         }
 
         await db.SaveChangesAsync(ct);
 
-        logger.LogInformation(
-            "Seeded tournament {TournamentId} (league {League}, season {Season}): teams +{TC}/~{TU}, matches +{MC}/~{MU}",
-            tournament.Id, leagueId, season, teamsCreated, teamsUpdated, matchesCreated, matchesUpdated);
+        var finalizedIds = new List<Guid>(finalizedMatches.Count);
+        foreach (var match in finalizedMatches)
+        {
+            var evt = new MatchFinalized(match.Id, match.TournamentId, DateTimeOffset.UtcNow);
+            finalizedIds.Add(match.Id);
+            foreach (var handler in matchFinalizedHandlers)
+            {
+                try
+                {
+                    await handler.HandleAsync(evt, ct);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex,
+                        "MatchFinalized handler {Handler} failed for match {MatchId}",
+                        handler.GetType().Name, match.Id);
+                }
+            }
+        }
 
-        return new FixtureSeedResult(tournament.Id, teamsCreated, teamsUpdated, matchesCreated, matchesUpdated);
+        logger.LogInformation(
+            "Synced tournament {TournamentId} (league {League}, season {Season}): teams +{TC}/~{TU}, matches +{MC}/~{MU}, finalized {FC}",
+            tournament.Id, leagueId, season, teamsCreated, teamsUpdated, matchesCreated, matchesUpdated, finalizedIds.Count);
+
+        return new FixtureSyncResult(tournament.Id, teamsCreated, teamsUpdated, matchesCreated, matchesUpdated, finalizedIds);
     }
 
     private void UpsertTeam(
@@ -180,7 +222,6 @@ public class FixtureSeedService(
             return;
         }
 
-        // Finished but provider didn't include a score — keep the status but skip the score.
         if (match.Status != status)
             match.UpdateStatus(status);
     }
