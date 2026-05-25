@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Tip4Gen.Domain.Tipping;
 using Tip4Gen.Domain.Tournaments;
 using Tip4Gen.Domain.Users;
 
@@ -10,6 +11,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Tournament> Tournaments => Set<Tournament>();
     public DbSet<NationalTeam> NationalTeams => Set<NationalTeam>();
     public DbSet<Match> Matches => Set<Match>();
+    public DbSet<Tip> Tips => Set<Tip>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -102,6 +104,40 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             b.HasIndex(m => new { m.TournamentId, m.ExternalId }).IsUnique();
             b.HasIndex(m => m.KickoffUtc);
             b.HasIndex(m => m.Status);
+        });
+
+        modelBuilder.Entity<Tip>(b =>
+        {
+            b.ToTable("tips", t =>
+            {
+                t.HasCheckConstraint("ck_tips_home_goals_range",
+                    "home_goals >= 0 AND home_goals <= 15");
+                t.HasCheckConstraint("ck_tips_away_goals_range",
+                    "away_goals >= 0 AND away_goals <= 15");
+            });
+            b.HasKey(t => t.Id);
+            b.Property(t => t.Id).HasColumnName("id");
+            b.Property(t => t.UserId).HasColumnName("user_id").IsRequired();
+            b.Property(t => t.MatchId).HasColumnName("match_id").IsRequired();
+            b.Property(t => t.HomeGoals).HasColumnName("home_goals").IsRequired();
+            b.Property(t => t.AwayGoals).HasColumnName("away_goals").IsRequired();
+            b.Property(t => t.Joker).HasColumnName("joker").IsRequired();
+            b.Property(t => t.SubmittedAt).HasColumnName("submitted_at").IsRequired();
+            b.Property(t => t.UpdatedAt).HasColumnName("updated_at").IsRequired();
+
+            b.HasOne<User>()
+                .WithMany()
+                .HasForeignKey(t => t.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            b.HasOne<Match>()
+                .WithMany()
+                .HasForeignKey(t => t.MatchId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            b.HasIndex(t => new { t.UserId, t.MatchId }).IsUnique();
+            b.HasIndex(t => t.MatchId);
+            b.HasIndex(t => new { t.UserId, t.Joker })
+                .HasFilter("joker = TRUE");  // partial index for the joker-count query
         });
     }
 }

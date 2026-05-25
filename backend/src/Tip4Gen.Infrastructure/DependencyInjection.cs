@@ -6,6 +6,7 @@ using Microsoft.Extensions.Options;
 using Tip4Gen.Domain.Football;
 using Tip4Gen.Infrastructure.Football;
 using Tip4Gen.Infrastructure.Persistence;
+using Tip4Gen.Infrastructure.Tipping;
 using Tip4Gen.Infrastructure.Tournaments;
 
 namespace Tip4Gen.Infrastructure;
@@ -33,6 +34,7 @@ public static class DependencyInjection
             .AddStandardResilienceHandler();
 
         services.AddScoped<IFixtureSyncService, FixtureSyncService>();
+        services.AddScoped<ITipsService, TipsService>();
 
         return services;
     }
