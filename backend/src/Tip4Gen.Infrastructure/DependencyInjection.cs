@@ -35,6 +35,7 @@ public static class DependencyInjection
 
         services.AddScoped<IFixtureSyncService, FixtureSyncService>();
         services.AddScoped<ITipsService, TipsService>();
+        services.AddScoped<ILongTermTipsService, LongTermTipsService>();
 
         return services;
     }

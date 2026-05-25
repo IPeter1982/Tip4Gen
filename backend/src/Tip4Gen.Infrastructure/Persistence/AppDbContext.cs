@@ -12,6 +12,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<NationalTeam> NationalTeams => Set<NationalTeam>();
     public DbSet<Match> Matches => Set<Match>();
     public DbSet<Tip> Tips => Set<Tip>();
+    public DbSet<LongTermTip> LongTermTips => Set<LongTermTip>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -138,6 +139,41 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             b.HasIndex(t => t.MatchId);
             b.HasIndex(t => new { t.UserId, t.Joker })
                 .HasFilter("joker = TRUE");  // partial index for the joker-count query
+        });
+
+        modelBuilder.Entity<LongTermTip>(b =>
+        {
+            b.ToTable("long_term_tips", t =>
+            {
+                t.HasCheckConstraint("ck_long_term_tips_type",
+                    "type IN ('Winner','TopScorer')");
+                t.HasCheckConstraint("ck_long_term_tips_target_shape",
+                    "(type = 'Winner' AND target_team_id IS NOT NULL AND target_player_name IS NULL) " +
+                    "OR (type = 'TopScorer' AND target_player_name IS NOT NULL AND target_team_id IS NULL)");
+            });
+            b.HasKey(t => t.Id);
+            b.Property(t => t.Id).HasColumnName("id");
+            b.Property(t => t.UserId).HasColumnName("user_id").IsRequired();
+            b.Property(t => t.Type)
+                .HasColumnName("type")
+                .HasConversion<string>()
+                .HasMaxLength(16)
+                .IsRequired();
+            b.Property(t => t.TargetTeamId).HasColumnName("target_team_id");
+            b.Property(t => t.TargetPlayerName).HasColumnName("target_player_name").HasMaxLength(120);
+            b.Property(t => t.SubmittedAt).HasColumnName("submitted_at").IsRequired();
+            b.Property(t => t.UpdatedAt).HasColumnName("updated_at").IsRequired();
+
+            b.HasOne<User>()
+                .WithMany()
+                .HasForeignKey(t => t.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            b.HasOne<NationalTeam>()
+                .WithMany()
+                .HasForeignKey(t => t.TargetTeamId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            b.HasIndex(t => new { t.UserId, t.Type }).IsUnique();
         });
     }
 }
