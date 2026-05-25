@@ -9,10 +9,11 @@
 
 - **Phase 0:** ✅ done (committed `de66246`). Local Postgres 18 is in use instead of Docker.
 - **Phase 1:** ✅ done end-to-end (commits `fe93917` + `f094978`). Auth0 tenant `dev-yifcd0c5p4s0wcj5.eu.auth0.com` live, real Google login → `/api/me` returns user row with `isAdmin: true` for `google-oauth2|115365131932488818447`.
-- **Phases 2–11:** not started.
+- **Phase 2:** ✅ done (commits `e02496f` + `3763e11` + `370cd43`). Schema + `IFootballDataProvider` + api-football impl with `AddStandardResilienceHandler`. `POST /api/admin/fixtures/seed` verified end-to-end against real WC 2022 (1 tournament, 32 teams, 64 matches, correct stage breakdown). Quota-aware `FixturePoller` in Workers exercised live (`Live → Finished` transition + `MatchFinalized` dispatch). Latent Phase 1 admin-policy bug fixed in passing.
+- **Phases 3–11:** not started.
 - **Open decisions:** hosting swap (Fly.io+Vercel+Neon vs Azure) — see callouts. Auth decision is locked: **Auth0**.
-- **Football data source:** api-football Free plan (100 req/day) verified. WC 2022 (64 fixtures, full results) accessible; WC 2026 is `coverage.fixtures=false` on Free → **dev against `season=2022`, swap to 2026 once we upgrade or change provider**. Admin manual-entry fallback in Phase 8 is now load-bearing, not optional.
-- **Next:** Phase 2 (match data + fixtures), unblocked.
+- **Football data source:** api-football Free plan (100 req/day) verified. WC 2022 (64 fixtures, full results) accessible; WC 2026 is `coverage.fixtures=false` on Free → **dev against `season=2022`, swap to 2026 once we upgrade or change provider**. Admin manual-entry fallback in Phase 8 is now load-bearing, not optional. api-football's WC labels are matchday-style (`Group Stage - 1/2/3`) — group letter has to come from `/standings`, see Phase 2 follow-up below.
+- **Next:** Phase 3 (tipping), unblocked.
 
 ## How to read this plan
 
@@ -89,23 +90,27 @@ If you're already comfortable with the Azure + Auth0 path, keep it. Otherwise, s
 
 ---
 
-# Phase 2 — Match data + fixtures (Day 3–4)
+# Phase 2 — Match data + fixtures (Day 3–4) — ✅ DONE
 
-**Goal:** every tournament match exists in the DB with correct stage, kickoff, and external ID.
+**Shipped 2026-05-25:**
 
-**Dev data:** until we upgrade api-football (or wire a paid alt), seed against **WC 2022** (`season=2022`, 64 matches, real scores). Schema must support both the 2022 32-team format (no R32) and the 2026 48-team format (groups → R32 → R16 → QF → SF → bronze/final). Provider abstraction lets us swap data source without touching consumers.
+- [x] Schema: `tournaments`, `teams_national`, `matches` (with `external_id`, CHECK constraints on `stage` and `status`, score-nullability + distinct-teams checks, unique `(tournament_id, external_id)`, indexes on `kickoff_utc` and `status`). Stages are a `Stage` enum in Domain (`Group/R32/R16/QF/SF/Bronze/Final`) — multipliers and Hungarian labels live in code per §4 of the guide.
+- [x] `IFootballDataProvider` in Domain returning `ProviderFixture`/`ProviderTeam` records + normalized `ProviderStatus`. `ApiFootballProvider` in Infrastructure with typed `HttpClient`, `x-apisports-key` header, `AddStandardResilienceHandler` (Polly v8 via `Microsoft.Extensions.Http.Resilience`).
+- [x] `StageMapper` pure parser handles both `Group A - N` (Euros-style) and `Group Stage - N` (FIFA WC matchday-style). Knockout labels: `Round of 32/16`, `1/16`, `1/8`, `Quarter-finals`, `Semi-finals`, `3rd Place Final`/`Bronze`, `Final`. 35 xUnit tests.
+- [x] `FixtureSyncService.SyncAsync(includeTeamsRoster, ct)` — idempotent upsert keyed on `external_id`, dispatches `MatchFinalized` to every registered `IMatchFinalizedHandler` for matches that transitioned to `Finished` this run. Seed endpoint passes `true`, poller passes `false` to save a `/teams` call per tick.
+- [x] `POST /api/admin/fixtures/seed` (admin-gated). Verified against real WC 2022: 1 tournament, 32 teams, 64 matches (48 group + 8 R16 + 4 QF + 2 SF + 1 bronze + 1 final), all `Finished`, idempotent second run returns `+0/~0/finalized 0`.
+- [x] `FixturePoller` (`BackgroundService` in Tip4Gen.Workers) — wakes every `FixturePoller:IntervalMinutes` (default 15), but skips the API call unless DB has a Live match or a Scheduled one within `±ActiveWindowHours / +LookaheadMinutes` (default −4h / +1h). At max cadence that's 96 calls/day; on idle days it spends zero quota. Workers shares Api's `UserSecretsId` so config flows through.
+- [x] `MatchFinalized` event (`Domain.Tournaments.Events`) + `IMatchFinalizedHandler` interface. Scoring service in Phase 4 will be the first handler.
+- [x] Live verification: flipping the Final match to `Live` via psql triggered the next poll tick to call api-football, transition `Live → Finished` with score `2-2`, and dispatch 1 event.
 
-- [ ] DB schema: `tournaments`, `stages` (csoport, R32, R16, QF, SF, bronze, döntő), `teams_national`, `matches` (home/away/kickoff_utc/stage/status/score, `external_id` for the provider's fixture id)
-- [ ] Football API client wrapped in `IHttpClientFactory` + Polly retry/circuit-breaker. `IFootballDataProvider` interface; api-football implementation reads `FootballApi:*` from config.
-- [ ] Seed script / admin endpoint: pull league=`FootballApi:LeagueId`, season=`FootballApi:Season` fixtures → upsert matches by `external_id` (idempotent re-run)
-- [ ] Manual sanity-check: matches loaded, kickoffs in UTC, stage names normalize correctly across years
-- [ ] Match status poller: `BackgroundService` that refreshes match status every N minutes during the tournament. **Honor the 100 req/day quota** — at 1 poll/15min that's 96/day, just under.
-- [ ] When a match enters `finished` state and has a final score: emit a domain event (`MatchFinalized`) to trigger scoring later
-- [ ] DB index on `matches(kickoff_utc)` and `matches(status)`
+**Lessons banked (see commit `3763e11`):**
 
-**Done when:** all WC 2022 matches in DB via the seed, status query for a single tournament returns in <50ms, the poller can be enabled/disabled by config without breaking tests.
+- api-football's WC fixtures use **matchday-style round labels** (`Group Stage - 1/2/3`) — the group letter (A–L) is not in the label. To enrich `matches.group_code` we need a separate `/standings` call mapping teams to groups. See follow-up below.
+- `RequireClaim("sub", ...)` in an authorization policy hits the same `sub → ClaimTypes.NameIdentifier` remapping that bit `CurrentUserService` in Phase 1 — `JsonWebTokenHandler.DefaultMapInboundClaims = false` does not stop it on the policy code path. Admin policy now mirrors the dual-name lookup. CLAUDE.md updated.
 
-**[CRITICAL]** — without this, nothing else works. Manual admin entry (Phase 8) is the **mandatory fallback** if we don't pay for 2026 coverage by launch.
+**Deferred follow-ups (NOT blocking Phase 3, valuable when convenient):**
+
+- [ ] Group letter enrichment: pull api-football `/standings?league=…&season=…`, build team → group map, backfill `matches.group_code` so the UI can render "Group H — Argentina vs Saudi Arabia". ~1–2h. The seed endpoint can call /standings once after /fixtures; the poller doesn't need to re-pull (groups don't change mid-tournament).
 
 ---
 

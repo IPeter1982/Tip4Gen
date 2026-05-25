@@ -14,14 +14,24 @@ Hungarian-language Football World Cup tipping game web app. Target launch: **202
 backend/                    ASP.NET Core 9 solution (planned 10, on 9 for speed)
   src/Tip4Gen.Api           Controllers, Program.cs, Serilog, OpenAPI, Auth0
     Auth/                   Auth0Options, AuthExtensions, CurrentUserService
-    Controllers/            HealthController, MeController, AdminController
+    Controllers/            HealthController, MeController, AdminController,
+                            FixturesAdminController (POST /api/admin/fixtures/seed)
   src/Tip4Gen.Domain        Pure domain types — no EF, no ASP.NET refs
     Users/User.cs
+    Tournaments/            Stage + MatchStatus enums, Tournament, NationalTeam,
+                            Match, StageMapper, MatchStatusMapper
+    Tournaments/Events/     MatchFinalized record + IMatchFinalizedHandler
+    Football/               IFootballDataProvider + ProviderFixture/Team/Status
   src/Tip4Gen.Infrastructure  EF Core, external clients
     Persistence/AppDbContext.cs + Migrations/
     DependencyInjection.cs  AddInfrastructure(IConfiguration)
-  src/Tip4Gen.Workers       BackgroundService host (poller lives here, Phase 2)
-  tests/Tip4Gen.Domain.Tests  xUnit
+    Football/               ApiFootballProvider + Options + DTOs
+    Tournaments/            FixtureSyncService (idempotent upsert + event dispatch)
+  src/Tip4Gen.Workers       BackgroundService host — FixturePoller (Phase 2),
+                            shares Api's UserSecretsId for shared dev config
+    FixturePoller.cs        Calls FixtureSyncService when DB has active matches
+    FixturePollerOptions.cs IntervalMinutes / ActiveWindowHours / LookaheadMinutes
+  tests/Tip4Gen.Domain.Tests  xUnit — StageMapper + MatchStatusMapper (35 tests)
 web/                        Vite + React 19 + TS frontend
   src/auth/                 AuthProvider, RequireAuth, useApi, authConfig
   src/components/Topbar.tsx
@@ -40,6 +50,10 @@ Dependency direction: **Api → Infrastructure → Domain**; **Workers → Infra
 # Backend (port 5050)
 dotnet run --project backend/src/Tip4Gen.Api
 
+# Workers (fixture poller — separate process, shares Api user-secrets)
+dotnet run --project backend/src/Tip4Gen.Workers
+# Quick tick for testing: --FixturePoller:IntervalMinutes=1 --FixturePoller:StartupDelaySeconds=2
+
 # Frontend (port 5173, proxies /api)
 npm run dev --prefix web
 
@@ -49,6 +63,9 @@ npm run build --prefix web
 
 # Tests
 dotnet test backend/Tip4Gen.sln
+
+# Apply EF migrations to local Postgres
+dotnet ef database update --project backend/src/Tip4Gen.Infrastructure --startup-project backend/src/Tip4Gen.Api
 ```
 
 ## Stack conventions
@@ -63,7 +80,7 @@ dotnet test backend/Tip4Gen.sln
 
 ## Secrets
 
-All dev credentials live in `dotnet user-secrets` for `backend/src/Tip4Gen.Api` — never in `appsettings.json`, never in the repo. Current keys:
+All dev credentials live in `dotnet user-secrets` for `backend/src/Tip4Gen.Api` — never in `appsettings.json`, never in the repo. The Workers project's csproj declares the same `UserSecretsId`, so both processes resolve the same secret store. Current keys:
 
 - `ConnectionStrings:AppDb` — local Postgres 18 (`tip4gen_dev` DB, `tip4gen` role)
 - `Auth0:Domain` / `Auth0:Audience` / `Auth0:AdminSub` — tenant `dev-yifcd0c5p4s0wcj5.eu.auth0.com`, audience `https://api.tip4gen.local`
@@ -76,6 +93,10 @@ Frontend env in `web/.env.local` (also gitignored): `VITE_AUTH0_DOMAIN`, `VITE_A
 api-football's Free plan does NOT include WC 2026 fixture coverage (`coverage.fixtures=false`). We develop against **WC 2022** (`FootballApi:Season=2022`, 64 real matches with results) so the scoring engine can be tested with real data. To launch with real 2026 fixtures we must either upgrade api-football, swap to a different provider, OR rely on admin manual entry (Phase 8) — that fallback is **load-bearing**, not optional.
 
 Schema must accommodate both formats: 2022 had 32 teams (no R32 round), 2026 has 48 teams with groups → R32 → R16 → QF → SF → bronze → final.
+
+**Round labels are matchday-style, not group-letter-style.** api-football's WC fixtures use `Group Stage - 1/2/3` — the group letter (A–L) is *not* in `league.round`. `StageMapper` returns `(Stage.Group, null)` for those, so `matches.group_code` stays null until we enrich it from `/standings`. Deferred follow-up — schema already supports it, the seed/poller code doesn't yet. If you see code that assumes `group_code` is populated, check this first.
+
+**Quota discipline.** api-football Free plan is 100 req/day. The seed endpoint costs 2 (one /fixtures + one /teams). The poller costs 1 per tick (only /fixtures), and only when there's a Live or imminent match — at default cadence it stays well under cap. Don't add a new poller without doing the same active-window check.
 
 ## Scoring rules — quick reference (full detail in guide §3–§9)
 
@@ -92,9 +113,10 @@ Schema must accommodate both formats: 2022 had 32 teams (no R32 round), 2026 has
 
 Single admin (the project owner). Gated by Auth0 `sub` claim matching the `Auth0:AdminSub` user-secret. Every `/api/admin/*` write must record a row in `admin_audit` in the same transaction (before/after JSON).
 
-## Auth gotchas (learned the hard way — see commit f094978)
+## Auth gotchas (learned the hard way — see commits f094978, 3763e11)
 
 - ASP.NET's JWT handler **remaps `sub` → `ClaimTypes.NameIdentifier`** by default. `CurrentUserService.Auth0Sub` looks under both names; don't "simplify" it back to one lookup.
+- The same remapping bites **authorization policies**: `policy.RequireClaim("sub", AdminSub)` silently returns 403 even with the correct sub configured, because the claim ends up under `ClaimTypes.NameIdentifier`. `JsonWebTokenHandler.DefaultMapInboundClaims = false` does not stop it on the policy code path. Use `policy.RequireAssertion(...)` checking both names — see `AuthExtensions.AdminPolicy`.
 - Auth0 silently rejects an empty `audience` parameter with "Service not found". The frontend `AuthProvider` only spreads `audience` when it's truthy — don't pass `audience: ''`.
 - Auth0 API identifiers **cannot be edited after creation**. Whitespace typos require delete + recreate.
 - Even with "Allow Skipping User Consent" on, the SPA must be **explicitly enabled** for the API under **Application → APIs** in the Auth0 dashboard.
