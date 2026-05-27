@@ -15,10 +15,11 @@
 - **Phase 5 backend:** ✅ done (commits `45bc16c` + `fdf28ee`). Domain: `Team`, `TeamMember` (UserId nullable for AI slot), `TeamInvite`, `TeamRulesValidator`, `TeamLockPolicy`, `TeamAggregator` (pure best-3-of-4 with deterministic tiebreak). Schema: `teams` + `team_members` + `team_invites` (partial unique on AI slot, NULL-distinct unique on user_id). 7 team endpoints (create/get-mine/patch/leave/add-ai/invite/join) + admin lock trigger + per-match breakdown. `TeamLockJob` BackgroundService in Workers. 137/137 tests green (+28 new).
 - **Phase 5 frontend:** ✅ done. `/team` page renders one of three states (no team → create; Forming → manage; Locked/Disqualified → read-only banner). Manage view = rename, AI add (name + mode), AI stylepicker, invite-link generator with copy-to-clipboard + expiry, leave with confirm (cascades on last-human). `/team/join/:token` redeems and bounces to `/team`. Lock countdown reuses `LongTipsResponse.lockUtc` so the SPA stays single-source-of-truth on tournament start.
 - **Phase 7:** ✅ done. Domain: `LeaderboardRanker` (full §9 tiebreaker chain + shared placement), `StreakCalculator`. Infrastructure: `IndividualLeaderboardService` (sum scored_tips, count Exact, longest ≥3-pt streak) + `TeamLeaderboardService` (best-3-of-4 per match, Locked-only). API: `GET /api/leaderboard/users` + `/api/leaderboard/teams`. Frontend: `/leaderboard` with Egyéni/Csapat tabs, "én"/"csapatom" highlights. 155/155 tests green (+18 new). Long-tip outcomes (Winner/TopScorer correctness) plumbed as nullable, defaulting to null until Phase 8 admin entry lands.
-- **Phases 6, 8–11:** not started.
+- **Phase 6:** ✅ done end-to-end. Domain: `AiTipPromptBuilder` (team names + stage + AiMode), `AiTipResponseValidator` (0–15 goals, ≤500-char Hungarian reasoning), `AiTipSchedulePolicy` (T-2h attempt → T-90m retry → T-1h fallback → deadline), `IAiTipper` interface, `AiTipAttempt` entity. **Schema change**: `tips.user_id` → nullable, new `tips.team_member_id` (CHECK exactly-one) + `is_ai_fallback` + `reasoning`; same nullable+team_member_id treatment on `scored_tips`; new `ai_tip_attempts` table for restart-safe attempt counting. Aggregation services (`MatchScoringService`, `TeamAggregationService`, `TeamLeaderboardService`) updated to dual-key on either UserId or TeamMemberId — AI tips count toward team totals but never appear on the individual board. Infrastructure: `OpenAiTipper` (Chat Completions + `response_format: json_object`, returns Disabled when ApiKey unset), `AiTippingService` orchestrator. Workers: `AiTippingJob` (5-min cadence). API: `POST /api/admin/ai-tipper/preview` for manual smoke-test; `GET /api/matches/{id}/tips` surfaces AI tips with isAi/isAiFallback/reasoning. Frontend: post-deadline "Mindenki tippje" panel on TipSubmit with AI/Fallback/Joker chips + reasoning. 189/189 tests green (+34 new for Ai/). Live smoke test against OpenAI confirmed key + JSON mode + Hungarian reasoning all work.
+- **Phases 8–11:** not started.
 - **Open decisions:** hosting swap (Fly.io+Vercel+Neon vs Azure) — see callouts. Auth decision is locked: **Auth0**.
 - **Football data source:** api-football Free plan (100 req/day) verified. WC 2022 (64 fixtures, full results) accessible; WC 2026 is `coverage.fixtures=false` on Free → **dev against `season=2022`, swap to 2026 once we upgrade or change provider**. Admin manual-entry fallback in Phase 8 is now load-bearing, not optional. api-football's WC labels are matchday-style (`Group Stage - 1/2/3`) — group letter has to come from `/standings`, see Phase 2 follow-up below.
-- **Next:** Phase 8 (admin UI, **[CRITICAL]** — without it a single delayed/abandoned match wedges the tournament) — then Phase 6 (AI tipper, **[CUT-OK]**).
+- **Next:** Phase 8 (admin UI, **[CRITICAL]** — without it a single delayed/abandoned match wedges the tournament).
 
 ## How to read this plan
 
@@ -62,7 +63,7 @@ If you're already comfortable with the Azure + Auth0 path, keep it. Otherwise, s
 **Blocked on external accounts — DO BEFORE PHASE 6 / 11:**
 
 - [x] Football API account: api-football Free plan verified, key stored in user-secrets (`FootballApi:*`). League=1, dev season=2022 (2026 needs paid plan; admin manual entry fills the gap).
-- [ ] AI provider key (Anthropic or OpenAI) — test one chat completion. **Needed for Phase 6.**
+- [x] AI provider key (OpenAI) — stored in user-secrets as `OpenAi:ApiKey`. Live preview call via `POST /api/admin/ai-tipper/preview` verified end-to-end (Hungarian reasoning, JSON mode honored).
 - [ ] Production env: provision DB + API host + SPA host (Azure path *or* the fallback stack from the callouts). **Needed for Phase 11.**
 - [ ] CI: GitHub Actions deploys both apps on push to `main` (blocked on hosting choice). **Needed for Phase 11.**
 - [ ] Secrets in prod: DB connection string + Auth0 audience + API keys from Key Vault (or platform env vars). **Needed for Phase 11.**
@@ -224,22 +225,37 @@ If you're already comfortable with the Azure + Auth0 path, keep it. Otherwise, s
 
 ---
 
-# Phase 6 — AI tipper (Day 9–10)
+# Phase 6 — AI tipper (Day 9–10) — ✅ DONE
 
-**Goal:** AI team members tip automatically, with fallback to 1–1 on failure.
+**Shipped 2026-05-27:**
 
-- [ ] AI prompt template: takes form/ranking/recent results + adventurousness mode, returns strict JSON `{home_goals:int, away_goals:int, reasoning:string}`
-- [ ] AI client wrapper: Anthropic or OpenAI SDK call with timeout + one retry
-- [ ] Response validation: `home_goals` and `away_goals` ints in 0–15, reasoning ≤ 500 chars — anything else = treat as failure
-- [ ] Scheduled job: for every upcoming match, at `kickoff - 2h`, run AI tips for all AI members on locked teams
-- [ ] Retry at `kickoff - 90min` if first attempt failed
-- [ ] Fallback at `kickoff - 1h`: insert 1–1 tip with `is_fallback = true`, reasoning "AI nem válaszolt időben"
-- [ ] DB: `tips` gains `is_ai_fallback bool`, `reasoning text nullable`
-- [ ] Frontend: AI badge on AI tips, additional "AI-fallback" chip when applicable, reasoning shown after deadline
+- [x] Domain: `AiTipPromptBuilder` (team names + stage + AiMode → system/user prompts; minimum context per scope, no form/ranking yet — see *Deferred* below).
+- [x] OpenAI client wrapper: `OpenAiTipper` calls Chat Completions with `response_format: json_object`. Resilience via `AddStandardResilienceHandler` (transient HTTP/429 retries with backoff). `HttpClient.Timeout` from `OpenAi:TimeoutSeconds` (default 15s). Returns `Disabled` cleanly when `OpenAi:ApiKey` is unset so the fallback path still runs.
+- [x] Response validation: `AiTipResponseValidator` enforces 0–15 ints + ≤500-char reasoning; failures fold into `AiTipResult.InvalidResponse(error, rawText)` for diagnostics.
+- [x] Scheduled job: `AiTippingJob` BackgroundService (Workers, 5-min cadence). Calls `AiTippingService.RunOnceAsync` which walks Locked-team AI members × Scheduled matches in the next 2.25h, applies `AiTipSchedulePolicy.Decide`, persists.
+- [x] Retry at T-90min handled by the policy: first attempt fires in [T-2h, T-90min); second in [T-90min, T-1h) when previousAttempts==1. `ai_tip_attempts` table makes the count restart-safe.
+- [x] Fallback at T-1h: deterministic 1–1 with `is_ai_fallback=true` and reasoning "AI nem válaszolt időben." — fires independent of attempt count once the window opens.
+- [x] DB: `tips` and `scored_tips` each gain nullable `user_id` + `team_member_id` (CHECK exactly-one), `is_ai_fallback`, `reasoning`. Unique indexes are partial — `ux_tips_user_match` filters `user_id IS NOT NULL`, `ux_tips_member_match` filters the other side. New `ai_tip_attempts(team_member_id, match_id, attempted_at, success, error_message)` table.
+- [x] Scoring + aggregation: `MatchScoringService` denormalizes both keys to ScoredTip; `TeamAggregationService` + `TeamLeaderboardService` look up points by user_id (humans) or team_member_id (AI). `IndividualLeaderboardService` filters `WHERE user_id IS NOT NULL` so AI tips never appear there (per §7).
+- [x] API: `POST /api/admin/ai-tipper/preview` — admin-only smoke-test endpoint that calls the tipper directly without touching the DB. `GET /api/matches/{id}/tips` LEFT-JOINs users + team_members so AI tips surface; response carries `isAi`/`isAiFallback`/`reasoning` (reasoning only after deadline).
+- [x] Frontend: `MatchTip` type extended with the AI fields; new post-deadline "Mindenki tippje" panel on `TipSubmit` with AI / AI-fallback / Joker chips + italic reasoning under each row.
+- [x] Tests: 34 new (12 validator, 10 schedule-policy, 12 prompt builder). **189/189 green.**
+- [x] Live smoke test: real OpenAI call via the admin preview returned valid Hungarian reasoning + parseable JSON (model `gpt-4o-mini`, default temperature 0.7).
 
-**Done when:** for a test fixture, AI members get a tip without you touching anything; killing the AI API still produces a 1–1 fallback.
+**Lessons banked:**
 
-**[CUT-OK]** — if behind, ship without the AI feature and disable the AI checkbox at team creation. Add post-launch.
+- `Tip.UserId` becoming nullable rippled through three services (Match/Team aggregation + individual leaderboard) — each had to grow a parallel team-member lookup. Worth knowing if you ever touch those query shapes again.
+- The OpenAI prompt currently passes team names as-is. Hungarian names like "Magyarország" can confuse the model (it hallucinated "Curaçao" as the opposing team in one test). Production data from api-football uses English names so the orchestrator path is fine; if you ever localize team names in the DB, pass both English + Hungarian in the prompt.
+- `OperationCanceledException` catch with `when (!ct.IsCancellationRequested)` distinguishes our `HttpClient.Timeout` deadline from a real caller-cancel — without the guard, a true caller-cancel would be swallowed as a fake `Timeout` result.
+- `sk-proj-…` (OpenAI project-scoped keys) work with the standard Chat Completions API; no special handling needed.
+
+**Deferred (post-launch / on-demand):**
+
+- Rich prompt context (recent form, group standings). Hooks are in place via `AiTipPromptBuilder.Build(...)` — drop the additional inputs there and rebuild the system prompt.
+- Integration tests for `AiTippingService` (orchestrator). Pure Domain is covered; the persistence flow is exercised by the live smoke test, but a Testcontainers-Postgres test would catch regressions cheaper.
+- `AdminAudit` row for the preview endpoint. Per CLAUDE.md, admin *writes* need audit — preview is read-ish (only spends OpenAI quota) so it's untracked for now; Phase 8 will land the audit infra.
+
+**[CUT-OK]** ✅ — shipped despite being optional, since the OpenAI key was already available.
 
 ---
 

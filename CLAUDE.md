@@ -18,47 +18,59 @@ backend/                    ASP.NET Core 9 solution (planned 10, on 9 for speed)
                             FixturesAdminController, ScoringAdminController,
                             TeamsAdminController, NationalTeamsController,
                             MatchesController, TipsController, LongTipsController,
-                            TeamsController, LeaderboardController
+                            TeamsController, LeaderboardController,
+                            AiTipperAdminController (preview endpoint)
   src/Tip4Gen.Domain        Pure domain types — no EF, no ASP.NET refs
     Users/User.cs
     Tournaments/            Stage + MatchStatus enums, Tournament, NationalTeam,
                             Match, StageMapper, MatchStatusMapper
     Tournaments/Events/     MatchFinalized record + IMatchFinalizedHandler
     Football/               IFootballDataProvider + ProviderFixture/Team/Status
-    Tipping/                Tip, TipRulesValidator (pure rule engine),
+    Tipping/                Tip (UserId nullable; TeamMemberId nullable for AI tips;
+                            IsAiFallback, Reasoning), TipRulesValidator,
                             LongTermTip + LongTermTipRulesValidator
     Scoring/                MatchResult, ScoreCategory, ScoringResult,
-                            StageMultipliers, MatchScorer (pure), ScoredTip entity
+                            StageMultipliers, MatchScorer (pure),
+                            ScoredTip (dual-key: UserId or TeamMemberId)
     Teams/                  Team, TeamMember (UserId nullable for AI slot),
                             TeamInvite, TeamStatus + AiMode enums,
                             TeamRulesValidator, TeamLockPolicy, TeamAggregator (pure)
     Leaderboard/            LeaderboardEntry, LeaderboardRanker (§9 tiebreakers,
                             shared placement), StreakCalculator (pure)
+    Ai/                     AiTipResponse, AiTipResult tagged union, IAiTipper,
+                            AiTipPromptBuilder (pure), AiTipResponseValidator (pure),
+                            AiTipSchedulePolicy (pure), AiTipAttempt entity
   src/Tip4Gen.Infrastructure  EF Core, external clients
     Persistence/AppDbContext.cs + Migrations/
     DependencyInjection.cs  AddInfrastructure(IConfiguration)
     Football/               ApiFootballProvider + Options + DTOs
     Tournaments/            FixtureSyncService (idempotent upsert + event dispatch)
     Tipping/                TipsService, LongTermTipsService (tagged-union results)
-    Scoring/                MatchScoringService (idempotent re-score),
+    Scoring/                MatchScoringService (idempotent re-score, dual-key),
                             MatchFinalizedScoringHandler (event handler)
     Teams/                  TeamsService (CRUD + invites + join, tagged-union),
                             TeamLockService (Forming → Locked/Disqualified pass),
                             TeamAggregationService (per-match best-3-of-4 view)
-    Leaderboard/            IndividualLeaderboardService + TeamLeaderboardService
-                            (direct queries, no materialized view)
+    Leaderboard/            IndividualLeaderboardService (humans only)
+                            + TeamLeaderboardService (humans + AI, dual-key)
+    Ai/                     OpenAiOptions, OpenAiTipper (Chat Completions +
+                            json_object mode; returns Disabled when ApiKey unset),
+                            AiTippingService orchestrator
   src/Tip4Gen.Workers       BackgroundService host — FixturePoller (Phase 2)
-                            + TeamLockJob (Phase 5), shares Api's UserSecretsId
-                            for shared dev config
+                            + TeamLockJob (Phase 5) + AiTippingJob (Phase 6),
+                            shares Api's UserSecretsId for shared dev config
     FixturePoller.cs        Calls FixtureSyncService when DB has active matches
     FixturePollerOptions.cs IntervalMinutes / ActiveWindowHours / LookaheadMinutes
     TeamLockJob.cs          Calls TeamLockService.LockAllAsync on a coarse cadence
     TeamLockJobOptions.cs   IntervalMinutes (default 5) / StartupDelaySeconds
+    AiTippingJob.cs         Calls AiTippingService.RunOnceAsync on a 5-min tick
+    AiTippingJobOptions.cs  IntervalMinutes (default 5) / StartupDelaySeconds
   tests/Tip4Gen.Domain.Tests  xUnit — StageMapper, MatchStatusMapper,
                               TipRulesValidator, LongTermTipRulesValidator,
                               MatchScorer, StageMultipliers, TeamRulesValidator,
                               TeamAggregator, TeamLockPolicy, LeaderboardRanker,
-                              StreakCalculator (155 tests)
+                              StreakCalculator, AiTipResponseValidator,
+                              AiTipSchedulePolicy, AiTipPromptBuilder (189 tests)
 web/                        Vite + React 19 + TS frontend
   src/auth/                 AuthProvider, RequireAuth, useApi (typed + ApiError),
                             authConfig
@@ -129,6 +141,7 @@ All dev credentials live in `dotnet user-secrets` for `backend/src/Tip4Gen.Api` 
 - `ConnectionStrings:AppDb` — local Postgres 18 (`tip4gen_dev` DB, `tip4gen` role)
 - `Auth0:Domain` / `Auth0:Audience` / `Auth0:AdminSub` — tenant `dev-yifcd0c5p4s0wcj5.eu.auth0.com`, audience `https://api.tip4gen.local`
 - `FootballApi:Provider` / `ApiKey` / `BaseUrl` / `LeagueId` / `Season` — api-football Free plan, league=1, season=2022 (see Data caveat below)
+- `OpenAi:ApiKey` — OpenAI project-scoped key (`sk-proj-…`). Optional: when unset, `OpenAiTipper` returns `AiTipResult.Disabled` and the schedule policy still writes the 1–1 fallback at T-1h. `OpenAi:Model` (default `gpt-4o-mini`), `OpenAi:Temperature` (0.7), `OpenAi:TimeoutSeconds` (15) are bindable from the same section.
 
 Frontend env in `web/.env.local` (also gitignored): `VITE_AUTH0_DOMAIN`, `VITE_AUTH0_CLIENT_ID`, `VITE_AUTH0_AUDIENCE`.
 
@@ -150,7 +163,7 @@ Schema must accommodate both formats: 2022 had 32 teams (no R32 round), 2026 has
 - "One team's goal count matches" is strictly **home-to-home / away-to-away** (not swapped).
 - Half-multiplier results round **away from zero** (`5 × 1.5 = 7.5 → 8`). `MatchScorer` is the single source of truth.
 - Scoring is **idempotent**: `MatchScoringService.ScoreMatchAsync` deletes prior `scored_tips` for the match then re-inserts in one `SaveChanges`. Wired into `MatchFinalized` for auto-scoring and exposed via `POST /api/admin/matches/{id}/rescore` for manual re-runs.
-- `scored_tips.user_id` is **denormalized** from `tips` so leaderboard queries don't need to JOIN through matches.
+- `scored_tips.user_id` and `scored_tips.team_member_id` are **denormalized** from `tips`. Exactly one is set per row, matching the source tip; leaderboard queries pick a side without joining through matches.
 - Team aggregation: **best 3 of 4** member scores per match (`TeamAggregator.ForMatch`). Tiebreak on all-equal scores: drop the member with the largest id — deterministic, doesn't affect the total.
 - AI fallback: auto **1–1** tip with `is_ai_fallback=true` if AI provider hasn't returned by **T-1h**.
 - Tip deadline: **kickoff − 1h**, enforced server-side in UTC.
@@ -170,11 +183,27 @@ Single admin (the project owner). Gated by Auth0 `sub` claim matching the `Auth0
 
 ## Teams schema gotchas
 
-- `team_members.user_id` is **nullable**. Human members have a real `users.id`; the AI slot has `user_id IS NULL` + `is_ai = TRUE` + `ai_display_name` set. Don't "tidy this up" into a synthetic user per AI — Tip and ScoredTip both key on `user_id` and an AI persona doesn't belong in the users table. Phase 6 will key AI tips on the team member itself.
+- `team_members.user_id` is **nullable**. Human members have a real `users.id`; the AI slot has `user_id IS NULL` + `is_ai = TRUE` + `ai_display_name` set. AI tips key on the team member itself (`tips.team_member_id`), never on a synthetic user — Tip and ScoredTip got nullable `user_id` + `team_member_id` (CHECK exactly-one) in Phase 6 so the personas stay out of the users table.
 - "One team per user" is enforced by `UNIQUE(user_id)` on `team_members`. PostgreSQL treats NULLs as distinct in unique indexes, so multiple AI rows (one per team, each with NULL user_id) don't collide.
 - "Max 1 AI per team" is a **partial unique index**: `UNIQUE(team_id) WHERE is_ai = TRUE`. The full table can have many AI rows; the partial index only sees the AI ones.
 - Mutability gating is two-stage: tournament-start time **first** (so the error message points at the real cause), then team status. Both live in `TeamRulesValidator.ValidateMutable`.
 - `TeamsService.LeaveAsync` cascades: when the last human leaves, the team and any AI member are removed too, so no orphan AI-only teams linger.
+
+## Tips + ScoredTip schema gotchas (Phase 6)
+
+- `tips.user_id` and `tips.team_member_id` are **both nullable** with a `CHECK ((user_id IS NOT NULL AND team_member_id IS NULL) OR (user_id IS NULL AND team_member_id IS NOT NULL))`. Same shape on `scored_tips`. Whichever side is set tells you whether the row is a human tip or an AI tip — don't write code that assumes `user_id` is always populated.
+- Uniqueness is split into **two partial indexes**: `ux_tips_user_match` filters `user_id IS NOT NULL`, `ux_tips_member_match` filters `team_member_id IS NOT NULL`. Both can collide on a real concurrent double-write — catch `DbUpdateException` in any orchestrator path.
+- `tips.is_ai_fallback` is `false` for human tips and AI successes; `true` only for the deterministic 1–1 row written at T-1h. `tips.reasoning` is null for human tips, optional for AI successes, and set to `"AI nem válaszolt időben."` for fallbacks.
+- `ck_tips_ai_no_joker` enforces that AI tips never claim a joker (joker is human-only per §6). Don't relax this unless §6 changes.
+- The leaderboard split is load-bearing: `IndividualLeaderboardService` filters `WHERE user_id IS NOT NULL` so AI rows never appear; `TeamLeaderboardService` and `TeamAggregationService` look up points by `UserId` (humans) OR `TeamMemberId` (AI). If you add a new aggregation, mirror the dual-key lookup or AI tips silently score zero.
+
+## AI tipper gotchas (Phase 6)
+
+- `OpenAiTipper` short-circuits to `AiTipResult.Disabled` when `OpenAi:ApiKey` is empty. Don't add `[Required]` to `OpenAiOptions.ApiKey` — the disabled path is intentional so the scaffold runs without a key, and the schedule policy still writes the 1–1 fallback at T-1h.
+- `AiTipSchedulePolicy.Decide` is the only place the T-2h/T-90m/T-1h windows are encoded. Tests in `Domain.Tests/Ai/AiTipSchedulePolicyTests.cs` cover every boundary; if you tweak a window, update both.
+- `AiTippingService` writes one `ai_tip_attempts` row per IAiTipper call (success or failure). The schedule policy reads that count to decide retry vs. skip — without persistent counting, a process restart in the [T-2h, T-1h] window would re-burn quota.
+- The OpenAI prompt currently passes team names as-is. Hungarian team names like "Magyarország" can confuse the model into hallucinating a wrong opponent — production data from api-football uses English names so this doesn't bite. If you ever localize team names in the DB, pass both English + Hungarian into `AiTipPromptBuilder.Build`.
+- `OperationCanceledException` catch in `OpenAiTipper.GenerateAsync` uses `when (!ct.IsCancellationRequested)` to distinguish HttpClient timeout (our own deadline → return `Timeout`) from caller-cancel (let it propagate). Don't simplify that guard.
 
 ## Forms gotcha — Zod + react-hook-form
 

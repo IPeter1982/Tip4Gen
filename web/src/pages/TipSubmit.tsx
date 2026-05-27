@@ -3,9 +3,9 @@ import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { Link, useNavigate, useParams } from 'react-router'
 import { z } from 'zod'
-import { useMatch, useSubmitTip } from '../api/hooks'
+import { useMatch, useMatchTips, useSubmitTip } from '../api/hooks'
 import { ApiError } from '../api/errors'
-import type { MatchListItem } from '../api/types'
+import type { MatchListItem, MatchTip } from '../api/types'
 import {
   STAGE_LABEL_HU,
   formatBudapest,
@@ -73,21 +73,86 @@ export function TipSubmit() {
       )}
 
       {match && (
-        <TipForm
-          match={match}
-          submitting={submit.isPending}
-          onSubmit={async (values) => {
-            try {
-              await submit.mutateAsync({ matchId: match.id, ...values })
-              navigate('/matches')
-            } catch (e) {
-              throw e
-            }
-          }}
-        />
+        <>
+          <TipForm
+            match={match}
+            submitting={submit.isPending}
+            onSubmit={async (values) => {
+              try {
+                await submit.mutateAsync({ matchId: match.id, ...values })
+                navigate('/matches')
+              } catch (e) {
+                throw e
+              }
+            }}
+          />
+          <AllTipsPanel matchId={match.id} />
+        </>
       )}
     </div>
   )
+}
+
+function AllTipsPanel({ matchId }: { matchId: string }) {
+  const { data, isLoading } = useMatchTips(matchId)
+
+  if (isLoading || !data) return null
+  if (!data.deadlinePassed) {
+    return (
+      <p className="text-xs font-mono uppercase tracking-[0.15em] text-stone-500">
+        A többiek tippjei a határidő után láthatóak.
+      </p>
+    )
+  }
+  if (data.tipCount === 0) {
+    return (
+      <p className="text-xs font-mono uppercase tracking-[0.15em] text-stone-500">
+        Nem érkezett tipp erre a meccsre.
+      </p>
+    )
+  }
+
+  return (
+    <section className="border-2 border-stone-900 bg-white p-5 space-y-3">
+      <h2 className="text-xs font-mono uppercase tracking-[0.2em] text-stone-500">
+        Mindenki tippje
+      </h2>
+      <ul className="divide-y-2 divide-stone-200">
+        {data.tips.map((tip) => (
+          <li key={tipKey(tip)} className="py-2 space-y-1">
+            <div className="flex items-center gap-3 font-mono text-sm">
+              <span className="flex-1 truncate">{tip.displayName}</span>
+              {tip.isAi && (
+                <span className="bg-stone-900 text-white px-2 py-0.5 text-xs uppercase tracking-[0.15em]">
+                  AI
+                </span>
+              )}
+              {tip.isAiFallback && (
+                <span className="border-2 border-stone-400 text-stone-600 px-2 py-0.5 text-xs uppercase tracking-[0.15em]">
+                  Fallback
+                </span>
+              )}
+              {tip.joker && (
+                <span className="border-2 border-orange-600 text-orange-700 px-2 py-0.5 text-xs uppercase tracking-[0.15em]">
+                  Joker
+                </span>
+              )}
+              <span className="tabular-nums font-semibold">
+                {tip.homeGoals}:{tip.awayGoals}
+              </span>
+            </div>
+            {tip.reasoning && (
+              <p className="text-xs italic text-stone-600 pl-1">{tip.reasoning}</p>
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+function tipKey(tip: MatchTip): string {
+  return tip.userId ?? tip.teamMemberId ?? tip.displayName
 }
 
 function TipForm({

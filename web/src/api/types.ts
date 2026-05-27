@@ -58,8 +58,12 @@ export type LongTipsResponse = {
 }
 
 export type MatchTip = {
-  userId: string
+  userId: string | null
+  teamMemberId: string | null
   displayName: string
+  isAi: boolean
+  isAiFallback: boolean
+  reasoning: string | null
   submittedAt: string
   updatedAt: string | null
   homeGoals: number | null
