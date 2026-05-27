@@ -16,6 +16,7 @@ export function Topbar() {
           <Link to="/matches" className="text-stone-600 hover:text-stone-900">Mérkőzések</Link>
           <Link to="/long-tips" className="text-stone-600 hover:text-stone-900">Hosszú tipp</Link>
           <Link to="/team" className="text-stone-600 hover:text-stone-900">Csapat</Link>
+          <Link to="/leaderboard" className="text-stone-600 hover:text-stone-900">Ranglista</Link>
           <Link to="/me" className="text-stone-600 hover:text-stone-900">Profil</Link>
         </nav>
         <div className="ml-auto flex items-center gap-3">

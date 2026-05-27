@@ -14,10 +14,11 @@
 - **Phase 4:** ✅ done (commit `2f25547`). Pure `MatchScorer` in Domain (categories per §3, multipliers per §4, joker doubles after multiplier per §6, AwayFromZero rounding). `scored_tips` table + idempotent `MatchScoringService` (delete-then-insert in one SaveChanges). `MatchFinalizedScoringHandler` auto-fires on poller transitions; `POST /api/admin/matches/{id}/rescore` for manual re-runs. CHECK constraints verified firing via psql. 109/109 tests green (+40 new).
 - **Phase 5 backend:** ✅ done (commits `45bc16c` + `fdf28ee`). Domain: `Team`, `TeamMember` (UserId nullable for AI slot), `TeamInvite`, `TeamRulesValidator`, `TeamLockPolicy`, `TeamAggregator` (pure best-3-of-4 with deterministic tiebreak). Schema: `teams` + `team_members` + `team_invites` (partial unique on AI slot, NULL-distinct unique on user_id). 7 team endpoints (create/get-mine/patch/leave/add-ai/invite/join) + admin lock trigger + per-match breakdown. `TeamLockJob` BackgroundService in Workers. 137/137 tests green (+28 new).
 - **Phase 5 frontend:** ✅ done. `/team` page renders one of three states (no team → create; Forming → manage; Locked/Disqualified → read-only banner). Manage view = rename, AI add (name + mode), AI stylepicker, invite-link generator with copy-to-clipboard + expiry, leave with confirm (cascades on last-human). `/team/join/:token` redeems and bounces to `/team`. Lock countdown reuses `LongTipsResponse.lockUtc` so the SPA stays single-source-of-truth on tournament start.
-- **Phases 6–11:** not started.
+- **Phase 7:** ✅ done. Domain: `LeaderboardRanker` (full §9 tiebreaker chain + shared placement), `StreakCalculator`. Infrastructure: `IndividualLeaderboardService` (sum scored_tips, count Exact, longest ≥3-pt streak) + `TeamLeaderboardService` (best-3-of-4 per match, Locked-only). API: `GET /api/leaderboard/users` + `/api/leaderboard/teams`. Frontend: `/leaderboard` with Egyéni/Csapat tabs, "én"/"csapatom" highlights. 155/155 tests green (+18 new). Long-tip outcomes (Winner/TopScorer correctness) plumbed as nullable, defaulting to null until Phase 8 admin entry lands.
+- **Phases 6, 8–11:** not started.
 - **Open decisions:** hosting swap (Fly.io+Vercel+Neon vs Azure) — see callouts. Auth decision is locked: **Auth0**.
 - **Football data source:** api-football Free plan (100 req/day) verified. WC 2022 (64 fixtures, full results) accessible; WC 2026 is `coverage.fixtures=false` on Free → **dev against `season=2022`, swap to 2026 once we upgrade or change provider**. Admin manual-entry fallback in Phase 8 is now load-bearing, not optional. api-football's WC labels are matchday-style (`Group Stage - 1/2/3`) — group letter has to come from `/standings`, see Phase 2 follow-up below.
-- **Next:** Phase 6 (AI tipper, **[CUT-OK]**) or jump straight to Phase 7 (leaderboards, **[CRITICAL]**) if cutting AI.
+- **Next:** Phase 8 (admin UI, **[CRITICAL]** — without it a single delayed/abandoned match wedges the tournament) — then Phase 6 (AI tipper, **[CUT-OK]**).
 
 ## How to read this plan
 
@@ -242,22 +243,30 @@ If you're already comfortable with the Azure + Auth0 path, keep it. Otherwise, s
 
 ---
 
-# Phase 7 — Leaderboards (Day 10–11)
+# Phase 7 — Leaderboards (Day 10–11) — ✅ DONE
 
-**Goal:** individual and team rankings, fast and current.
+**Shipped 2026-05-27:**
 
-- [ ] DB: `scored_tips` table (per-tip points after multiplier + joker)
-- [ ] DB: `user_totals` view or cached table — sum of scored_tips + long-term tip points
-- [ ] DB: `team_totals` — apply "best 3 of 4" per match + best-3 logic for long-term/jokers
-- [ ] API: `GET /api/leaderboard/users` paginated, sorted desc
-- [ ] API: `GET /api/leaderboard/teams` same
-- [ ] Tiebreaker logic implemented exactly per §9 (including the "megosztott helyezés" terminator)
-- [ ] Frontend: leaderboard pages, sortable, "me" highlighted, "my team" highlighted
-- [ ] Recompute strategy: refresh totals when a match is scored (event-driven, not on every read)
+- [x] Domain: `LeaderboardEntry`, `RankedLeaderboardEntry`, `LeaderboardRanker` (pure). Tiebreaker chain per §9 exactly: total → exact-count → winner-correct → topscorer-correct → longest ≥3-pt streak → shared placement (standard competition ranking, "1, 2, 2, 4"). Null long-tip outcomes are neutral so the chain falls through to streak until Phase 8 records outcomes.
+- [x] Domain: `StreakCalculator.LongestStreak` (pure, threshold = 3). Caller passes chronologically-ordered points-per-scored-match; absences are omitted (not zero-filled) so a missing tip doesn't poison a run between two genuine wins.
+- [x] Infrastructure: `IndividualLeaderboardService` — one users query + one scored_tips-with-kickoff query + in-memory grouping, no N+1. 200 users × 64 matches ≈ 12,800 rows max, well inside "just query it" territory; the materialized-view optimization from tech-stack.md stays **[CUT]** as the plan permits.
+- [x] Infrastructure: `TeamLeaderboardService` — only Locked teams compete (Disqualified members still show on the individual board per §7). Per match: build 4 `MemberPoints` (AI / no-tip = 0), feed `TeamAggregator` (best-3-of-4), sum. Tiebreaker = shared placement on tied total (§9's individual-flavoured tiebreakers don't translate; documented inline).
+- [x] API: `GET /api/leaderboard/users` + `/api/leaderboard/teams`, both with `isMe`/`isMyTeam` flags so the SPA doesn't need to know the caller's ids.
+- [x] Frontend: `/leaderboard` with Egyéni/Csapat tabs, table view for individuals (rank · név · pont · 10p · sorozat) and card view per team (rank · név · total · member breakdown). Self-highlights: `én` chip + orange left border on the individual row; `csapatom` chip + orange ring on the team card.
+- [x] Tests: 18 new (10 ranker covering each tiebreaker independently + shared placement + null-neutrality, 7 streak covering boundaries + breaks + empty input, 1 null guard). **155/155 green.**
 
-**Done when:** after scoring 3 mock matches, both leaderboards show correct rankings and break ties per §9.
+**Deferred until Phase 8:**
 
-**[CRITICAL]** — but the materialized-view optimization from tech-stack.md is **[CUT-OK]** at 200 users; a plain query is fast enough.
+- [ ] Long-tip outcomes (tournament winner + top scorer). Service already accepts nullable `WinnerCorrect`/`TopScorerCorrect`; just needs the admin entry endpoint + a small query change.
+- [ ] Event-driven cache refresh — every leaderboard request currently recomputes from scratch. Cheap enough at this scale, but if it ever bites, the place to add a cached-totals table is `MatchFinalizedScoringHandler`'s tail.
+
+**Lessons banked:**
+
+- Standard competition ranking ("1224") vs dense ranking ("1223") is a choice with no right answer — picked competition so a 2-way tie at #1 doesn't compress the rest of the ladder. Worth flagging if anyone notices.
+- `null` for "outcome not yet recorded" beats forcing the caller to choose a default — `false` would make WinnerCorrect=false break ties between two users who both tipped winners but neither has been validated yet. Nullable + neutral comparison keeps the ranker honest pre-Phase-8.
+- Team tiebreakers aren't spelled out in §9; rather than guess (sum of exact across members? "any member correct"?) we ship shared placement and document the gap. If the user wants something stricter, it's a localized change.
+
+**[CRITICAL]** ✅
 
 ---
 

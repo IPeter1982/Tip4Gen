@@ -18,7 +18,7 @@ backend/                    ASP.NET Core 9 solution (planned 10, on 9 for speed)
                             FixturesAdminController, ScoringAdminController,
                             TeamsAdminController, NationalTeamsController,
                             MatchesController, TipsController, LongTipsController,
-                            TeamsController
+                            TeamsController, LeaderboardController
   src/Tip4Gen.Domain        Pure domain types — no EF, no ASP.NET refs
     Users/User.cs
     Tournaments/            Stage + MatchStatus enums, Tournament, NationalTeam,
@@ -32,6 +32,8 @@ backend/                    ASP.NET Core 9 solution (planned 10, on 9 for speed)
     Teams/                  Team, TeamMember (UserId nullable for AI slot),
                             TeamInvite, TeamStatus + AiMode enums,
                             TeamRulesValidator, TeamLockPolicy, TeamAggregator (pure)
+    Leaderboard/            LeaderboardEntry, LeaderboardRanker (§9 tiebreakers,
+                            shared placement), StreakCalculator (pure)
   src/Tip4Gen.Infrastructure  EF Core, external clients
     Persistence/AppDbContext.cs + Migrations/
     DependencyInjection.cs  AddInfrastructure(IConfiguration)
@@ -43,6 +45,8 @@ backend/                    ASP.NET Core 9 solution (planned 10, on 9 for speed)
     Teams/                  TeamsService (CRUD + invites + join, tagged-union),
                             TeamLockService (Forming → Locked/Disqualified pass),
                             TeamAggregationService (per-match best-3-of-4 view)
+    Leaderboard/            IndividualLeaderboardService + TeamLeaderboardService
+                            (direct queries, no materialized view)
   src/Tip4Gen.Workers       BackgroundService host — FixturePoller (Phase 2)
                             + TeamLockJob (Phase 5), shares Api's UserSecretsId
                             for shared dev config
@@ -53,7 +57,8 @@ backend/                    ASP.NET Core 9 solution (planned 10, on 9 for speed)
   tests/Tip4Gen.Domain.Tests  xUnit — StageMapper, MatchStatusMapper,
                               TipRulesValidator, LongTermTipRulesValidator,
                               MatchScorer, StageMultipliers, TeamRulesValidator,
-                              TeamAggregator, TeamLockPolicy (137 tests)
+                              TeamAggregator, TeamLockPolicy, LeaderboardRanker,
+                              StreakCalculator (155 tests)
 web/                        Vite + React 19 + TS frontend
   src/auth/                 AuthProvider, RequireAuth, useApi (typed + ApiError),
                             authConfig
@@ -62,7 +67,8 @@ web/                        Vite + React 19 + TS frontend
                             hooks.ts (TanStack Query wrappers)
   src/lib/format.ts         Budapest TZ formatters + countdown + HU labels
   src/components/Topbar.tsx
-  src/pages/                Home, Me, Matches, TipSubmit, LongTips, Team, TeamJoin
+  src/pages/                Home, Me, Matches, TipSubmit, LongTips, Team, TeamJoin,
+                            Leaderboard
   src/main.tsx              <AuthProvider><QueryClientProvider><BrowserRouter>…
   src/index.css             Single line: @import "tailwindcss"
   vite.config.ts            port 5173, strictPort, dev proxy /api → :5050

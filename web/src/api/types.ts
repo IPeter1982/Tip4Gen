@@ -116,3 +116,31 @@ export type TeamMatchBreakdownView = {
   totalPoints: number
   members: MemberBreakdownView[]
 }
+
+export type IndividualLeaderboardRow = {
+  rank: number
+  userId: string
+  displayName: string
+  totalPoints: number
+  exactCount: number
+  winnerCorrect: boolean | null
+  topScorerCorrect: boolean | null
+  longestStreak: number
+  isMe: boolean
+}
+
+export type TeamLeaderboardMember = {
+  memberId: string
+  displayName: string
+  isAi: boolean
+  points: number
+}
+
+export type TeamLeaderboardRow = {
+  rank: number
+  teamId: string
+  teamName: string
+  totalPoints: number
+  members: TeamLeaderboardMember[]
+  isMyTeam: boolean
+}

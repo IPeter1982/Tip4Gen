@@ -2,11 +2,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useApi } from '../auth/useApi'
 import type {
   AiMode,
+  IndividualLeaderboardRow,
   InviteView,
   LongTipsResponse,
   MatchListItem,
   MatchTipsResponse,
   NationalTeam,
+  TeamLeaderboardRow,
   TeamMatchBreakdownView,
   TeamView,
   TipResponse,
@@ -187,5 +189,23 @@ export function useTeamMatchBreakdown(teamId: string | undefined, matchId: strin
     queryFn: () =>
       api.get<TeamMatchBreakdownView>(`/api/teams/${teamId}/matches/${matchId}/breakdown`),
     enabled: !!teamId && !!matchId,
+  })
+}
+
+// ----- Leaderboard -----
+
+export function useIndividualLeaderboard() {
+  const api = useApi()
+  return useQuery({
+    queryKey: ['leaderboard', 'users'],
+    queryFn: () => api.get<IndividualLeaderboardRow[]>('/api/leaderboard/users'),
+  })
+}
+
+export function useTeamLeaderboard() {
+  const api = useApi()
+  return useQuery({
+    queryKey: ['leaderboard', 'teams'],
+    queryFn: () => api.get<TeamLeaderboardRow[]>('/api/leaderboard/teams'),
   })
 }

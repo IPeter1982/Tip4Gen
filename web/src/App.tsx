@@ -2,6 +2,7 @@ import { Route, Routes } from 'react-router'
 import { RequireAuth } from './auth/RequireAuth'
 import { Topbar } from './components/Topbar'
 import { Home } from './pages/Home'
+import { Leaderboard } from './pages/Leaderboard'
 import { LongTips } from './pages/LongTips'
 import { Matches } from './pages/Matches'
 import { Me } from './pages/Me'
@@ -52,6 +53,14 @@ export default function App() {
           element={
             <RequireAuth>
               <TeamJoin />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/leaderboard"
+          element={
+            <RequireAuth>
+              <Leaderboard />
             </RequireAuth>
           }
         />
