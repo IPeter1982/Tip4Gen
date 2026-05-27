@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Tip4Gen.Domain.Scoring;
+using Tip4Gen.Domain.Teams;
 using Tip4Gen.Domain.Tipping;
 using Tip4Gen.Domain.Tournaments;
 using Tip4Gen.Domain.Users;
@@ -15,6 +16,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Tip> Tips => Set<Tip>();
     public DbSet<LongTermTip> LongTermTips => Set<LongTermTip>();
     public DbSet<ScoredTip> ScoredTips => Set<ScoredTip>();
+    public DbSet<Team> Teams => Set<Team>();
+    public DbSet<TeamMember> TeamMembers => Set<TeamMember>();
+    public DbSet<TeamInvite> TeamInvites => Set<TeamInvite>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -224,6 +228,93 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             b.HasIndex(s => s.TipId).IsUnique();
             b.HasIndex(s => s.MatchId);
             b.HasIndex(s => s.UserId);
+        });
+
+        modelBuilder.Entity<Team>(b =>
+        {
+            b.ToTable("teams", t =>
+            {
+                t.HasCheckConstraint("ck_teams_status",
+                    "status IN ('Forming','Locked','Disqualified')");
+                t.HasCheckConstraint("ck_teams_ai_mode",
+                    "ai_mode IS NULL OR ai_mode IN ('Conservative','Balanced','Bold')");
+            });
+            b.HasKey(t => t.Id);
+            b.Property(t => t.Id).HasColumnName("id");
+            b.Property(t => t.Name).HasColumnName("name").HasMaxLength(Team.MaxNameLength).IsRequired();
+            b.Property(t => t.Status)
+                .HasColumnName("status")
+                .HasConversion<string>()
+                .HasMaxLength(16)
+                .IsRequired();
+            b.Property(t => t.AiMode)
+                .HasColumnName("ai_mode")
+                .HasConversion<string>()
+                .HasMaxLength(16);
+            b.Property(t => t.CreatedAt).HasColumnName("created_at").IsRequired();
+            b.Property(t => t.UpdatedAt).HasColumnName("updated_at").IsRequired();
+        });
+
+        modelBuilder.Entity<TeamMember>(b =>
+        {
+            b.ToTable("team_members", t =>
+            {
+                t.HasCheckConstraint("ck_team_members_ai_shape",
+                    "(is_ai = TRUE AND user_id IS NULL AND ai_display_name IS NOT NULL) "
+                    + "OR (is_ai = FALSE AND user_id IS NOT NULL AND ai_display_name IS NULL)");
+            });
+            b.HasKey(m => m.Id);
+            b.Property(m => m.Id).HasColumnName("id");
+            b.Property(m => m.TeamId).HasColumnName("team_id").IsRequired();
+            b.Property(m => m.UserId).HasColumnName("user_id");
+            b.Property(m => m.IsAi).HasColumnName("is_ai").IsRequired();
+            b.Property(m => m.AiDisplayName).HasColumnName("ai_display_name").HasMaxLength(80);
+            b.Property(m => m.JoinedAt).HasColumnName("joined_at").IsRequired();
+
+            b.HasOne<Team>()
+                .WithMany()
+                .HasForeignKey(m => m.TeamId)
+                .OnDelete(DeleteBehavior.Cascade);
+            b.HasOne<User>()
+                .WithMany()
+                .HasForeignKey(m => m.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // One human user can belong to at most one team. NULLs (AI rows) are
+            // allowed to repeat — PostgreSQL treats NULLs as distinct in unique indexes.
+            b.HasIndex(m => m.UserId).IsUnique();
+            b.HasIndex(m => m.TeamId);
+            // Partial unique index: at most one AI member per team.
+            b.HasIndex(m => m.TeamId)
+                .IsUnique()
+                .HasDatabaseName("ux_team_members_one_ai_per_team")
+                .HasFilter("is_ai = TRUE");
+        });
+
+        modelBuilder.Entity<TeamInvite>(b =>
+        {
+            b.ToTable("team_invites");
+            b.HasKey(i => i.Id);
+            b.Property(i => i.Id).HasColumnName("id");
+            b.Property(i => i.TeamId).HasColumnName("team_id").IsRequired();
+            b.Property(i => i.Token).HasColumnName("token").HasMaxLength(64).IsRequired();
+            b.Property(i => i.CreatedByUserId).HasColumnName("created_by_user_id").IsRequired();
+            b.Property(i => i.CreatedAt).HasColumnName("created_at").IsRequired();
+            b.Property(i => i.ExpiresAt).HasColumnName("expires_at").IsRequired();
+            b.Property(i => i.UsedAt).HasColumnName("used_at");
+            b.Property(i => i.UsedByUserId).HasColumnName("used_by_user_id");
+
+            b.HasOne<Team>()
+                .WithMany()
+                .HasForeignKey(i => i.TeamId)
+                .OnDelete(DeleteBehavior.Cascade);
+            b.HasOne<User>()
+                .WithMany()
+                .HasForeignKey(i => i.CreatedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            b.HasIndex(i => i.Token).IsUnique();
+            b.HasIndex(i => i.TeamId);
         });
     }
 }

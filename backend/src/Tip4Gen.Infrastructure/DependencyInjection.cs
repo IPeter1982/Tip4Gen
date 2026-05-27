@@ -8,6 +8,7 @@ using Tip4Gen.Domain.Tournaments.Events;
 using Tip4Gen.Infrastructure.Football;
 using Tip4Gen.Infrastructure.Persistence;
 using Tip4Gen.Infrastructure.Scoring;
+using Tip4Gen.Infrastructure.Teams;
 using Tip4Gen.Infrastructure.Tipping;
 using Tip4Gen.Infrastructure.Tournaments;
 
@@ -40,6 +41,7 @@ public static class DependencyInjection
         services.AddScoped<ILongTermTipsService, LongTermTipsService>();
         services.AddScoped<IMatchScoringService, MatchScoringService>();
         services.AddScoped<IMatchFinalizedHandler, MatchFinalizedScoringHandler>();
+        services.AddScoped<ITeamsService, TeamsService>();
 
         return services;
     }
