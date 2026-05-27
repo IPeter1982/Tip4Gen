@@ -1,7 +1,7 @@
 # Implementation Plan — Foci VB Tippjáték
 
 **Target launch:** 2026-06-11 (World Cup opener kickoff).
-**Today:** 2026-05-25 → **17 days runway.**
+**Today:** 2026-05-27 → **15 days runway.**
 **Scope:** 50–200 users, friends-and-extended-circle.
 **Stack:** per `tech-stack.md` — Vite/React SPA + ASP.NET Core 9 API (planned 10, using 9 for speed) + PostgreSQL + Auth0 + Azure.
 
@@ -10,10 +10,11 @@
 - **Phase 0:** ✅ done (committed `de66246`). Local Postgres 18 is in use instead of Docker.
 - **Phase 1:** ✅ done end-to-end (commits `fe93917` + `f094978`). Auth0 tenant `dev-yifcd0c5p4s0wcj5.eu.auth0.com` live, real Google login → `/api/me` returns user row with `isAdmin: true` for `google-oauth2|115365131932488818447`.
 - **Phase 2:** ✅ done (commits `e02496f` + `3763e11` + `370cd43`). Schema + `IFootballDataProvider` + api-football impl with `AddStandardResilienceHandler`. `POST /api/admin/fixtures/seed` verified end-to-end against real WC 2022 (1 tournament, 32 teams, 64 matches, correct stage breakdown). Quota-aware `FixturePoller` in Workers exercised live (`Live → Finished` transition + `MatchFinalized` dispatch). Latent Phase 1 admin-policy bug fixed in passing.
-- **Phases 3–11:** not started.
+- **Phase 3:** ✅ done (commits `3950fd4` + `6b31440` + `27d7d25`). Backend: `PUT /api/tips/{matchId}` with full rule validation, list endpoints, long-term tip upsert. Frontend: `/matches` list with status chips + countdown, `/matches/:id/tip` form (RHF + Zod), `/long-tips` page. ProblemDetails `reason` enum drives field-level errors. 69/69 tests green.
+- **Phases 4–11:** not started.
 - **Open decisions:** hosting swap (Fly.io+Vercel+Neon vs Azure) — see callouts. Auth decision is locked: **Auth0**.
 - **Football data source:** api-football Free plan (100 req/day) verified. WC 2022 (64 fixtures, full results) accessible; WC 2026 is `coverage.fixtures=false` on Free → **dev against `season=2022`, swap to 2026 once we upgrade or change provider**. Admin manual-entry fallback in Phase 8 is now load-bearing, not optional. api-football's WC labels are matchday-style (`Group Stage - 1/2/3`) — group letter has to come from `/standings`, see Phase 2 follow-up below.
-- **Next:** Phase 3 (tipping), unblocked.
+- **Next:** Phase 4 (scoring engine), unblocked. `MatchFinalized` event already dispatches from `FixtureSyncService` — the scoring runner just needs to register as an `IMatchFinalizedHandler`.
 
 ## How to read this plan
 
@@ -114,26 +115,33 @@ If you're already comfortable with the Azure + Auth0 path, keep it. Otherwise, s
 
 ---
 
-# Phase 3 — Tipping (Day 4–6)
+# Phase 3 — Tipping (Day 4–6) — ✅ DONE
 
-**Goal:** users can submit and edit match tips and long-term tips, deadlines enforced server-side.
+**Shipped 2026-05-25 → 27:**
 
-- [ ] DB schema: `tips` (user_id, match_id, home_goals, away_goals, joker, submitted_at), unique on (user_id, match_id)
-- [ ] DB schema: `long_term_tips` (user_id, type [winner|top_scorer], target_id, locked_at)
-- [ ] DB schema: `jokers_used` view or computed — 3 per user max, group-stage only
-- [ ] API: `PUT /api/tips/{matchId}` — upsert tip; reject if past `kickoff_utc - 1h`
-- [ ] API: `POST /api/long-tips` — accept only before tournament-start kickoff
-- [ ] API: `GET /api/matches?phase=upcoming` — list with my tip + deadline
-- [ ] API: `GET /api/matches/{id}/tips` — returns who-has-tipped (before deadline) or full tips (after deadline)
-- [ ] Frontend: tip submission form (RHF + Zod), score inputs, joker checkbox, deadline countdown
-- [ ] Frontend: tournament-eve long-term tip form (winner + top scorer), locks after first kickoff
-- [ ] Frontend: match list page with status chips (open / closed / finished)
-- [ ] Server-side joker validation: max 3 per user, group-stage matches only, one per match
-- [ ] Time zones: all deadlines in UTC, display in Europe/Budapest
+- [x] DB schema: `tips` (user_id, match_id, home_goals, away_goals, joker, submitted_at, updated_at), unique on (user_id, match_id), CHECK 0–15 on both goals, partial index on `(user_id) WHERE joker=TRUE` for the joker-count query.
+- [x] DB schema: `long_term_tips` (user_id, type, target_team_id, target_player_name, submitted_at, updated_at). UNIQUE (user_id, type); CHECK enforcing `(Winner → team only)` XOR `(TopScorer → name only)`. Lock derived from `tournaments.starts_at_utc` — no separate `locked_at` column.
+- [x] Joker counting: pure validator in Domain (`TipRulesValidator`) — caller passes `otherJokerCountForUser` (count excluding the current match), validator returns `JokerQuotaExceeded` if > 2. Service issues a single COUNT query against the partial index.
+- [x] API: `PUT /api/tips/{matchId}` — upsert with 201/200/404/422. Rejection reasons: `DeadlinePassed`, `ScoreOutOfRange`, `JokerNotAllowedOnKnockoutMatch`, `JokerQuotaExceeded`. Each maps to RFC 7807 with Hungarian `detail` + machine-readable `reason` extension.
+- [x] API: `GET /api/long-tips` + `PUT /api/long-tips` — per-field upsert (either field may be null and stays unchanged), tournament-start lock, Hungarian rejection messages with `reason` extension.
+- [x] API: `GET /api/matches?phase=upcoming|past|all` — single round-trip with caller's tip LEFT JOIN'd in.
+- [x] API: `GET /api/matches/{id}` — single match (added for the tip form's data needs).
+- [x] API: `GET /api/matches/{id}/tips` — pre-deadline returns userId + displayName + submittedAt; post-deadline returns full scores + joker.
+- [x] API: `GET /api/national-teams` — sorted list for the winner picker.
+- [x] Frontend: `/matches` page with phase tabs, date-grouped list, status chips (`nyitva / lezárva / él / lejátszott / halasztott / törölt`), live countdown.
+- [x] Frontend: `/matches/:matchId/tip` — RHF + Zod, score 0–15, joker checkbox auto-disabled on knockouts, server `reason` mapped to per-field errors in Hungarian, deadline countdown locks the form when expired.
+- [x] Frontend: `/long-tips` — winner select + top scorer text input, hydrates from GET, lock banner with Budapest-TZ display, `Locked` rejection surfaced.
+- [x] Topbar nav: `Mérkőzések`, `Hosszú tipp` added.
+- [x] All deadlines stored UTC, displayed `Europe/Budapest` via `lib/format.ts`.
+- [x] Tests: `TipRulesValidator` (23 cases), `LongTermTipRulesValidator` (10 cases) — rule precedence + boundary conditions.
 
-**Done when:** you can submit a tip from your phone, can't submit after the deadline (try it), and the long-term tips lock when first kickoff hits.
+**Lessons banked (commits `3950fd4`, `6b31440`, `27d7d25`):**
 
-**[CRITICAL]**
+- Tagged-union service results (`abstract record` + sealed nested records) make controllers a clean `switch` — no exception-driven control flow for expected rejections. Reuse this shape in Phases 4–8.
+- `z.coerce.number()` clashes with `zodResolver`'s generic shape. Use `z.number()` + `register('field', { valueAsNumber: true })` — captured in CLAUDE.md.
+- Stable `reason` enum names in ProblemDetails are the cleanest way to keep server validation messages localized server-side while letting the SPA do per-field routing.
+
+**[CRITICAL]** ✅
 
 ---
 

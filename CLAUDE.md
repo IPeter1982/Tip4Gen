@@ -15,28 +15,38 @@ backend/                    ASP.NET Core 9 solution (planned 10, on 9 for speed)
   src/Tip4Gen.Api           Controllers, Program.cs, Serilog, OpenAPI, Auth0
     Auth/                   Auth0Options, AuthExtensions, CurrentUserService
     Controllers/            HealthController, MeController, AdminController,
-                            FixturesAdminController (POST /api/admin/fixtures/seed)
+                            FixturesAdminController, NationalTeamsController,
+                            MatchesController, TipsController, LongTipsController
   src/Tip4Gen.Domain        Pure domain types — no EF, no ASP.NET refs
     Users/User.cs
     Tournaments/            Stage + MatchStatus enums, Tournament, NationalTeam,
                             Match, StageMapper, MatchStatusMapper
     Tournaments/Events/     MatchFinalized record + IMatchFinalizedHandler
     Football/               IFootballDataProvider + ProviderFixture/Team/Status
+    Tipping/                Tip, TipRulesValidator (pure rule engine),
+                            LongTermTip + LongTermTipRulesValidator
   src/Tip4Gen.Infrastructure  EF Core, external clients
     Persistence/AppDbContext.cs + Migrations/
     DependencyInjection.cs  AddInfrastructure(IConfiguration)
     Football/               ApiFootballProvider + Options + DTOs
     Tournaments/            FixtureSyncService (idempotent upsert + event dispatch)
+    Tipping/                TipsService, LongTermTipsService (tagged-union results)
   src/Tip4Gen.Workers       BackgroundService host — FixturePoller (Phase 2),
                             shares Api's UserSecretsId for shared dev config
     FixturePoller.cs        Calls FixtureSyncService when DB has active matches
     FixturePollerOptions.cs IntervalMinutes / ActiveWindowHours / LookaheadMinutes
-  tests/Tip4Gen.Domain.Tests  xUnit — StageMapper + MatchStatusMapper (35 tests)
+  tests/Tip4Gen.Domain.Tests  xUnit — StageMapper, MatchStatusMapper,
+                              TipRulesValidator, LongTermTipRulesValidator (69 tests)
 web/                        Vite + React 19 + TS frontend
-  src/auth/                 AuthProvider, RequireAuth, useApi, authConfig
+  src/auth/                 AuthProvider, RequireAuth, useApi (typed + ApiError),
+                            authConfig
+  src/api/                  errors.ts (ApiError + ProblemDetails),
+                            types.ts (shared response shapes),
+                            hooks.ts (TanStack Query wrappers)
+  src/lib/format.ts         Budapest TZ formatters + countdown + HU labels
   src/components/Topbar.tsx
-  src/pages/{Home,Me}.tsx
-  src/main.tsx              <AuthProvider><BrowserRouter><App/>…
+  src/pages/                Home, Me, Matches, TipSubmit, LongTips
+  src/main.tsx              <AuthProvider><QueryClientProvider><BrowserRouter>…
   src/index.css             Single line: @import "tailwindcss"
   vite.config.ts            port 5173, strictPort, dev proxy /api → :5050
   .env.local                VITE_AUTH0_* (gitignored)
@@ -72,11 +82,21 @@ dotnet ef database update --project backend/src/Tip4Gen.Infrastructure --startup
 
 - **Tailwind v4** via `@tailwindcss/vite` plugin. **No PostCSS, no `tailwind.config.js`** — single `@import "tailwindcss"` in `index.css`. Configure via `@theme` in CSS, not JS.
 - **React Router v7** — unified package `react-router` (not `react-router-dom`).
+- **TanStack Query v5** + **react-hook-form** + **Zod** for data fetching and forms. `useApi` returns typed `get/put/post/del` helpers and parses ProblemDetails into `ApiError` (with `reason` extension).
 - **Serilog** wired via `Host.UseSerilog((ctx, _, cfg) => cfg.ReadFrom.Configuration(ctx.Configuration))` — all config lives in `appsettings.json`.
 - **CORS** policy applies to non-proxied paths only; in dev, Vite proxies `/api` so CORS rarely fires.
 - **Time zones:** all deadlines and timestamps stored in **UTC**, displayed in **Europe/Budapest**.
 - **Language:** UI copy is **Hungarian**. Code, identifiers, comments in English.
 - **Vite** must run with `strictPort: true` so the SPA always lives on `:5173` — Auth0 callback URLs are hard-coded to that port.
+
+## API error contract
+
+Service layer returns tagged-union results (e.g. `TipUpsertResult.Success | MatchNotFound | Rejected`). Controllers translate `Rejected` into RFC 7807 ProblemDetails with:
+- `title`: short English label
+- `detail`: Hungarian user-facing message
+- `reason`: machine-readable enum name (e.g. `DeadlinePassed`, `JokerNotAllowedOnKnockoutMatch`, `Locked`)
+
+The SPA's `ApiError` lifts `reason` to a typed field so forms can map it to per-field errors without parsing detail strings. Keep the enum names stable — they're the contract.
 
 ## Secrets
 
@@ -121,6 +141,12 @@ Single admin (the project owner). Gated by Auth0 `sub` claim matching the `Auth0
 - Auth0 API identifiers **cannot be edited after creation**. Whitespace typos require delete + recreate.
 - Even with "Allow Skipping User Consent" on, the SPA must be **explicitly enabled** for the API under **Application → APIs** in the Auth0 dashboard.
 
+## Forms gotcha — Zod + react-hook-form
+
+`z.coerce.number()` makes Zod's **input** type `unknown` while the output is `number`. `zodResolver` then produces a `Resolver<output, ctx, input>` whose two sides don't line up with the single `TFieldValues` RHF expects, causing a TS2322 mismatch. Two options:
+- Keep `z.number()` (no coerce) and pass `{ valueAsNumber: true }` to `register` so the DOM string is converted before validation. This is what `TipSubmit.tsx` does.
+- Or use the three-generic `useForm<Input, Ctx, Output>(...)`. More ceremony, same outcome.
+
 ## Things not to do
 
 - Don't introduce PostCSS or a `tailwind.config.js` — Tailwind v4 doesn't need them.
@@ -128,3 +154,4 @@ Single admin (the project owner). Gated by Auth0 `sub` claim matching the `Auth0
 - Don't put credentials in `appsettings.json` or commit `web/.env.local` — use `dotnet user-secrets` and `.env.local` (both gitignored).
 - Don't fabricate dates from training data — today's date comes from the system context. WC 2026 starts **2026-06-11**.
 - Don't widen scope mid-phase. If something doesn't fit in the current phase, note it in the plan and move on.
+- Don't break the `reason` enum in ProblemDetails responses — the frontend maps it to per-field errors. Adding a new variant is fine; renaming an existing one needs a coordinated SPA change.
