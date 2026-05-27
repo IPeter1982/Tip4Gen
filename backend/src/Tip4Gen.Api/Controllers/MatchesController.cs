@@ -111,6 +111,47 @@ public class MatchesController(AppDbContext db, CurrentUserService currentUser) 
         return Ok(response);
     }
 
+    [HttpGet("{matchId:guid}")]
+    public async Task<IActionResult> Get(Guid matchId, CancellationToken ct)
+    {
+        var user = await currentUser.GetOrCreateAsync(ct);
+
+        var row = await (
+            from m in db.Matches.AsNoTracking().Where(m => m.Id == matchId)
+            join h in db.NationalTeams.AsNoTracking() on m.HomeTeamId equals h.Id
+            join a in db.NationalTeams.AsNoTracking() on m.AwayTeamId equals a.Id
+            from t in db.Tips.AsNoTracking()
+                .Where(t => t.MatchId == m.Id && t.UserId == user.Id).DefaultIfEmpty()
+            select new { Match = m, Home = h, Away = a, MyTip = t }).FirstOrDefaultAsync(ct);
+
+        if (row is null)
+        {
+            return Problem(
+                statusCode: StatusCodes.Status404NotFound,
+                title: "Match not found",
+                detail: $"No match with id {matchId}.");
+        }
+
+        var response = new UpcomingMatchResponse(
+            row.Match.Id,
+            row.Match.Stage.ToString(),
+            row.Match.GroupCode,
+            row.Match.RoundLabel,
+            new TeamSummary(row.Home.Id, row.Home.Name, row.Home.Code),
+            new TeamSummary(row.Away.Id, row.Away.Name, row.Away.Code),
+            row.Match.KickoffUtc,
+            row.Match.KickoffUtc - TipRulesValidator.DeadlineBeforeKickoff,
+            row.Match.Status.ToString(),
+            row.Match.HomeGoals,
+            row.Match.AwayGoals,
+            row.MyTip is null
+                ? null
+                : new MyTip(row.MyTip.HomeGoals, row.MyTip.AwayGoals, row.MyTip.Joker,
+                    row.MyTip.SubmittedAt, row.MyTip.UpdatedAt));
+
+        return Ok(response);
+    }
+
     [HttpGet("{matchId:guid}/tips")]
     public async Task<IActionResult> Tips(Guid matchId, CancellationToken ct)
     {

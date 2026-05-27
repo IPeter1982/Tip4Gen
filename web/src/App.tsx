@@ -2,7 +2,10 @@ import { Route, Routes } from 'react-router'
 import { RequireAuth } from './auth/RequireAuth'
 import { Topbar } from './components/Topbar'
 import { Home } from './pages/Home'
+import { LongTips } from './pages/LongTips'
+import { Matches } from './pages/Matches'
 import { Me } from './pages/Me'
+import { TipSubmit } from './pages/TipSubmit'
 
 export default function App() {
   return (
@@ -10,6 +13,30 @@ export default function App() {
       <Topbar />
       <Routes>
         <Route path="/" element={<Home />} />
+        <Route
+          path="/matches"
+          element={
+            <RequireAuth>
+              <Matches />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/matches/:matchId/tip"
+          element={
+            <RequireAuth>
+              <TipSubmit />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/long-tips"
+          element={
+            <RequireAuth>
+              <LongTips />
+            </RequireAuth>
+          }
+        />
         <Route
           path="/me"
           element={
