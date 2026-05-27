@@ -6,6 +6,7 @@ using Microsoft.Extensions.Options;
 using Tip4Gen.Domain.Football;
 using Tip4Gen.Domain.Tournaments.Events;
 using Tip4Gen.Infrastructure.Football;
+using Tip4Gen.Infrastructure.Leaderboard;
 using Tip4Gen.Infrastructure.Persistence;
 using Tip4Gen.Infrastructure.Scoring;
 using Tip4Gen.Infrastructure.Teams;
@@ -44,6 +45,8 @@ public static class DependencyInjection
         services.AddScoped<ITeamsService, TeamsService>();
         services.AddScoped<ITeamLockService, TeamLockService>();
         services.AddScoped<ITeamAggregationService, TeamAggregationService>();
+        services.AddScoped<IIndividualLeaderboardService, IndividualLeaderboardService>();
+        services.AddScoped<ITeamLeaderboardService, TeamLeaderboardService>();
 
         return services;
     }
