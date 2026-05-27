@@ -74,3 +74,45 @@ export type MatchTipsResponse = {
   tipCount: number
   tips: MatchTip[]
 }
+
+export type TeamStatus = 'Forming' | 'Locked' | 'Disqualified'
+export type AiMode = 'Conservative' | 'Balanced' | 'Bold'
+
+export type TeamMemberView = {
+  id: string
+  userId: string | null
+  displayName: string
+  isAi: boolean
+  joinedAt: string
+}
+
+export type TeamView = {
+  id: string
+  name: string
+  status: TeamStatus
+  aiMode: AiMode | null
+  createdAt: string
+  members: TeamMemberView[]
+}
+
+export type InviteView = {
+  token: string
+  expiresAt: string
+}
+
+export type MemberBreakdownView = {
+  memberId: string
+  userId: string | null
+  displayName: string
+  isAi: boolean
+  points: number
+  dropped: boolean
+}
+
+export type TeamMatchBreakdownView = {
+  teamId: string
+  teamName: string
+  matchId: string
+  totalPoints: number
+  members: MemberBreakdownView[]
+}

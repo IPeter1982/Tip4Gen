@@ -62,7 +62,7 @@ web/                        Vite + React 19 + TS frontend
                             hooks.ts (TanStack Query wrappers)
   src/lib/format.ts         Budapest TZ formatters + countdown + HU labels
   src/components/Topbar.tsx
-  src/pages/                Home, Me, Matches, TipSubmit, LongTips
+  src/pages/                Home, Me, Matches, TipSubmit, LongTips, Team, TeamJoin
   src/main.tsx              <AuthProvider><QueryClientProvider><BrowserRouter>…
   src/index.css             Single line: @import "tailwindcss"
   vite.config.ts            port 5173, strictPort, dev proxy /api → :5050

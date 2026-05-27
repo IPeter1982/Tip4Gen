@@ -13,11 +13,11 @@
 - **Phase 3:** ✅ done (commits `3950fd4` + `6b31440` + `27d7d25`). Backend: `PUT /api/tips/{matchId}` with full rule validation, list endpoints, long-term tip upsert. Frontend: `/matches` list with status chips + countdown, `/matches/:id/tip` form (RHF + Zod), `/long-tips` page. ProblemDetails `reason` enum drives field-level errors.
 - **Phase 4:** ✅ done (commit `2f25547`). Pure `MatchScorer` in Domain (categories per §3, multipliers per §4, joker doubles after multiplier per §6, AwayFromZero rounding). `scored_tips` table + idempotent `MatchScoringService` (delete-then-insert in one SaveChanges). `MatchFinalizedScoringHandler` auto-fires on poller transitions; `POST /api/admin/matches/{id}/rescore` for manual re-runs. CHECK constraints verified firing via psql. 109/109 tests green (+40 new).
 - **Phase 5 backend:** ✅ done (commits `45bc16c` + `fdf28ee`). Domain: `Team`, `TeamMember` (UserId nullable for AI slot), `TeamInvite`, `TeamRulesValidator`, `TeamLockPolicy`, `TeamAggregator` (pure best-3-of-4 with deterministic tiebreak). Schema: `teams` + `team_members` + `team_invites` (partial unique on AI slot, NULL-distinct unique on user_id). 7 team endpoints (create/get-mine/patch/leave/add-ai/invite/join) + admin lock trigger + per-match breakdown. `TeamLockJob` BackgroundService in Workers. 137/137 tests green (+28 new).
-- **Phase 5 frontend:** not started yet.
+- **Phase 5 frontend:** ✅ done. `/team` page renders one of three states (no team → create; Forming → manage; Locked/Disqualified → read-only banner). Manage view = rename, AI add (name + mode), AI stylepicker, invite-link generator with copy-to-clipboard + expiry, leave with confirm (cascades on last-human). `/team/join/:token` redeems and bounces to `/team`. Lock countdown reuses `LongTipsResponse.lockUtc` so the SPA stays single-source-of-truth on tournament start.
 - **Phases 6–11:** not started.
 - **Open decisions:** hosting swap (Fly.io+Vercel+Neon vs Azure) — see callouts. Auth decision is locked: **Auth0**.
 - **Football data source:** api-football Free plan (100 req/day) verified. WC 2022 (64 fixtures, full results) accessible; WC 2026 is `coverage.fixtures=false` on Free → **dev against `season=2022`, swap to 2026 once we upgrade or change provider**. Admin manual-entry fallback in Phase 8 is now load-bearing, not optional. api-football's WC labels are matchday-style (`Group Stage - 1/2/3`) — group letter has to come from `/standings`, see Phase 2 follow-up below.
-- **Next:** Phase 5 frontend (team create/manage pages, invite share, AI configurator, dashboard) — then Phase 6 (AI tipper) which is **[CUT-OK]**.
+- **Next:** Phase 6 (AI tipper, **[CUT-OK]**) or jump straight to Phase 7 (leaderboards, **[CRITICAL]**) if cutting AI.
 
 ## How to read this plan
 
@@ -198,17 +198,28 @@ If you're already comfortable with the Azure + Auth0 path, keep it. Otherwise, s
 - Two-stage mutability gating (tournament-start time → team status) makes 422 error messages honest: "torna már elkezdődött" vs "csapat lezárult" point at different fixes.
 - Disqualifying under-4 teams at lock time (rather than deleting) means members can still see their team-page state post-lock and the individual leaderboard still works for them.
 
-**Frontend (NOT shipped yet):**
+**Frontend shipped 2026-05-27:**
 
-- [ ] Team creation + naming
-- [ ] Invite link sharing (copy-to-clipboard, expiry display)
-- [ ] Member list with AI configurator (mode picker, persona name)
-- [ ] Per-team dashboard: current standing, per-match best-3 contribution view
-- [ ] Lock countdown banner ("Csapat zárul: 2026-06-11 18:00 CET")
+- [x] `/team` route, single page that renders one of three states:
+  - **No team yet** → `CreateTeamPanel` (RHF + Zod, 80-char limit, surfaces server `reason` enum)
+  - **Forming team** → manage panels: members list (incl. empty slots), rename, optional AI add (Conservative/Balanced/Bold mode + persona name), invite-link generator with copy-to-clipboard + 7-day expiry display, leave with confirm
+  - **Locked / Disqualified** → read-only members list with status banner
+- [x] AI stylepicker (`AiModePanel`) lets the captain change the AI mode after the AI is added; disabled once the team is no longer mutable.
+- [x] Lock countdown banner driven by `LongTipsResponse.lockUtc` (tournament start) with 1s-tick countdown — same `formatCountdown` helper as `/matches`.
+- [x] `/team/join/:token` route — auto-redeems on mount (guarded with a ref so React 19 double-effects don't double-call), navigates to `/team` on success, shows Hungarian rejection messages otherwise.
+- [x] `useApi.patch` added so `PATCH /api/teams/{id}` matches the existing get/put/post/del helper shape.
+- [x] Topbar nav: `Csapat` link added.
+- [x] Per-team dashboard (per-match best-3 contribution view) — backend endpoint `GET /api/teams/{id}/matches/{matchId}/breakdown` and `useTeamMatchBreakdown` hook are in place; UI surface deferred to Phase 7 where it joins the leaderboard work.
 
-**Done when:** you can create a team with 3 friends + the AI, see "Csapat zárul: {kickoff time}" countdown, and after lock the team has frozen membership.
+**Lessons banked:**
 
-**[CRITICAL]** — backend ✅, frontend pending.
+- `GET /api/teams/me` returns 204 when the user isn't in a team. `useApi.get` resolves 204 as `undefined`; `useMyTeam` normalizes that to `null` so consumers get a stable cached value instead of three states (loading/no-team/team).
+- Single `/team` route with a state-driven panel beats three separate routes (`/team/new`, `/team/manage`, `/team/locked`) — fewer route hops, fewer broken bookmarks across membership transitions.
+- Lock countdown reuses `LongTipsResponse.lockUtc` rather than adding a new endpoint. Tournament-start is one fact; surfacing it through two endpoints would invite drift.
+
+**Done when:** ✅ you can create a team with 3 friends + the AI, see "Csapat zárul: {kickoff time}" countdown, and after lock the team has frozen membership.
+
+**[CRITICAL]** ✅
 
 ---
 

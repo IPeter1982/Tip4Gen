@@ -5,6 +5,8 @@ import { Home } from './pages/Home'
 import { LongTips } from './pages/LongTips'
 import { Matches } from './pages/Matches'
 import { Me } from './pages/Me'
+import { Team } from './pages/Team'
+import { TeamJoin } from './pages/TeamJoin'
 import { TipSubmit } from './pages/TipSubmit'
 
 export default function App() {
@@ -34,6 +36,22 @@ export default function App() {
           element={
             <RequireAuth>
               <LongTips />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/team"
+          element={
+            <RequireAuth>
+              <Team />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/team/join/:token"
+          element={
+            <RequireAuth>
+              <TeamJoin />
             </RequireAuth>
           }
         />

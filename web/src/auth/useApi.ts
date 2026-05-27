@@ -43,6 +43,7 @@ export function useApi() {
   return useMemo(() => ({
     get: <T,>(path: string) => request<T>(path),
     put: <T,>(path: string, body?: unknown) => request<T>(path, { method: 'PUT', body }),
+    patch: <T,>(path: string, body?: unknown) => request<T>(path, { method: 'PATCH', body }),
     post: <T,>(path: string, body?: unknown) => request<T>(path, { method: 'POST', body }),
     del: <T,>(path: string) => request<T>(path, { method: 'DELETE' }),
     // back-compat for existing call sites
