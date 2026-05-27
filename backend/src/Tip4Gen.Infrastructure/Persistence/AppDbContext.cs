@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Tip4Gen.Domain.Scoring;
 using Tip4Gen.Domain.Tipping;
 using Tip4Gen.Domain.Tournaments;
 using Tip4Gen.Domain.Users;
@@ -13,6 +14,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Match> Matches => Set<Match>();
     public DbSet<Tip> Tips => Set<Tip>();
     public DbSet<LongTermTip> LongTermTips => Set<LongTermTip>();
+    public DbSet<ScoredTip> ScoredTips => Set<ScoredTip>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -174,6 +176,54 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                 .OnDelete(DeleteBehavior.Restrict);
 
             b.HasIndex(t => new { t.UserId, t.Type }).IsUnique();
+        });
+
+        modelBuilder.Entity<ScoredTip>(b =>
+        {
+            b.ToTable("scored_tips", t =>
+            {
+                t.HasCheckConstraint("ck_scored_tips_category",
+                    "category IN ('Nothing','OneTeamGoals','Winner','WinnerAndGoalDiff','Exact')");
+                t.HasCheckConstraint("ck_scored_tips_multiplier_range",
+                    "multiplier >= 1 AND multiplier <= 3");
+                t.HasCheckConstraint("ck_scored_tips_points_non_negative",
+                    "base_points >= 0 AND final_points >= 0");
+            });
+            b.HasKey(s => s.Id);
+            b.Property(s => s.Id).HasColumnName("id");
+            b.Property(s => s.TipId).HasColumnName("tip_id").IsRequired();
+            b.Property(s => s.MatchId).HasColumnName("match_id").IsRequired();
+            b.Property(s => s.UserId).HasColumnName("user_id").IsRequired();
+            b.Property(s => s.Category)
+                .HasColumnName("category")
+                .HasConversion<string>()
+                .HasMaxLength(24)
+                .IsRequired();
+            b.Property(s => s.BasePoints).HasColumnName("base_points").IsRequired();
+            b.Property(s => s.Multiplier)
+                .HasColumnName("multiplier")
+                .HasColumnType("numeric(3,1)")
+                .IsRequired();
+            b.Property(s => s.JokerApplied).HasColumnName("joker_applied").IsRequired();
+            b.Property(s => s.FinalPoints).HasColumnName("final_points").IsRequired();
+            b.Property(s => s.ScoredAt).HasColumnName("scored_at").IsRequired();
+
+            b.HasOne<Tip>()
+                .WithMany()
+                .HasForeignKey(s => s.TipId)
+                .OnDelete(DeleteBehavior.Cascade);
+            b.HasOne<Match>()
+                .WithMany()
+                .HasForeignKey(s => s.MatchId)
+                .OnDelete(DeleteBehavior.Cascade);
+            b.HasOne<User>()
+                .WithMany()
+                .HasForeignKey(s => s.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            b.HasIndex(s => s.TipId).IsUnique();
+            b.HasIndex(s => s.MatchId);
+            b.HasIndex(s => s.UserId);
         });
     }
 }

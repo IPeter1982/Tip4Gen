@@ -4,8 +4,10 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Options;
 using Tip4Gen.Domain.Football;
+using Tip4Gen.Domain.Tournaments.Events;
 using Tip4Gen.Infrastructure.Football;
 using Tip4Gen.Infrastructure.Persistence;
+using Tip4Gen.Infrastructure.Scoring;
 using Tip4Gen.Infrastructure.Tipping;
 using Tip4Gen.Infrastructure.Tournaments;
 
@@ -36,6 +38,8 @@ public static class DependencyInjection
         services.AddScoped<IFixtureSyncService, FixtureSyncService>();
         services.AddScoped<ITipsService, TipsService>();
         services.AddScoped<ILongTermTipsService, LongTermTipsService>();
+        services.AddScoped<IMatchScoringService, MatchScoringService>();
+        services.AddScoped<IMatchFinalizedHandler, MatchFinalizedScoringHandler>();
 
         return services;
     }
