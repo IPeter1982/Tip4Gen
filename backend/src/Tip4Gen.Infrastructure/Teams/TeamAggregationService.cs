@@ -60,14 +60,25 @@ public class TeamAggregationService(AppDbContext db) : ITeamAggregationService
                 HumanName = u != null ? u.DisplayName : null,
             }).ToListAsync(ct);
 
-        // Pull all scored_tips for this match in one query, then key by user_id.
-        var scoredByUser = await db.ScoredTips.AsNoTracking()
+        // Pull all scored_tips for this match in one query. Tips come in two flavours:
+        // human (UserId set) and AI (TeamMemberId set) — exactly one is non-null per row.
+        var scoredRows = await db.ScoredTips.AsNoTracking()
             .Where(s => s.MatchId == matchId)
-            .ToDictionaryAsync(s => s.UserId, s => s.FinalPoints, ct);
+            .Select(s => new { s.UserId, s.TeamMemberId, s.FinalPoints })
+            .ToListAsync(ct);
+
+        var scoredByUser = scoredRows
+            .Where(s => s.UserId.HasValue)
+            .ToDictionary(s => s.UserId!.Value, s => s.FinalPoints);
+        var scoredByMember = scoredRows
+            .Where(s => s.TeamMemberId.HasValue)
+            .ToDictionary(s => s.TeamMemberId!.Value, s => s.FinalPoints);
 
         var pointsByMember = memberRows.ToDictionary(
             r => r.Id,
-            r => r.UserId is Guid uid && scoredByUser.TryGetValue(uid, out var pts) ? pts : 0);
+            r => r.UserId is Guid uid
+                ? (scoredByUser.TryGetValue(uid, out var hPts) ? hPts : 0)
+                : (scoredByMember.TryGetValue(r.Id, out var aPts) ? aPts : 0));
 
         var inputs = memberRows
             .Select(r => new TeamAggregator.MemberPoints(r.Id, pointsByMember[r.Id]))

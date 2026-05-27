@@ -39,8 +39,12 @@ public record MatchTipsResponse(
     IReadOnlyList<MatchTipResponse> Tips);
 
 public record MatchTipResponse(
-    Guid UserId,
+    Guid? UserId,
+    Guid? TeamMemberId,
     string DisplayName,
+    bool IsAi,
+    bool IsAiFallback,
+    string? Reasoning,
     DateTimeOffset SubmittedAt,
     DateTimeOffset? UpdatedAt,
     int? HomeGoals,
@@ -167,17 +171,55 @@ public class MatchesController(AppDbContext db, CurrentUserService currentUser) 
         var deadline = match.KickoffUtc - TipRulesValidator.DeadlineBeforeKickoff;
         var deadlinePassed = DateTimeOffset.UtcNow >= deadline;
 
+        // Tips come in two flavours: human (UserId set) and AI (TeamMemberId set).
+        // LEFT-JOIN both sides so every tip surfaces, then resolve the display name
+        // from whichever side is populated.
         var rows = await (
             from t in db.Tips.AsNoTracking().Where(t => t.MatchId == matchId)
-            join u in db.Users.AsNoTracking() on t.UserId equals u.Id
-            orderby u.DisplayName
-            select new { Tip = t, User = u }).ToListAsync(ct);
+            from u in db.Users.AsNoTracking().Where(u => t.UserId == u.Id).DefaultIfEmpty()
+            from m in db.TeamMembers.AsNoTracking().Where(m => t.TeamMemberId == m.Id).DefaultIfEmpty()
+            select new
+            {
+                Tip = t,
+                UserName = u != null ? u.DisplayName : null,
+                AiName = m != null ? m.AiDisplayName : null,
+            }).ToListAsync(ct);
 
-        var tips = rows.Select(r => deadlinePassed
-            ? new MatchTipResponse(r.User.Id, r.User.DisplayName, r.Tip.SubmittedAt, r.Tip.UpdatedAt,
-                r.Tip.HomeGoals, r.Tip.AwayGoals, r.Tip.Joker)
-            : new MatchTipResponse(r.User.Id, r.User.DisplayName, r.Tip.SubmittedAt, null,
-                null, null, null)).ToList();
+        // Order by display name in memory (the source column varies row-to-row).
+        var ordered = rows
+            .Select(r => new { r.Tip, Name = r.UserName ?? r.AiName ?? "?" })
+            .OrderBy(r => r.Name, StringComparer.CurrentCulture)
+            .ToList();
+
+        var tips = ordered.Select(r =>
+        {
+            var isAi = r.Tip.TeamMemberId != null;
+            return deadlinePassed
+                ? new MatchTipResponse(
+                    UserId: r.Tip.UserId,
+                    TeamMemberId: r.Tip.TeamMemberId,
+                    DisplayName: r.Name,
+                    IsAi: isAi,
+                    IsAiFallback: r.Tip.IsAiFallback,
+                    Reasoning: r.Tip.Reasoning,
+                    SubmittedAt: r.Tip.SubmittedAt,
+                    UpdatedAt: r.Tip.UpdatedAt,
+                    HomeGoals: r.Tip.HomeGoals,
+                    AwayGoals: r.Tip.AwayGoals,
+                    Joker: r.Tip.Joker)
+                : new MatchTipResponse(
+                    UserId: r.Tip.UserId,
+                    TeamMemberId: r.Tip.TeamMemberId,
+                    DisplayName: r.Name,
+                    IsAi: isAi,
+                    IsAiFallback: false,
+                    Reasoning: null,
+                    SubmittedAt: r.Tip.SubmittedAt,
+                    UpdatedAt: null,
+                    HomeGoals: null,
+                    AwayGoals: null,
+                    Joker: null);
+        }).ToList();
 
         return Ok(new MatchTipsResponse(matchId, deadline, deadlinePassed, tips.Count, tips));
     }

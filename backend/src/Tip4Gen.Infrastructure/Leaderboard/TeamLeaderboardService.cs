@@ -61,17 +61,25 @@ public class TeamLeaderboardService(AppDbContext db) : ITeamLeaderboardService
             .ToDictionary(g => g.Key, g => g.ToList());
 
         var userIds = memberRows.Where(r => r.UserId.HasValue).Select(r => r.UserId!.Value).Distinct().ToList();
+        var aiMemberIds = memberRows.Where(r => r.IsAi).Select(r => r.Id).Distinct().ToList();
 
-        var scoredRows = userIds.Count == 0
+        // Pull scored tips for any member of these teams in one round-trip. Each row has
+        // exactly one of (UserId, TeamMemberId) set — we build two parallel lookups so
+        // the match-aggregation loop below can resolve either flavour by member type.
+        var scoredRows = (userIds.Count == 0 && aiMemberIds.Count == 0)
             ? []
             : await db.ScoredTips.AsNoTracking()
-                .Where(s => userIds.Contains(s.UserId))
-                .Select(s => new { s.UserId, s.MatchId, s.FinalPoints })
+                .Where(s => (s.UserId != null && userIds.Contains(s.UserId.Value))
+                         || (s.TeamMemberId != null && aiMemberIds.Contains(s.TeamMemberId.Value)))
+                .Select(s => new { s.UserId, s.TeamMemberId, s.MatchId, s.FinalPoints })
                 .ToListAsync(ct);
 
-        // (userId, matchId) → points. Tips have a unique index on (user_id, match_id),
-        // so this dictionary key is unique by construction.
-        var userMatchPoints = scoredRows.ToDictionary(s => (s.UserId, s.MatchId), s => s.FinalPoints);
+        var userMatchPoints = scoredRows
+            .Where(s => s.UserId.HasValue)
+            .ToDictionary(s => (UserId: s.UserId!.Value, s.MatchId), s => s.FinalPoints);
+        var memberMatchPoints = scoredRows
+            .Where(s => s.TeamMemberId.HasValue)
+            .ToDictionary(s => (MemberId: s.TeamMemberId!.Value, s.MatchId), s => s.FinalPoints);
 
         var totalByMember = memberRows.ToDictionary(r => r.Id, _ => 0);
         var teamTotals = new Dictionary<Guid, int>();
@@ -87,20 +95,28 @@ public class TeamLeaderboardService(AppDbContext db) : ITeamLeaderboardService
                 continue;
             }
 
-            // Find every match where any human member has a scored tip.
-            var matchIds = members
+            // Find every match where any member (human or AI) of this team has a
+            // scored tip — that's the set of matches the team competes on.
+            var humanMatchIds = members
                 .Where(m => m.UserId.HasValue)
-                .SelectMany(m => scoredRows.Where(s => s.UserId == m.UserId!.Value).Select(s => s.MatchId))
-                .Distinct()
-                .ToList();
+                .SelectMany(m => scoredRows.Where(s => s.UserId == m.UserId!.Value).Select(s => s.MatchId));
+            var aiMatchIds = members
+                .Where(m => m.IsAi)
+                .SelectMany(m => scoredRows.Where(s => s.TeamMemberId == m.Id).Select(s => s.MatchId));
+            var matchIds = humanMatchIds.Concat(aiMatchIds).Distinct().ToList();
 
             int teamTotal = 0;
             foreach (var matchId in matchIds)
             {
-                var input = members.Select(m => new TeamAggregator.MemberPoints(
-                    m.Id,
-                    m.UserId.HasValue && userMatchPoints.TryGetValue((m.UserId.Value, matchId), out var pts) ? pts : 0
-                )).ToList();
+                var input = members.Select(m =>
+                {
+                    int pts = 0;
+                    if (m.UserId.HasValue && userMatchPoints.TryGetValue((m.UserId.Value, matchId), out var hPts))
+                        pts = hPts;
+                    else if (m.IsAi && memberMatchPoints.TryGetValue((m.Id, matchId), out var aPts))
+                        pts = aPts;
+                    return new TeamAggregator.MemberPoints(m.Id, pts);
+                }).ToList();
 
                 var aggregate = TeamAggregator.ForMatch(input);
                 teamTotal += aggregate.TotalPoints;

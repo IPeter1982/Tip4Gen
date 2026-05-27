@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Tip4Gen.Domain.Ai;
 using Tip4Gen.Domain.Scoring;
 using Tip4Gen.Domain.Teams;
 using Tip4Gen.Domain.Tipping;
@@ -19,6 +20,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Team> Teams => Set<Team>();
     public DbSet<TeamMember> TeamMembers => Set<TeamMember>();
     public DbSet<TeamInvite> TeamInvites => Set<TeamInvite>();
+    public DbSet<AiTipAttempt> AiTipAttempts => Set<AiTipAttempt>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -121,14 +123,25 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                     "home_goals >= 0 AND home_goals <= 15");
                 t.HasCheckConstraint("ck_tips_away_goals_range",
                     "away_goals >= 0 AND away_goals <= 15");
+                // Exactly one of (user_id, team_member_id) is set. AI tips key on the
+                // team member; human tips key on the user. Mirror constraint on scored_tips.
+                t.HasCheckConstraint("ck_tips_owner_xor",
+                    "(user_id IS NOT NULL AND team_member_id IS NULL) "
+                    + "OR (user_id IS NULL AND team_member_id IS NOT NULL)");
+                // Jokers are a human-only mechanic (guide §6); AI tips never play one.
+                t.HasCheckConstraint("ck_tips_ai_no_joker",
+                    "team_member_id IS NULL OR joker = FALSE");
             });
             b.HasKey(t => t.Id);
             b.Property(t => t.Id).HasColumnName("id");
-            b.Property(t => t.UserId).HasColumnName("user_id").IsRequired();
+            b.Property(t => t.UserId).HasColumnName("user_id");
+            b.Property(t => t.TeamMemberId).HasColumnName("team_member_id");
             b.Property(t => t.MatchId).HasColumnName("match_id").IsRequired();
             b.Property(t => t.HomeGoals).HasColumnName("home_goals").IsRequired();
             b.Property(t => t.AwayGoals).HasColumnName("away_goals").IsRequired();
             b.Property(t => t.Joker).HasColumnName("joker").IsRequired();
+            b.Property(t => t.IsAiFallback).HasColumnName("is_ai_fallback").HasDefaultValue(false).IsRequired();
+            b.Property(t => t.Reasoning).HasColumnName("reasoning").HasMaxLength(500);
             b.Property(t => t.SubmittedAt).HasColumnName("submitted_at").IsRequired();
             b.Property(t => t.UpdatedAt).HasColumnName("updated_at").IsRequired();
 
@@ -136,12 +149,26 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                 .WithMany()
                 .HasForeignKey(t => t.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
+            b.HasOne<TeamMember>()
+                .WithMany()
+                .HasForeignKey(t => t.TeamMemberId)
+                .OnDelete(DeleteBehavior.Cascade);
             b.HasOne<Match>()
                 .WithMany()
                 .HasForeignKey(t => t.MatchId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            b.HasIndex(t => new { t.UserId, t.MatchId }).IsUnique();
+            // Uniqueness becomes per-owner: one human tip per (user, match), and one AI
+            // tip per (team_member, match). Both are partial indexes filtering out the
+            // nullable side, so the "other" owner column never participates.
+            b.HasIndex(t => new { t.UserId, t.MatchId })
+                .IsUnique()
+                .HasDatabaseName("ux_tips_user_match")
+                .HasFilter("user_id IS NOT NULL");
+            b.HasIndex(t => new { t.TeamMemberId, t.MatchId })
+                .IsUnique()
+                .HasDatabaseName("ux_tips_member_match")
+                .HasFilter("team_member_id IS NOT NULL");
             b.HasIndex(t => t.MatchId);
             b.HasIndex(t => new { t.UserId, t.Joker })
                 .HasFilter("joker = TRUE");  // partial index for the joker-count query
@@ -192,12 +219,16 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                     "multiplier >= 1 AND multiplier <= 3");
                 t.HasCheckConstraint("ck_scored_tips_points_non_negative",
                     "base_points >= 0 AND final_points >= 0");
+                t.HasCheckConstraint("ck_scored_tips_owner_xor",
+                    "(user_id IS NOT NULL AND team_member_id IS NULL) "
+                    + "OR (user_id IS NULL AND team_member_id IS NOT NULL)");
             });
             b.HasKey(s => s.Id);
             b.Property(s => s.Id).HasColumnName("id");
             b.Property(s => s.TipId).HasColumnName("tip_id").IsRequired();
             b.Property(s => s.MatchId).HasColumnName("match_id").IsRequired();
-            b.Property(s => s.UserId).HasColumnName("user_id").IsRequired();
+            b.Property(s => s.UserId).HasColumnName("user_id");
+            b.Property(s => s.TeamMemberId).HasColumnName("team_member_id");
             b.Property(s => s.Category)
                 .HasColumnName("category")
                 .HasConversion<string>()
@@ -224,10 +255,15 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                 .WithMany()
                 .HasForeignKey(s => s.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
+            b.HasOne<TeamMember>()
+                .WithMany()
+                .HasForeignKey(s => s.TeamMemberId)
+                .OnDelete(DeleteBehavior.Cascade);
 
             b.HasIndex(s => s.TipId).IsUnique();
             b.HasIndex(s => s.MatchId);
             b.HasIndex(s => s.UserId);
+            b.HasIndex(s => s.TeamMemberId);
         });
 
         modelBuilder.Entity<Team>(b =>
@@ -315,6 +351,31 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
             b.HasIndex(i => i.Token).IsUnique();
             b.HasIndex(i => i.TeamId);
+        });
+
+        modelBuilder.Entity<AiTipAttempt>(b =>
+        {
+            b.ToTable("ai_tip_attempts");
+            b.HasKey(a => a.Id);
+            b.Property(a => a.Id).HasColumnName("id");
+            b.Property(a => a.TeamMemberId).HasColumnName("team_member_id").IsRequired();
+            b.Property(a => a.MatchId).HasColumnName("match_id").IsRequired();
+            b.Property(a => a.AttemptedAt).HasColumnName("attempted_at").IsRequired();
+            b.Property(a => a.Success).HasColumnName("success").IsRequired();
+            b.Property(a => a.ErrorMessage).HasColumnName("error_message").HasMaxLength(500);
+
+            b.HasOne<TeamMember>()
+                .WithMany()
+                .HasForeignKey(a => a.TeamMemberId)
+                .OnDelete(DeleteBehavior.Cascade);
+            b.HasOne<Match>()
+                .WithMany()
+                .HasForeignKey(a => a.MatchId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Lookup pattern: "how many attempts for (member, match) before now?" The
+            // schedule policy reads this count and decides AttemptAi / WriteFallback / Skip.
+            b.HasIndex(a => new { a.TeamMemberId, a.MatchId });
         });
     }
 }

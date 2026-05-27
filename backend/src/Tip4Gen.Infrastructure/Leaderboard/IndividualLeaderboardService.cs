@@ -38,11 +38,14 @@ public class IndividualLeaderboardService(AppDbContext db) : IIndividualLeaderbo
             .Select(u => new { u.Id, u.DisplayName })
             .ToListAsync(ct);
 
+        // Only human scored tips count toward the individual board — AI tips key on
+        // team_member_id and are excluded here. (§7: AI is team-aggregated only.)
         var scoredRows = await (
             from s in db.ScoredTips.AsNoTracking()
             join m in db.Matches.AsNoTracking() on s.MatchId equals m.Id
+            where s.UserId != null
             orderby s.UserId, m.KickoffUtc
-            select new { s.UserId, s.FinalPoints, s.Category, m.KickoffUtc }).ToListAsync(ct);
+            select new { UserId = s.UserId!.Value, s.FinalPoints, s.Category, m.KickoffUtc }).ToListAsync(ct);
 
         var byUser = scoredRows
             .GroupBy(r => r.UserId)

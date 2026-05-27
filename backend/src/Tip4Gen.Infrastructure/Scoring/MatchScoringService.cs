@@ -57,7 +57,7 @@ public class MatchScoringService(AppDbContext db, ILogger<MatchScoringService> l
         foreach (var tip in tips)
         {
             var scoring = MatchScorer.Score(tip.HomeGoals, tip.AwayGoals, result, match.Stage, tip.Joker);
-            db.ScoredTips.Add(new ScoredTip(tip.Id, match.Id, tip.UserId, scoring));
+            db.ScoredTips.Add(new ScoredTip(tip.Id, match.Id, tip.UserId, tip.TeamMemberId, scoring));
             total += scoring.FinalPoints;
         }
 
