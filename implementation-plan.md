@@ -12,10 +12,12 @@
 - **Phase 2:** ✅ done (commits `e02496f` + `3763e11` + `370cd43`). Schema + `IFootballDataProvider` + api-football impl with `AddStandardResilienceHandler`. `POST /api/admin/fixtures/seed` verified end-to-end against real WC 2022 (1 tournament, 32 teams, 64 matches, correct stage breakdown). Quota-aware `FixturePoller` in Workers exercised live (`Live → Finished` transition + `MatchFinalized` dispatch). Latent Phase 1 admin-policy bug fixed in passing.
 - **Phase 3:** ✅ done (commits `3950fd4` + `6b31440` + `27d7d25`). Backend: `PUT /api/tips/{matchId}` with full rule validation, list endpoints, long-term tip upsert. Frontend: `/matches` list with status chips + countdown, `/matches/:id/tip` form (RHF + Zod), `/long-tips` page. ProblemDetails `reason` enum drives field-level errors.
 - **Phase 4:** ✅ done (commit `2f25547`). Pure `MatchScorer` in Domain (categories per §3, multipliers per §4, joker doubles after multiplier per §6, AwayFromZero rounding). `scored_tips` table + idempotent `MatchScoringService` (delete-then-insert in one SaveChanges). `MatchFinalizedScoringHandler` auto-fires on poller transitions; `POST /api/admin/matches/{id}/rescore` for manual re-runs. CHECK constraints verified firing via psql. 109/109 tests green (+40 new).
-- **Phases 5–11:** not started.
+- **Phase 5 backend:** ✅ done (commits `45bc16c` + `fdf28ee`). Domain: `Team`, `TeamMember` (UserId nullable for AI slot), `TeamInvite`, `TeamRulesValidator`, `TeamLockPolicy`, `TeamAggregator` (pure best-3-of-4 with deterministic tiebreak). Schema: `teams` + `team_members` + `team_invites` (partial unique on AI slot, NULL-distinct unique on user_id). 7 team endpoints (create/get-mine/patch/leave/add-ai/invite/join) + admin lock trigger + per-match breakdown. `TeamLockJob` BackgroundService in Workers. 137/137 tests green (+28 new).
+- **Phase 5 frontend:** not started yet.
+- **Phases 6–11:** not started.
 - **Open decisions:** hosting swap (Fly.io+Vercel+Neon vs Azure) — see callouts. Auth decision is locked: **Auth0**.
 - **Football data source:** api-football Free plan (100 req/day) verified. WC 2022 (64 fixtures, full results) accessible; WC 2026 is `coverage.fixtures=false` on Free → **dev against `season=2022`, swap to 2026 once we upgrade or change provider**. Admin manual-entry fallback in Phase 8 is now load-bearing, not optional. api-football's WC labels are matchday-style (`Group Stage - 1/2/3`) — group letter has to come from `/standings`, see Phase 2 follow-up below.
-- **Next:** Phase 5 (teams + best-3-of-4 aggregation), unblocked. `ScoredTip` rows are the input the team aggregator will consume.
+- **Next:** Phase 5 frontend (team create/manage pages, invite share, AI configurator, dashboard) — then Phase 6 (AI tipper) which is **[CUT-OK]**.
 
 ## How to read this plan
 
@@ -176,21 +178,37 @@ If you're already comfortable with the Azure + Auth0 path, keep it. Otherwise, s
 
 **Goal:** 4-person teams form before kickoff, lock at tournament start, score with best-3-of-4.
 
-- [ ] DB schema: `teams` (id, name, ai_mode nullable, status [forming|locked|disqualified]), `team_members` (team_id, user_id, is_ai bool, ai_display_name nullable)
-- [ ] API: `POST /api/teams` create a team, creator added as first member
-- [ ] API: `POST /api/teams/{id}/invites` generate a join token; `POST /api/teams/join/{token}` to use it
-- [ ] API: `POST /api/teams/{id}/leave` (only while `forming`)
-- [ ] API: `PATCH /api/teams/{id}` name + AI mode (only while `forming`)
-- [ ] API: `POST /api/teams/{id}/ai-member` add the AI slot with chosen mode (max 1, max 4 total)
-- [ ] Validation: a user can only be in one team at a time; max 4 members, max 1 AI
-- [ ] Background service `TeamLockJob`: at first match kickoff, flip every team with 4 members to `locked`, others to `disqualified`
-- [ ] Team aggregation service: per match, sum the top 3 member points (sorted desc, drop lowest); long-term tips & jokers also follow "best 3" per the guide §7
-- [ ] Frontend: team creation, invite link sharing, member list, AI slot configurator
-- [ ] Frontend: team dashboard with current standing + per-match contribution view
+**Backend shipped 2026-05-27 (commits `45bc16c` + `fdf28ee`):**
+
+- [x] DB schema: `teams` (id, name, ai_mode nullable, status), `team_members` (team_id, user_id nullable, is_ai bool, ai_display_name nullable), `team_invites` (token, expires_at, used_at). CHECK constraints on status/ai_mode/AI shape. **UNIQUE(user_id) on team_members** (PG NULL-distinct, so multiple AI rows don't collide) + **partial UNIQUE(team_id) WHERE is_ai=TRUE** for max-one-AI.
+- [x] Domain types: `Team`, `TeamMember`, `TeamInvite`, `TeamStatus`, `AiMode` enums, `TeamRulesValidator` (name + mutability + capacity), `TeamLockPolicy` (pure status decision), `TeamAggregator` (pure best-3-of-4 with deterministic tiebreak).
+- [x] API endpoints (all Authorize): `POST /api/teams`, `GET /api/teams/me`, `PATCH /api/teams/{id}`, `POST /api/teams/{id}/leave`, `POST /api/teams/{id}/ai-member`, `POST /api/teams/{id}/invites`, `POST /api/teams/join/{token}`. ProblemDetails + `reason` extension on every rejection (mirrors Phase 3 contract).
+- [x] Validation: one-team-per-user (DB unique on user_id), max 4 (TeamRulesValidator.ValidateAddMember), max 1 AI (partial unique index), team mutable only while `Forming` AND before tournament start (tournament-start lock wins the diagnostic).
+- [x] `TeamLockService.LockAllAsync` — idempotent pass: every Forming team at/past `tournaments.starts_at_utc` flips to `Locked` (if 4 members) or `Disqualified` (if <4). Cheap early-out when nothing is Forming.
+- [x] `TeamLockJob` BackgroundService in Workers — polls every 5 min, logs only on state changes.
+- [x] `POST /api/admin/teams/lock` — manual trigger.
+- [x] `TeamAggregationService.GetMatchBreakdownAsync` — joins `team_members → scored_tips` by user_id, feeds the aggregator, returns per-member view with `dropped` flag + team total. Only operates on Locked teams (409 + `reason=TeamNotLocked` otherwise).
+- [x] `GET /api/teams/{id}/matches/{matchId}/breakdown` exposes the above.
+- [x] AI member contribution = 0 for now (UserId NULL → no scored_tips → naturally dropped). Phase 6 will fix the AI's points; this slice doesn't block on it.
+- [x] Tests: 28 new (14 TeamRulesValidator + 8 TeamAggregator + 6 TeamLockPolicy). **137/137 green.**
+
+**Lessons banked:**
+
+- `team_members.user_id` nullable + `is_ai` flag is cleaner than synthesizing a user row per AI. PG's "NULLs are distinct in unique indexes" makes the one-team-per-user constraint Just Work.
+- Two-stage mutability gating (tournament-start time → team status) makes 422 error messages honest: "torna már elkezdődött" vs "csapat lezárult" point at different fixes.
+- Disqualifying under-4 teams at lock time (rather than deleting) means members can still see their team-page state post-lock and the individual leaderboard still works for them.
+
+**Frontend (NOT shipped yet):**
+
+- [ ] Team creation + naming
+- [ ] Invite link sharing (copy-to-clipboard, expiry display)
+- [ ] Member list with AI configurator (mode picker, persona name)
+- [ ] Per-team dashboard: current standing, per-match best-3 contribution view
+- [ ] Lock countdown banner ("Csapat zárul: 2026-06-11 18:00 CET")
 
 **Done when:** you can create a team with 3 friends + the AI, see "Csapat zárul: {kickoff time}" countdown, and after lock the team has frozen membership.
 
-**[CRITICAL]**
+**[CRITICAL]** — backend ✅, frontend pending.
 
 ---
 

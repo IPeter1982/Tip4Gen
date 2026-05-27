@@ -16,8 +16,9 @@ backend/                    ASP.NET Core 9 solution (planned 10, on 9 for speed)
     Auth/                   Auth0Options, AuthExtensions, CurrentUserService
     Controllers/            HealthController, MeController, AdminController,
                             FixturesAdminController, ScoringAdminController,
-                            NationalTeamsController, MatchesController,
-                            TipsController, LongTipsController
+                            TeamsAdminController, NationalTeamsController,
+                            MatchesController, TipsController, LongTipsController,
+                            TeamsController
   src/Tip4Gen.Domain        Pure domain types — no EF, no ASP.NET refs
     Users/User.cs
     Tournaments/            Stage + MatchStatus enums, Tournament, NationalTeam,
@@ -28,6 +29,9 @@ backend/                    ASP.NET Core 9 solution (planned 10, on 9 for speed)
                             LongTermTip + LongTermTipRulesValidator
     Scoring/                MatchResult, ScoreCategory, ScoringResult,
                             StageMultipliers, MatchScorer (pure), ScoredTip entity
+    Teams/                  Team, TeamMember (UserId nullable for AI slot),
+                            TeamInvite, TeamStatus + AiMode enums,
+                            TeamRulesValidator, TeamLockPolicy, TeamAggregator (pure)
   src/Tip4Gen.Infrastructure  EF Core, external clients
     Persistence/AppDbContext.cs + Migrations/
     DependencyInjection.cs  AddInfrastructure(IConfiguration)
@@ -36,13 +40,20 @@ backend/                    ASP.NET Core 9 solution (planned 10, on 9 for speed)
     Tipping/                TipsService, LongTermTipsService (tagged-union results)
     Scoring/                MatchScoringService (idempotent re-score),
                             MatchFinalizedScoringHandler (event handler)
-  src/Tip4Gen.Workers       BackgroundService host — FixturePoller (Phase 2),
-                            shares Api's UserSecretsId for shared dev config
+    Teams/                  TeamsService (CRUD + invites + join, tagged-union),
+                            TeamLockService (Forming → Locked/Disqualified pass),
+                            TeamAggregationService (per-match best-3-of-4 view)
+  src/Tip4Gen.Workers       BackgroundService host — FixturePoller (Phase 2)
+                            + TeamLockJob (Phase 5), shares Api's UserSecretsId
+                            for shared dev config
     FixturePoller.cs        Calls FixtureSyncService when DB has active matches
     FixturePollerOptions.cs IntervalMinutes / ActiveWindowHours / LookaheadMinutes
+    TeamLockJob.cs          Calls TeamLockService.LockAllAsync on a coarse cadence
+    TeamLockJobOptions.cs   IntervalMinutes (default 5) / StartupDelaySeconds
   tests/Tip4Gen.Domain.Tests  xUnit — StageMapper, MatchStatusMapper,
                               TipRulesValidator, LongTermTipRulesValidator,
-                              MatchScorer, StageMultipliers (109 tests)
+                              MatchScorer, StageMultipliers, TeamRulesValidator,
+                              TeamAggregator, TeamLockPolicy (137 tests)
 web/                        Vite + React 19 + TS frontend
   src/auth/                 AuthProvider, RequireAuth, useApi (typed + ApiError),
                             authConfig
@@ -133,7 +144,7 @@ Schema must accommodate both formats: 2022 had 32 teams (no R32 round), 2026 has
 - Half-multiplier results round **away from zero** (`5 × 1.5 = 7.5 → 8`). `MatchScorer` is the single source of truth.
 - Scoring is **idempotent**: `MatchScoringService.ScoreMatchAsync` deletes prior `scored_tips` for the match then re-inserts in one `SaveChanges`. Wired into `MatchFinalized` for auto-scoring and exposed via `POST /api/admin/matches/{id}/rescore` for manual re-runs.
 - `scored_tips.user_id` is **denormalized** from `tips` so leaderboard queries don't need to JOIN through matches.
-- Team aggregation: **best 3 of 4** member scores per match.
+- Team aggregation: **best 3 of 4** member scores per match (`TeamAggregator.ForMatch`). Tiebreak on all-equal scores: drop the member with the largest id — deterministic, doesn't affect the total.
 - AI fallback: auto **1–1** tip with `is_ai_fallback=true` if AI provider hasn't returned by **T-1h**.
 - Tip deadline: **kickoff − 1h**, enforced server-side in UTC.
 - Long-term tips (winner, top scorer) lock at **tournament-start kickoff**.
@@ -149,6 +160,14 @@ Single admin (the project owner). Gated by Auth0 `sub` claim matching the `Auth0
 - Auth0 silently rejects an empty `audience` parameter with "Service not found". The frontend `AuthProvider` only spreads `audience` when it's truthy — don't pass `audience: ''`.
 - Auth0 API identifiers **cannot be edited after creation**. Whitespace typos require delete + recreate.
 - Even with "Allow Skipping User Consent" on, the SPA must be **explicitly enabled** for the API under **Application → APIs** in the Auth0 dashboard.
+
+## Teams schema gotchas
+
+- `team_members.user_id` is **nullable**. Human members have a real `users.id`; the AI slot has `user_id IS NULL` + `is_ai = TRUE` + `ai_display_name` set. Don't "tidy this up" into a synthetic user per AI — Tip and ScoredTip both key on `user_id` and an AI persona doesn't belong in the users table. Phase 6 will key AI tips on the team member itself.
+- "One team per user" is enforced by `UNIQUE(user_id)` on `team_members`. PostgreSQL treats NULLs as distinct in unique indexes, so multiple AI rows (one per team, each with NULL user_id) don't collide.
+- "Max 1 AI per team" is a **partial unique index**: `UNIQUE(team_id) WHERE is_ai = TRUE`. The full table can have many AI rows; the partial index only sees the AI ones.
+- Mutability gating is two-stage: tournament-start time **first** (so the error message points at the real cause), then team status. Both live in `TeamRulesValidator.ValidateMutable`.
+- `TeamsService.LeaveAsync` cascades: when the last human leaves, the team and any AI member are removed too, so no orphan AI-only teams linger.
 
 ## Forms gotcha — Zod + react-hook-form
 
