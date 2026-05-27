@@ -13,7 +13,10 @@ public record AddAiMemberRequest(string DisplayName, AiMode Mode);
 [ApiController]
 [Route("api/teams")]
 [Authorize]
-public class TeamsController(CurrentUserService currentUser, ITeamsService teams) : ControllerBase
+public class TeamsController(
+    CurrentUserService currentUser,
+    ITeamsService teams,
+    ITeamAggregationService aggregation) : ControllerBase
 {
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateTeamRequest request, CancellationToken ct)
@@ -98,6 +101,28 @@ public class TeamsController(CurrentUserService currentUser, ITeamsService teams
             CreateInviteResult.NotMember => Forbid(),
             CreateInviteResult.Rejected r => Rejected(r.Validation),
             _ => throw new InvalidOperationException($"Unhandled CreateInviteResult: {result.GetType().Name}"),
+        };
+    }
+
+    [HttpGet("{teamId:guid}/matches/{matchId:guid}/breakdown")]
+    public async Task<IActionResult> MatchBreakdown(Guid teamId, Guid matchId, CancellationToken ct)
+    {
+        var result = await aggregation.GetMatchBreakdownAsync(teamId, matchId, ct);
+        return result switch
+        {
+            TeamMatchBreakdownResult.Success s => Ok(s.View),
+            TeamMatchBreakdownResult.TeamNotFound => NotFound(),
+            TeamMatchBreakdownResult.MatchNotFound => NotFound(),
+            TeamMatchBreakdownResult.TeamNotLocked tnl => Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "Team not locked",
+                detail: $"Team is in status {tnl.Status}; breakdowns are only available for Locked teams.",
+                extensions: new Dictionary<string, object?>
+                {
+                    ["reason"] = "TeamNotLocked",
+                    ["status"] = tnl.Status.ToString(),
+                }),
+            _ => throw new InvalidOperationException($"Unhandled TeamMatchBreakdownResult: {result.GetType().Name}"),
         };
     }
 

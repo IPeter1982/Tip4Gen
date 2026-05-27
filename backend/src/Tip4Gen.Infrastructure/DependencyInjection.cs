@@ -42,6 +42,8 @@ public static class DependencyInjection
         services.AddScoped<IMatchScoringService, MatchScoringService>();
         services.AddScoped<IMatchFinalizedHandler, MatchFinalizedScoringHandler>();
         services.AddScoped<ITeamsService, TeamsService>();
+        services.AddScoped<ITeamLockService, TeamLockService>();
+        services.AddScoped<ITeamAggregationService, TeamAggregationService>();
 
         return services;
     }

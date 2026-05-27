@@ -10,7 +10,13 @@ builder.Services.AddOptions<FixturePollerOptions>()
     .ValidateDataAnnotations()
     .ValidateOnStart();
 
+builder.Services.AddOptions<TeamLockJobOptions>()
+    .Bind(builder.Configuration.GetSection(TeamLockJobOptions.SectionName))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+
 builder.Services.AddHostedService<FixturePoller>();
+builder.Services.AddHostedService<TeamLockJob>();
 
 var host = builder.Build();
 host.Run();
