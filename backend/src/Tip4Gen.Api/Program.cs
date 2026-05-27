@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Serilog;
 using Tip4Gen.Api.Auth;
 using Tip4Gen.Infrastructure;
@@ -7,7 +8,9 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Host.UseSerilog((context, _, configuration) =>
     configuration.ReadFrom.Configuration(context.Configuration));
 
-builder.Services.AddControllers();
+builder.Services
+    .AddControllers()
+    .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddOpenApi();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<Tip4Gen.Api.Auth.CurrentUserService>();

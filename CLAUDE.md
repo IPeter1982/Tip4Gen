@@ -101,6 +101,7 @@ dotnet ef database update --project backend/src/Tip4Gen.Infrastructure --startup
 - **React Router v7** — unified package `react-router` (not `react-router-dom`).
 - **TanStack Query v5** + **react-hook-form** + **Zod** for data fetching and forms. `useApi` returns typed `get/put/post/del` helpers and parses ProblemDetails into `ApiError` (with `reason` extension).
 - **Serilog** wired via `Host.UseSerilog((ctx, _, cfg) => cfg.ReadFrom.Configuration(ctx.Configuration))` — all config lives in `appsettings.json`.
+- **Enums on the wire are strings.** `Program.cs` registers `JsonStringEnumConverter` globally, so any enum returned from a controller serializes by name (`"Forming"`, not `0`). New DTOs can use enum types directly; don't sprinkle `.ToString()` at the controller boundary. Frontend `type` aliases (`type TeamStatus = 'Forming' | 'Locked' | …`) compare-by-string and rely on this. `MatchesController` still does manual `.ToString()` from before the global converter landed — fine, no behavior change, can be cleaned up later.
 - **CORS** policy applies to non-proxied paths only; in dev, Vite proxies `/api` so CORS rarely fires.
 - **Time zones:** all deadlines and timestamps stored in **UTC**, displayed in **Europe/Budapest**.
 - **Language:** UI copy is **Hungarian**. Code, identifiers, comments in English.
