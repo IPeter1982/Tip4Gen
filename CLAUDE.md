@@ -15,8 +15,9 @@ backend/                    ASP.NET Core 9 solution (planned 10, on 9 for speed)
   src/Tip4Gen.Api           Controllers, Program.cs, Serilog, OpenAPI, Auth0
     Auth/                   Auth0Options, AuthExtensions, CurrentUserService
     Controllers/            HealthController, MeController, AdminController,
-                            FixturesAdminController, NationalTeamsController,
-                            MatchesController, TipsController, LongTipsController
+                            FixturesAdminController, ScoringAdminController,
+                            NationalTeamsController, MatchesController,
+                            TipsController, LongTipsController
   src/Tip4Gen.Domain        Pure domain types — no EF, no ASP.NET refs
     Users/User.cs
     Tournaments/            Stage + MatchStatus enums, Tournament, NationalTeam,
@@ -25,18 +26,23 @@ backend/                    ASP.NET Core 9 solution (planned 10, on 9 for speed)
     Football/               IFootballDataProvider + ProviderFixture/Team/Status
     Tipping/                Tip, TipRulesValidator (pure rule engine),
                             LongTermTip + LongTermTipRulesValidator
+    Scoring/                MatchResult, ScoreCategory, ScoringResult,
+                            StageMultipliers, MatchScorer (pure), ScoredTip entity
   src/Tip4Gen.Infrastructure  EF Core, external clients
     Persistence/AppDbContext.cs + Migrations/
     DependencyInjection.cs  AddInfrastructure(IConfiguration)
     Football/               ApiFootballProvider + Options + DTOs
     Tournaments/            FixtureSyncService (idempotent upsert + event dispatch)
     Tipping/                TipsService, LongTermTipsService (tagged-union results)
+    Scoring/                MatchScoringService (idempotent re-score),
+                            MatchFinalizedScoringHandler (event handler)
   src/Tip4Gen.Workers       BackgroundService host — FixturePoller (Phase 2),
                             shares Api's UserSecretsId for shared dev config
     FixturePoller.cs        Calls FixtureSyncService when DB has active matches
     FixturePollerOptions.cs IntervalMinutes / ActiveWindowHours / LookaheadMinutes
   tests/Tip4Gen.Domain.Tests  xUnit — StageMapper, MatchStatusMapper,
-                              TipRulesValidator, LongTermTipRulesValidator (69 tests)
+                              TipRulesValidator, LongTermTipRulesValidator,
+                              MatchScorer, StageMultipliers (109 tests)
 web/                        Vite + React 19 + TS frontend
   src/auth/                 AuthProvider, RequireAuth, useApi (typed + ApiError),
                             authConfig
@@ -120,10 +126,13 @@ Schema must accommodate both formats: 2022 had 32 teams (no R32 round), 2026 has
 
 ## Scoring rules — quick reference (full detail in guide §3–§9)
 
-- Per-match: best-matching category among **10 / 5 / 3 / 1 / 0** points.
+- Per-match categories (best wins): **Exact 10 · WinnerAndGoalDiff 5 · Winner 3 · OneTeamGoals 1 · Nothing 0**.
 - Stage multipliers: group `1×` · R32 `1.5×` · R16 `1.5×` · QF `2×` · SF `2.5×` · bronze `2×` · final `3×`.
 - **Joker** (max 3 per user, group stage only, one per match) **doubles after multiplier**.
 - "One team's goal count matches" is strictly **home-to-home / away-to-away** (not swapped).
+- Half-multiplier results round **away from zero** (`5 × 1.5 = 7.5 → 8`). `MatchScorer` is the single source of truth.
+- Scoring is **idempotent**: `MatchScoringService.ScoreMatchAsync` deletes prior `scored_tips` for the match then re-inserts in one `SaveChanges`. Wired into `MatchFinalized` for auto-scoring and exposed via `POST /api/admin/matches/{id}/rescore` for manual re-runs.
+- `scored_tips.user_id` is **denormalized** from `tips` so leaderboard queries don't need to JOIN through matches.
 - Team aggregation: **best 3 of 4** member scores per match.
 - AI fallback: auto **1–1** tip with `is_ai_fallback=true` if AI provider hasn't returned by **T-1h**.
 - Tip deadline: **kickoff − 1h**, enforced server-side in UTC.

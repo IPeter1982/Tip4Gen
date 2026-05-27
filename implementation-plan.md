@@ -10,11 +10,12 @@
 - **Phase 0:** ✅ done (committed `de66246`). Local Postgres 18 is in use instead of Docker.
 - **Phase 1:** ✅ done end-to-end (commits `fe93917` + `f094978`). Auth0 tenant `dev-yifcd0c5p4s0wcj5.eu.auth0.com` live, real Google login → `/api/me` returns user row with `isAdmin: true` for `google-oauth2|115365131932488818447`.
 - **Phase 2:** ✅ done (commits `e02496f` + `3763e11` + `370cd43`). Schema + `IFootballDataProvider` + api-football impl with `AddStandardResilienceHandler`. `POST /api/admin/fixtures/seed` verified end-to-end against real WC 2022 (1 tournament, 32 teams, 64 matches, correct stage breakdown). Quota-aware `FixturePoller` in Workers exercised live (`Live → Finished` transition + `MatchFinalized` dispatch). Latent Phase 1 admin-policy bug fixed in passing.
-- **Phase 3:** ✅ done (commits `3950fd4` + `6b31440` + `27d7d25`). Backend: `PUT /api/tips/{matchId}` with full rule validation, list endpoints, long-term tip upsert. Frontend: `/matches` list with status chips + countdown, `/matches/:id/tip` form (RHF + Zod), `/long-tips` page. ProblemDetails `reason` enum drives field-level errors. 69/69 tests green.
-- **Phases 4–11:** not started.
+- **Phase 3:** ✅ done (commits `3950fd4` + `6b31440` + `27d7d25`). Backend: `PUT /api/tips/{matchId}` with full rule validation, list endpoints, long-term tip upsert. Frontend: `/matches` list with status chips + countdown, `/matches/:id/tip` form (RHF + Zod), `/long-tips` page. ProblemDetails `reason` enum drives field-level errors.
+- **Phase 4:** ✅ done (commit `2f25547`). Pure `MatchScorer` in Domain (categories per §3, multipliers per §4, joker doubles after multiplier per §6, AwayFromZero rounding). `scored_tips` table + idempotent `MatchScoringService` (delete-then-insert in one SaveChanges). `MatchFinalizedScoringHandler` auto-fires on poller transitions; `POST /api/admin/matches/{id}/rescore` for manual re-runs. CHECK constraints verified firing via psql. 109/109 tests green (+40 new).
+- **Phases 5–11:** not started.
 - **Open decisions:** hosting swap (Fly.io+Vercel+Neon vs Azure) — see callouts. Auth decision is locked: **Auth0**.
 - **Football data source:** api-football Free plan (100 req/day) verified. WC 2022 (64 fixtures, full results) accessible; WC 2026 is `coverage.fixtures=false` on Free → **dev against `season=2022`, swap to 2026 once we upgrade or change provider**. Admin manual-entry fallback in Phase 8 is now load-bearing, not optional. api-football's WC labels are matchday-style (`Group Stage - 1/2/3`) — group letter has to come from `/standings`, see Phase 2 follow-up below.
-- **Next:** Phase 4 (scoring engine), unblocked. `MatchFinalized` event already dispatches from `FixtureSyncService` — the scoring runner just needs to register as an `IMatchFinalizedHandler`.
+- **Next:** Phase 5 (teams + best-3-of-4 aggregation), unblocked. `ScoredTip` rows are the input the team aggregator will consume.
 
 ## How to read this plan
 
@@ -145,23 +146,29 @@ If you're already comfortable with the Azure + Auth0 path, keep it. Otherwise, s
 
 ---
 
-# Phase 4 — Scoring engine (Day 6–7)
+# Phase 4 — Scoring engine (Day 6–7) — ✅ DONE
 
-**Goal:** given a tip + result + stage + joker, compute points correctly. Pure, unit-tested, no DB.
+**Shipped 2026-05-27:**
 
-- [ ] Domain: `Tip`, `MatchResult`, `Stage` enum, `Joker` flag — value objects in `Domain` project, no EF dependency
-- [ ] `ScoringService.Score(tip, result, stage, joker) → int`
-- [ ] Best-matching-category logic: 10 / 5 / 3 / 1 / 0 — exactly per §3 of the guide
-- [ ] Stage multiplier: 1× / 1.5× / 1.5× / 2× / 2.5× / 2× / 3× for group / R32 / R16 / QF / SF / bronze / final
-- [ ] Joker doubling applied **after** the multiplier
-- [ ] "Egyik csapat gólszáma stimmel" — strictly home-to-home, away-to-away (not swapped)
-- [ ] Unit tests: every category, every stage, joker on/off, edge cases (0–0 tip vs 0–0 result, joker on knockout match — should reject upstream)
-- [ ] Service: `MatchScoringRunner` — on `MatchFinalized` event, loop tips for that match, persist `scored_tips` rows (`points`, `category`, `applied_multiplier`)
-- [ ] Idempotency: re-running scoring for the same match overwrites cleanly (for admin re-score)
+- [x] Domain value objects: `MatchResult` (readonly record struct), `ScoreCategory` enum, `ScoringResult` record. `Tip` + `Stage` already in Domain from Phases 2–3.
+- [x] `MatchScorer.Score(tipHome, tipAway, result, stage, joker)` — pure static, no DB. Categorize → multiply → joker-double. Returns `ScoringResult { Category, BasePoints, Multiplier, JokerApplied, FinalPoints }`.
+- [x] Categories per guide §3: **Exact 10 · WinnerAndGoalDiff 5 · Winner 3 · OneTeamGoals 1 · Nothing 0**. (The guide lists two 3-point cases — correct winner with wrong GD, and correct draw with wrong score — both fold into `Winner`.)
+- [x] `StageMultipliers.For(Stage)`: Group 1× · R32 1.5× · R16 1.5× · QF 2× · SF 2.5× · Bronze 2× · Final 3×.
+- [x] Joker doubles **after** the multiplier. Half-multiplier results round AwayFromZero (`5 × 1.5 = 7.5 → 8`, then × 2 = 16 if joker).
+- [x] "Egyik csapat gólszáma stimmel" implemented strictly home-to-home, away-to-away — swapped scores do NOT count.
+- [x] 40 new xUnit tests: every category with multiple data points, every stage's exact-score multiplier, joker on/off, rounding cases, 0-0 vs 0-0, swapped-not-credited. **109/109 total.**
+- [x] `ScoredTip` entity in Domain. Persisted to `scored_tips` table with UNIQUE on `tip_id`, indexes on `match_id` + `user_id`, CHECK on category enum + multiplier range [1, 3] + non-negative points. `user_id` denormalized so leaderboard queries skip the JOIN through matches.
+- [x] `MatchScoringService.ScoreMatchAsync` — idempotent (delete prior scored_tips for the match, then insert, single `SaveChanges`). Tagged-union result: `Success(matchId, tipsScored, totalPoints) | MatchNotFound | NotScorable(status)`. Refuses anything not in Finished/Awarded with a recorded score.
+- [x] `MatchFinalizedScoringHandler : IMatchFinalizedHandler` registered in DI — scoring auto-fires whenever `FixtureSyncService` transitions a match to Finished.
+- [x] `POST /api/admin/matches/{id}/rescore` — admin-gated, mirrors the same tagged-union result with 200/404/409. Useful for re-running after admin edits a result (Phase 8 will tie this into the result-entry UI).
+- [x] CHECK constraints verified live via psql (rejected `category='Bogus'` and `multiplier=99`). Schema accepts a well-formed Exact-30 row.
 
-**Done when:** test suite green covering all rule combos, scoring a finished match is a single transaction.
+**Deferred / not in this phase:**
 
-**[CRITICAL]** — this is the heart of the app. Write the tests first, in Hungarian if it helps you reason about §3.
+- [ ] Abandoned/Cancelled handling: per guide §11, abandoned matches → everyone gets 0 + joker refunded; awarded matches use the FIFA result. Phase 8 admin actions will trigger the appropriate state transitions; the scoring runner already declines non-Finished/Awarded statuses.
+- [ ] Leaderboard query/cache → Phase 7.
+
+**[CRITICAL]** ✅
 
 ---
 
