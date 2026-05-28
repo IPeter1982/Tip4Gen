@@ -10,6 +10,12 @@ public class Tournament
     public DateTimeOffset? EndsAtUtc { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
 
+    /// <summary>FIFA-decided winner; populated post-tournament by admin via /api/admin/long-tips/outcomes.</summary>
+    public Guid? WinnerTeamId { get; private set; }
+
+    /// <summary>FIFA-decided top scorer name; populated post-tournament by admin. Trimmed, ≤120 chars.</summary>
+    public string? TopScorerName { get; private set; }
+
     private Tournament() { }
 
     public Tournament(string name, string externalLeagueId, int season, DateTimeOffset startsAtUtc, DateTimeOffset? endsAtUtc = null)
@@ -30,4 +36,15 @@ public class Tournament
     }
 
     public void Rename(string name) => Name = name;
+
+    /// <summary>
+    /// Set or clear the FIFA-decided outcomes that drive §9 leaderboard tiebreakers.
+    /// Either field may be null (admin can record one before the other lands). Editable —
+    /// re-calling overwrites both values atomically.
+    /// </summary>
+    public void RecordOutcomes(Guid? winnerTeamId, string? topScorerName)
+    {
+        WinnerTeamId = winnerTeamId;
+        TopScorerName = string.IsNullOrWhiteSpace(topScorerName) ? null : topScorerName.Trim();
+    }
 }

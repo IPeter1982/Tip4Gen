@@ -61,6 +61,20 @@ public class Match
         UpdatedAt = DateTimeOffset.UtcNow;
     }
 
+    /// <summary>
+    /// Admin-recorded FIFA outcome for an abandoned/incomplete match (guide §11).
+    /// Behaves like <see cref="SetFinalScore"/> but lands the status on Awarded so
+    /// downstream views can distinguish FIFA-decided results from regular Finished
+    /// matches. Scoring treats Awarded the same as Finished.
+    /// </summary>
+    public void AwardResult(int home, int away)
+    {
+        HomeGoals = home;
+        AwayGoals = away;
+        Status = MatchStatus.Awarded;
+        UpdatedAt = DateTimeOffset.UtcNow;
+    }
+
     public void ClearScore()
     {
         HomeGoals = null;
