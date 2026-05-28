@@ -18,10 +18,16 @@ RUN rm /etc/nginx/conf.d/default.conf
 COPY nginx.conf /etc/nginx/templates/default.conf.template
 COPY --from=build /src/dist /usr/share/nginx/html
 
+COPY docker-entrypoint.sh /usr/local/bin/start-nginx.sh
+RUN chmod +x /usr/local/bin/start-nginx.sh
+
 ENV PORT=8080 \
     API_PORT=8080 \
     API_HOST=api.railway.internal
 
 EXPOSE 8080
 
-CMD ["sh", "-c", "envsubst '$PORT $API_HOST $API_PORT' < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]
+# Override nginx:alpine's ENTRYPOINT (which has its own template processor that
+# would substitute env vars before we've computed NAMESERVER from resolv.conf).
+ENTRYPOINT []
+CMD ["/usr/local/bin/start-nginx.sh"]
