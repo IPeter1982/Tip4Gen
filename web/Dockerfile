@@ -3,6 +3,17 @@
 FROM node:22-alpine AS build
 WORKDIR /src
 
+# Vite inlines VITE_* env vars at build time, so they must be present when
+# `vite build` runs — runtime env vars never reach the bundle. Railway
+# auto-passes any service variable as --build-arg if the Dockerfile declares
+# it with ARG. The ENV lines re-export them so vite picks them up.
+ARG VITE_AUTH0_DOMAIN
+ARG VITE_AUTH0_CLIENT_ID
+ARG VITE_AUTH0_AUDIENCE
+ENV VITE_AUTH0_DOMAIN=$VITE_AUTH0_DOMAIN \
+    VITE_AUTH0_CLIENT_ID=$VITE_AUTH0_CLIENT_ID \
+    VITE_AUTH0_AUDIENCE=$VITE_AUTH0_AUDIENCE
+
 COPY package.json package-lock.json* ./
 RUN npm ci
 

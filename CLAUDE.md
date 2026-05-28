@@ -172,7 +172,11 @@ SPA service (nginx)  ──/api private──►  API service (.NET)  ──priv
 - `OpenAi__ApiKey` (optional — when unset, the tipper short-circuits and the 1–1 fallback still writes at T-1h)
 - `Cors__AllowedOrigin` = SPA public URL (defensive belt-and-braces; the reverse-proxy means the browser never CORS-talks to the API)
 
-**SPA env vars**: `API_HOST` (default `api.railway.internal`), `API_PORT` (default `8080`), `PORT` (auto-injected by Railway). No `VITE_*` build-time vars needed for prod — same-origin via nginx means `useApi` just calls `/api/...` as in dev.
+**SPA env vars**:
+- *Runtime* — `API_HOST` (default `api.railway.internal`), `API_PORT` (default `8080`), `PORT` (auto-injected by Railway). Consumed by nginx for the reverse-proxy.
+- *Build-time* — `VITE_AUTH0_DOMAIN`, `VITE_AUTH0_CLIENT_ID`, `VITE_AUTH0_AUDIENCE`. Vite inlines these into the JS bundle when `vite build` runs, so they must be present during `docker build`. `web/Dockerfile` declares them as `ARG`s in the build stage; Railway auto-passes any service variable as `--build-arg` when a matching ARG exists in the Dockerfile, so set them on the Web service like any other env var.
+
+The API base URL is *not* a `VITE_*` var — same-origin via nginx means `useApi` just calls `/api/...` as in dev.
 
 **Auth0 callback URLs**: add the SPA's `*.up.railway.app` URL to Allowed Callback URLs, Allowed Logout URLs, Allowed Web Origins (alongside the existing `http://localhost:5173`). API audience identifier unchanged.
 
