@@ -1,4 +1,5 @@
 import { Route, Routes } from 'react-router'
+import { RequireAdmin } from './auth/RequireAdmin'
 import { RequireAuth } from './auth/RequireAuth'
 import { Topbar } from './components/Topbar'
 import { Home } from './pages/Home'
@@ -9,6 +10,10 @@ import { Me } from './pages/Me'
 import { Team } from './pages/Team'
 import { TeamJoin } from './pages/TeamJoin'
 import { TipSubmit } from './pages/TipSubmit'
+import { AdminAudit } from './pages/admin/AdminAudit'
+import { AdminLongTips } from './pages/admin/AdminLongTips'
+import { AdminMatchEditor } from './pages/admin/AdminMatchEditor'
+import { AdminMatches } from './pages/admin/AdminMatches'
 
 export default function App() {
   return (
@@ -69,6 +74,46 @@ export default function App() {
           element={
             <RequireAuth>
               <Me />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/admin"
+          element={
+            <RequireAuth>
+              <RequireAdmin>
+                <AdminMatches />
+              </RequireAdmin>
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/admin/matches/:matchId"
+          element={
+            <RequireAuth>
+              <RequireAdmin>
+                <AdminMatchEditor />
+              </RequireAdmin>
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/admin/audit"
+          element={
+            <RequireAuth>
+              <RequireAdmin>
+                <AdminAudit />
+              </RequireAdmin>
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/admin/long-tips"
+          element={
+            <RequireAuth>
+              <RequireAdmin>
+                <AdminLongTips />
+              </RequireAdmin>
             </RequireAuth>
           }
         />

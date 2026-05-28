@@ -1,3 +1,11 @@
+export type MeResponse = {
+  id: string
+  displayName: string
+  auth0Sub: string
+  createdAt: string
+  isAdmin: boolean
+}
+
 export type Stage = 'Group' | 'R32' | 'R16' | 'QF' | 'SF' | 'Bronze' | 'Final'
 
 export type MatchStatus =
@@ -147,4 +155,57 @@ export type TeamLeaderboardRow = {
   totalPoints: number
   members: TeamLeaderboardMember[]
   isMyTeam: boolean
+}
+
+// ----- Admin (Phase 8) -----
+
+export type AdminAuditAction =
+  | 'MatchSetResult'
+  | 'MatchCancel'
+  | 'MatchPostpone'
+  | 'MatchRescore'
+  | 'LongTipOutcomesSet'
+
+export type AdminAuditRow = {
+  id: string
+  action: AdminAuditAction
+  entityType: string
+  entityId: string | null
+  adminUserId: string
+  adminDisplayName: string
+  beforeJson: string | null
+  afterJson: string | null
+  reason: string | null
+  occurredAt: string
+}
+
+export type AdminAuditResponse = {
+  total: number
+  take: number
+  skip: number
+  rows: AdminAuditRow[]
+}
+
+export type MatchSetResultResponse = {
+  matchId: string
+  tipsScored: number
+  totalPoints: number
+}
+
+export type MatchCancelResponse = {
+  matchId: string
+  scoredTipsCleared: number
+  jokersRefunded: number
+}
+
+export type MatchPostponeResponse = {
+  matchId: string
+  newKickoffUtc: string
+  newDeadlineUtc: string
+}
+
+export type LongTipOutcomes = {
+  winnerTeamId: string | null
+  winnerTeamName: string | null
+  topScorerName: string | null
 }

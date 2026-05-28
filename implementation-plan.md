@@ -16,10 +16,11 @@
 - **Phase 5 frontend:** ✅ done. `/team` page renders one of three states (no team → create; Forming → manage; Locked/Disqualified → read-only banner). Manage view = rename, AI add (name + mode), AI stylepicker, invite-link generator with copy-to-clipboard + expiry, leave with confirm (cascades on last-human). `/team/join/:token` redeems and bounces to `/team`. Lock countdown reuses `LongTipsResponse.lockUtc` so the SPA stays single-source-of-truth on tournament start.
 - **Phase 7:** ✅ done. Domain: `LeaderboardRanker` (full §9 tiebreaker chain + shared placement), `StreakCalculator`. Infrastructure: `IndividualLeaderboardService` (sum scored_tips, count Exact, longest ≥3-pt streak) + `TeamLeaderboardService` (best-3-of-4 per match, Locked-only). API: `GET /api/leaderboard/users` + `/api/leaderboard/teams`. Frontend: `/leaderboard` with Egyéni/Csapat tabs, "én"/"csapatom" highlights. 155/155 tests green (+18 new). Long-tip outcomes (Winner/TopScorer correctness) plumbed as nullable, defaulting to null until Phase 8 admin entry lands.
 - **Phase 6:** ✅ done end-to-end. Domain: `AiTipPromptBuilder` (team names + stage + AiMode), `AiTipResponseValidator` (0–15 goals, ≤500-char Hungarian reasoning), `AiTipSchedulePolicy` (T-2h attempt → T-90m retry → T-1h fallback → deadline), `IAiTipper` interface, `AiTipAttempt` entity. **Schema change**: `tips.user_id` → nullable, new `tips.team_member_id` (CHECK exactly-one) + `is_ai_fallback` + `reasoning`; same nullable+team_member_id treatment on `scored_tips`; new `ai_tip_attempts` table for restart-safe attempt counting. Aggregation services (`MatchScoringService`, `TeamAggregationService`, `TeamLeaderboardService`) updated to dual-key on either UserId or TeamMemberId — AI tips count toward team totals but never appear on the individual board. Infrastructure: `OpenAiTipper` (Chat Completions + `response_format: json_object`, returns Disabled when ApiKey unset), `AiTippingService` orchestrator. Workers: `AiTippingJob` (5-min cadence). API: `POST /api/admin/ai-tipper/preview` for manual smoke-test; `GET /api/matches/{id}/tips` surfaces AI tips with isAi/isAiFallback/reasoning. Frontend: post-deadline "Mindenki tippje" panel on TipSubmit with AI/Fallback/Joker chips + reasoning. 189/189 tests green (+34 new for Ai/). Live smoke test against OpenAI confirmed key + JSON mode + Hungarian reasoning all work.
-- **Phases 8–11:** not started.
+- **Phase 8:** ✅ done end-to-end. Domain: `AdminAudit` entity + `AdminAuditAction` enum; `Tournament.RecordOutcomes(winnerTeamId, topScorerName)`; `Match.AwardResult` for FIFA-decided outcomes (lands `MatchStatus.Awarded` distinctly from `Finished`). **Schema migration `Phase8AdminAudit`**: `admin_audit` table (admin_user_id FK + action enum + entity_type/id + jsonb before/after + reason + occurred_at; indexes on occurred_at desc and (entity_type, entity_id)); `tournaments.winner_team_id` (FK restrict) + `top_scorer_name` columns. Infrastructure: `IAdminAuditWriter` (stages row without SaveChanges so caller owns the transaction), `MatchAdminService` (SetResult / Cancel / Postpone), `LongTipOutcomesService`; cancel uses `ExecuteDeleteAsync`+`ExecuteUpdateAsync` for scored_tips deletion + joker refund. `IndividualLeaderboardService` now fetches tournament outcomes and computes per-user `winnerCorrect`/`topScorerCorrect` (case-insensitive trimmed name match). API: `PUT /api/admin/matches/{id}/result`, `POST .../cancel`, `POST .../postpone`, `GET /api/admin/audit` (paginated, server-clamped take ≤200), `GET`+`PUT /api/admin/long-tips/outcomes`. Frontend: `useMe()` cached at app level (staleTime: Infinity); `RequireAdmin` guard renders 403 panel; Topbar shows admin link conditionally; reusable `ConfirmDialog` with destructive variant + Escape/click-outside cancel + focus management; admin pages `/admin` (match list with phase filter), `/admin/matches/:id` (result form + postpone + cancel with confirm), `/admin/audit` (paginated, collapse/expand JSON), `/admin/long-tips` (winner select + top-scorer text input). 189/189 tests green.
+- **Phases 9–11:** not started.
 - **Open decisions:** hosting swap (Fly.io+Vercel+Neon vs Azure) — see callouts. Auth decision is locked: **Auth0**.
-- **Football data source:** api-football Free plan (100 req/day) verified. WC 2022 (64 fixtures, full results) accessible; WC 2026 is `coverage.fixtures=false` on Free → **dev against `season=2022`, swap to 2026 once we upgrade or change provider**. Admin manual-entry fallback in Phase 8 is now load-bearing, not optional. api-football's WC labels are matchday-style (`Group Stage - 1/2/3`) — group letter has to come from `/standings`, see Phase 2 follow-up below.
-- **Next:** Phase 8 (admin UI, **[CRITICAL]** — without it a single delayed/abandoned match wedges the tournament).
+- **Football data source:** api-football Free plan (100 req/day) verified. WC 2022 (64 fixtures, full results) accessible; WC 2026 is `coverage.fixtures=false` on Free → **dev against `season=2022`, swap to 2026 once we upgrade or change provider**. Admin manual-entry now works via the Phase 8 endpoints, so the data-source risk is contained. api-football's WC labels are matchday-style (`Group Stage - 1/2/3`) — group letter has to come from `/standings`, see Phase 2 follow-up below.
+- **Next:** Phase 9 (notifications, **[CUT-OK]**) or Phase 11 (deploy + secrets, **needed for launch**).
 
 ## How to read this plan
 
@@ -271,9 +272,9 @@ If you're already comfortable with the Azure + Auth0 path, keep it. Otherwise, s
 - [x] Frontend: `/leaderboard` with Egyéni/Csapat tabs, table view for individuals (rank · név · pont · 10p · sorozat) and card view per team (rank · név · total · member breakdown). Self-highlights: `én` chip + orange left border on the individual row; `csapatom` chip + orange ring on the team card.
 - [x] Tests: 18 new (10 ranker covering each tiebreaker independently + shared placement + null-neutrality, 7 streak covering boundaries + breaks + empty input, 1 null guard). **155/155 green.**
 
-**Deferred until Phase 8:**
+**Deferred until Phase 8 (now closed):**
 
-- [ ] Long-tip outcomes (tournament winner + top scorer). Service already accepts nullable `WinnerCorrect`/`TopScorerCorrect`; just needs the admin entry endpoint + a small query change.
+- [x] Long-tip outcomes (tournament winner + top scorer) — landed in Phase 8 via `tournament.{winner_team_id, top_scorer_name}` + `PUT /api/admin/long-tips/outcomes`; `IndividualLeaderboardService` reads them and feeds the ranker.
 - [ ] Event-driven cache refresh — every leaderboard request currently recomputes from scratch. Cheap enough at this scale, but if it ever bites, the place to add a cached-totals table is `MatchFinalizedScoringHandler`'s tail.
 
 **Lessons banked:**
@@ -286,24 +287,38 @@ If you're already comfortable with the Azure + Auth0 path, keep it. Otherwise, s
 
 ---
 
-# Phase 8 — Admin UI (Day 11–12)
+# Phase 8 — Admin UI (Day 11–12) — ✅ DONE
 
-**Goal:** you can fix anything during the tournament from your phone.
+**Shipped 2026-05-27:**
 
-- [ ] Frontend: `/admin` route, hidden in nav for non-admins, guarded by `GET /api/admin/me`
-- [ ] DB: `admin_audit` table (id, admin_sub, timestamp_utc, action, entity_type, entity_id, before_json, after_json, reason)
-- [ ] Audit middleware: every `/api/admin/*` write captures before/after and inserts an audit row in the same transaction
-- [ ] API: `PUT /api/admin/matches/{id}/result` — set/edit final score, triggers re-scoring
-- [ ] API: `POST /api/admin/matches/{id}/cancel` — sets status, zeros all tips, refunds jokers per §11
-- [ ] API: `POST /api/admin/matches/{id}/postpone` — new kickoff, new T-1h deadline
-- [ ] API: `POST /api/admin/matches/{id}/rescore` — idempotent re-run of scoring
-- [ ] API: `GET /api/admin/audit?match_id=…` paginated audit view
-- [ ] Frontend pages: match list (with quick result-entry), single-match editor, audit log viewer
-- [ ] Confirm-dialogs on cancel + postpone — destructive
+- [x] Frontend: `/admin` route guarded by `RequireAuth` + `RequireAdmin` (renders 403 panel for non-admins). Topbar shows admin link only when `me.isAdmin`. `useMe()` cached at app level with `staleTime: Infinity`.
+- [x] DB: `admin_audit` table with `id, admin_user_id (FK users), action enum, entity_type, entity_id, before_json (jsonb), after_json (jsonb), reason, occurred_at`. Indexes on `occurred_at desc` and `(entity_type, entity_id)`.
+- [x] Audit lives in the service layer (not middleware — middleware approach would couple Infrastructure to HttpContext): each admin service injects `IAdminAuditWriter` and calls `RecordAsync` before `SaveChangesAsync`, so the audit row commits in the same EF transaction as the mutation. Writer never SaveChanges itself.
+- [x] API: `PUT /api/admin/matches/{id}/result` — body takes `homeGoals, awayGoals, status (Finished|Awarded), reason`. Triggers idempotent re-scoring inline; response carries `tipsScored` + `totalPoints` so the SPA confirms in one round-trip.
+- [x] API: `POST /api/admin/matches/{id}/cancel` — `match.ClearScore() + UpdateStatus(Cancelled)`, `ExecuteDeleteAsync` on scored_tips, `ExecuteUpdateAsync` flipping `tips.joker = false` (per §11 refund). Tip rows themselves stay as a historical record.
+- [x] API: `POST /api/admin/matches/{id}/postpone` — validates `newKickoffUtc >= now + 1h + 5min`, calls `Match.Reschedule` + status Postponed. Existing tips carry over and stay editable up to the new deadline (TipRulesValidator is kickoff-driven). Jokers are NOT refunded (§11 explicit).
+- [x] API: `POST /api/admin/matches/{id}/rescore` — already shipped in Phase 4; documented here for completeness.
+- [x] API: `GET /api/admin/audit?matchId=&take=&skip=` — paginated, server-clamped `take ≤ 200`. Joins users for `adminDisplayName`. Returns total count for pagination.
+- [x] API: `GET`+`PUT /api/admin/long-tips/outcomes` — admin records the FIFA-decided winner team + top scorer; `IndividualLeaderboardService` reads them and feeds `winnerCorrect`/`topScorerCorrect` to the §9 tiebreaker chain (case-insensitive trimmed name match so admin typos don't dock users). Editable — re-calling overwrites + emits a new audit row.
+- [x] Frontend pages: `/admin` (match list with phase filter chips + per-row "Szerkeszt"), `/admin/matches/:id` (result form with RHF + Zod radio for Finished/Awarded + postpone form with datetime-local converted to UTC + cancel button), `/admin/audit` (paginated, click to expand before/after JSON), `/admin/long-tips` (winner team select + top scorer text).
+- [x] `ConfirmDialog` reusable component: brutalist modal, Escape + click-outside cancel, focus moves to confirm button, destructive variant paints the confirm red. Wired into Cancel + Postpone flows.
+- [x] `Match.AwardResult` distinct from `SetFinalScore` so FIFA-decided outcomes land `Status = Awarded`. Scoring treats Awarded the same as Finished, but the audit + UI badge can distinguish the source.
+- [x] 189/189 tests green (no new tests this phase — service-layer integration tests are deferred; the live admin endpoints are exercised via the SPA walkthrough).
 
-**Done when:** you can mark a fake match as 2–1 from `/admin`, see the audit row, see every tipper's points update.
+**Lessons banked:**
 
-**[CRITICAL]** — without this, a single delayed/abandoned match wedges the tournament.
+- The plan originally wrote "audit middleware" — middleware would need `HttpContext` to know the admin sub, which couples Infrastructure to ASP.NET (forbidden by the dependency direction). Service-layer audit is the right call. CLAUDE.md updated to reflect.
+- `Match.SetFinalScore` always lands Status=Finished, but admin set-result needs Awarded for FIFA-decided outcomes. Rather than overload SetFinalScore with a status parameter, add `AwardResult` as a sibling. Two short methods beat one with a branch.
+- `ExecuteUpdateAsync`/`ExecuteDeleteAsync` bypass the change tracker but participate in the ambient transaction — perfect for the cancel mechanic (zero out a whole match in one DB round-trip + the audit row commits atomically). Don't try to mix them with tracked-entity updates of the same rows in the same SaveChanges.
+- `useMe()` with `staleTime: Infinity` is the cheapest way to expose `isAdmin` everywhere. It's the right tradeoff because admin status doesn't change mid-session. If we ever need to revoke admin live, invalidate `['me']` explicitly.
+- Postpone window: required a small buffer (now + 1h + 5min) on the new-kickoff validation so an admin clicking right at the deadline doesn't hit a 422 from clock skew. Documented in `MatchPostponeResult.KickoffNotFarEnough`.
+
+**Deferred (post-launch):**
+
+- Service-layer integration tests for `MatchAdminService` + `LongTipOutcomesService`. Pure Domain coverage stays at 189; admin paths are exercised end-to-end via the SPA but a Testcontainers-Postgres test would catch regressions cheaper.
+- The bulk `match.Status` filter chips currently rely on the existing `useMatches(phase)` hook which doesn't differentiate Postponed/Cancelled in the phase filter — those still show under "past" or "upcoming". An admin-specific endpoint with richer filters would be a nice-to-have; not blocking.
+
+**[CRITICAL]** ✅
 
 ---
 

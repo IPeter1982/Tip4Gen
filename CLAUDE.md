@@ -19,7 +19,9 @@ backend/                    ASP.NET Core 9 solution (planned 10, on 9 for speed)
                             TeamsAdminController, NationalTeamsController,
                             MatchesController, TipsController, LongTipsController,
                             TeamsController, LeaderboardController,
-                            AiTipperAdminController (preview endpoint)
+                            AiTipperAdminController (preview endpoint),
+                            MatchesAdminController (result/cancel/postpone),
+                            AdminAuditController, LongTipsAdminController
   src/Tip4Gen.Domain        Pure domain types — no EF, no ASP.NET refs
     Users/User.cs
     Tournaments/            Stage + MatchStatus enums, Tournament, NationalTeam,
@@ -40,6 +42,7 @@ backend/                    ASP.NET Core 9 solution (planned 10, on 9 for speed)
     Ai/                     AiTipResponse, AiTipResult tagged union, IAiTipper,
                             AiTipPromptBuilder (pure), AiTipResponseValidator (pure),
                             AiTipSchedulePolicy (pure), AiTipAttempt entity
+    Admin/                  AdminAudit entity, AdminAuditAction enum
   src/Tip4Gen.Infrastructure  EF Core, external clients
     Persistence/AppDbContext.cs + Migrations/
     DependencyInjection.cs  AddInfrastructure(IConfiguration)
@@ -56,6 +59,9 @@ backend/                    ASP.NET Core 9 solution (planned 10, on 9 for speed)
     Ai/                     OpenAiOptions, OpenAiTipper (Chat Completions +
                             json_object mode; returns Disabled when ApiKey unset),
                             AiTippingService orchestrator
+    Admin/                  IAdminAuditWriter + AdminAuditWriter (stage row in
+                            same transaction as caller), MatchAdminService
+                            (SetResult / Cancel / Postpone), LongTipOutcomesService
   src/Tip4Gen.Workers       BackgroundService host — FixturePoller (Phase 2)
                             + TeamLockJob (Phase 5) + AiTippingJob (Phase 6),
                             shares Api's UserSecretsId for shared dev config
@@ -81,6 +87,9 @@ web/                        Vite + React 19 + TS frontend
   src/components/Topbar.tsx
   src/pages/                Home, Me, Matches, TipSubmit, LongTips, Team, TeamJoin,
                             Leaderboard
+  src/pages/admin/          AdminMatches, AdminMatchEditor, AdminAudit, AdminLongTips
+  src/auth/RequireAdmin     Gates admin routes; renders 403 panel for non-admins
+  src/components/           Topbar, ConfirmDialog (modal w/ destructive variant)
   src/main.tsx              <AuthProvider><QueryClientProvider><BrowserRouter>…
   src/index.css             Single line: @import "tailwindcss"
   vite.config.ts            port 5173, strictPort, dev proxy /api → :5050
@@ -171,7 +180,7 @@ Schema must accommodate both formats: 2022 had 32 teams (no R32 round), 2026 has
 
 ## Admin
 
-Single admin (the project owner). Gated by Auth0 `sub` claim matching the `Auth0:AdminSub` user-secret. Every `/api/admin/*` write must record a row in `admin_audit` in the same transaction (before/after JSON).
+Single admin (the project owner). Gated by Auth0 `sub` claim matching the `Auth0:AdminSub` user-secret. Every `/api/admin/*` write must record a row in `admin_audit` in the same transaction (before/after JSON). Audit lives in the service layer (not middleware) — each admin service injects `IAdminAuditWriter` and calls `RecordAsync` *before* the closing `SaveChangesAsync` so the audit row is part of the same EF transaction. The writer doesn't `SaveChanges` itself.
 
 ## Auth gotchas (learned the hard way — see commits f094978, 3763e11)
 
@@ -196,6 +205,19 @@ Single admin (the project owner). Gated by Auth0 `sub` claim matching the `Auth0
 - `tips.is_ai_fallback` is `false` for human tips and AI successes; `true` only for the deterministic 1–1 row written at T-1h. `tips.reasoning` is null for human tips, optional for AI successes, and set to `"AI nem válaszolt időben."` for fallbacks.
 - `ck_tips_ai_no_joker` enforces that AI tips never claim a joker (joker is human-only per §6). Don't relax this unless §6 changes.
 - The leaderboard split is load-bearing: `IndividualLeaderboardService` filters `WHERE user_id IS NOT NULL` so AI rows never appear; `TeamLeaderboardService` and `TeamAggregationService` look up points by `UserId` (humans) OR `TeamMemberId` (AI). If you add a new aggregation, mirror the dual-key lookup or AI tips silently score zero.
+
+## Admin schema + flow gotchas (Phase 8)
+
+- **Audit pattern**: `IAdminAuditWriter.RecordAsync` only stages the `AdminAudit` row on the DbContext — never calls SaveChanges. The admin service that called it owns the transaction. If you write a new admin endpoint and forget the audit call, `grep` is your only defence (no middleware will catch it).
+- **`before` / `after` JSON shape is per-action.** Don't dump full aggregates. `MatchSetResult` snapshots `{status, homeGoals, awayGoals}`; `MatchCancel` adds `scoredTipsCleared` / `jokersRefunded` to the after-shape; `MatchPostpone` snapshots `{kickoffUtc, status}`. Match the relevant slice and nothing more.
+- **`MatchStatus.Awarded` vs `Finished`**: distinct status for FIFA-decided outcomes per §11. `MatchScoringService` treats both as scorable so scoring is identical; the distinction is for UI badges + audit context. Use `Match.AwardResult(home, away)` (not `SetFinalScore`) when the source is admin-entered.
+- **Cancel mechanics**: `MatchAdminService.CancelAsync` does four things in one `SaveChanges` — `match.ClearScore() + UpdateStatus(Cancelled)`, `ExecuteDeleteAsync` on `scored_tips`, `ExecuteUpdateAsync` flipping `tips.joker = false`, then the audit row. The `ExecuteUpdate/Delete` calls bypass the change tracker but run inside the implicit ambient transaction — the audit row's `SaveChanges` commits the lot atomically.
+- **Joker refund** is implicit via `TipRulesValidator`: setting `joker = false` on a cancelled match's tips makes the user's `otherJokerCountForUser` query drop by one on next validation. Tip rows themselves stay as a historical record (§11 doesn't require deletion).
+- **Postpone never refunds jokers** (§11 explicit). Existing tips remain editable up to the new deadline; the `TipRulesValidator` deadline check is driven by `kickoff_utc` alone, so the new `kickoff - 1h` is automatic.
+- **Postpone validation**: `newKickoffUtc` must be ≥ `now + 1h + 5min` so the resulting deadline isn't already in the past. The 5-min buffer is intentional to avoid edge-case clock skew rejections.
+- **Tournament outcomes are editable**, not locked. Re-calling `PUT /api/admin/long-tips/outcomes` overwrites and writes a new audit row. The individual leaderboard recomputes on every fetch (no cache) so corrections take effect immediately.
+- **Top-scorer match is case-insensitive on trimmed strings** so admin typos like " Lionel Messi " don't dock users who tipped "lionel messi". If you change this, update `IndividualLeaderboardService.ComputeLongTipCorrectness` and document why.
+- **`Tournament.WinnerTeamId`** has `OnDelete(Restrict)` to `teams_national`. Deleting a national team that's recorded as the winner is blocked — safer than nulling the field silently. If a re-seed is needed mid-tournament, clear outcomes via the admin endpoint first.
 
 ## AI tipper gotchas (Phase 6)
 

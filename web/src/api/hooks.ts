@@ -1,12 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useApi } from '../auth/useApi'
 import type {
+  AdminAuditResponse,
   AiMode,
   IndividualLeaderboardRow,
   InviteView,
+  LongTipOutcomes,
   LongTipsResponse,
+  MatchCancelResponse,
   MatchListItem,
+  MatchPostponeResponse,
+  MatchSetResultResponse,
   MatchTipsResponse,
+  MeResponse,
   NationalTeam,
   TeamLeaderboardRow,
   TeamMatchBreakdownView,
@@ -15,6 +21,17 @@ import type {
 } from './types'
 
 type Phase = 'upcoming' | 'past' | 'all'
+
+// /api/me cached at app level. isAdmin doesn't change mid-session, so
+// staleTime: Infinity keeps the Topbar + RequireAdmin pulls instant.
+export function useMe() {
+  const api = useApi()
+  return useQuery({
+    queryKey: ['me'],
+    queryFn: () => api.get<MeResponse>('/api/me'),
+    staleTime: Infinity,
+  })
+}
 
 export function useMatches(phase: Phase = 'upcoming') {
   const api = useApi()
@@ -207,5 +224,106 @@ export function useTeamLeaderboard() {
   return useQuery({
     queryKey: ['leaderboard', 'teams'],
     queryFn: () => api.get<TeamLeaderboardRow[]>('/api/leaderboard/teams'),
+  })
+}
+
+// ----- Admin (Phase 8) -----
+
+export type SetMatchResultInput = {
+  matchId: string
+  homeGoals: number
+  awayGoals: number
+  status: 'Finished' | 'Awarded'
+  reason?: string | null
+}
+
+export function useSetMatchResult() {
+  const api = useApi()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ matchId, ...body }: SetMatchResultInput) =>
+      api.put<MatchSetResultResponse>(`/api/admin/matches/${matchId}/result`, body),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ['matches'] })
+      qc.invalidateQueries({ queryKey: ['match', vars.matchId] })
+      qc.invalidateQueries({ queryKey: ['match-tips', vars.matchId] })
+      qc.invalidateQueries({ queryKey: ['leaderboard'] })
+      qc.invalidateQueries({ queryKey: ['admin', 'audit'] })
+    },
+  })
+}
+
+export type CancelMatchInput = { matchId: string; reason?: string | null }
+
+export function useCancelMatch() {
+  const api = useApi()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ matchId, reason }: CancelMatchInput) =>
+      api.post<MatchCancelResponse>(`/api/admin/matches/${matchId}/cancel`, { reason }),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ['matches'] })
+      qc.invalidateQueries({ queryKey: ['match', vars.matchId] })
+      qc.invalidateQueries({ queryKey: ['leaderboard'] })
+      qc.invalidateQueries({ queryKey: ['admin', 'audit'] })
+    },
+  })
+}
+
+export type PostponeMatchInput = { matchId: string; newKickoffUtc: string; reason?: string | null }
+
+export function usePostponeMatch() {
+  const api = useApi()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ matchId, ...body }: PostponeMatchInput) =>
+      api.post<MatchPostponeResponse>(`/api/admin/matches/${matchId}/postpone`, body),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ['matches'] })
+      qc.invalidateQueries({ queryKey: ['match', vars.matchId] })
+      qc.invalidateQueries({ queryKey: ['admin', 'audit'] })
+    },
+  })
+}
+
+export function useAdminAuditLog(matchId?: string, take = 50, skip = 0) {
+  const api = useApi()
+  return useQuery({
+    queryKey: ['admin', 'audit', { matchId: matchId ?? null, take, skip }],
+    queryFn: () => {
+      const params = new URLSearchParams()
+      if (matchId) params.set('matchId', matchId)
+      params.set('take', String(take))
+      params.set('skip', String(skip))
+      return api.get<AdminAuditResponse>(`/api/admin/audit?${params.toString()}`)
+    },
+  })
+}
+
+export function useLongTipOutcomes() {
+  const api = useApi()
+  return useQuery({
+    queryKey: ['admin', 'long-tips', 'outcomes'],
+    queryFn: () => api.get<LongTipOutcomes>('/api/admin/long-tips/outcomes'),
+  })
+}
+
+export type SetLongTipOutcomesInput = {
+  winnerTeamId?: string | null
+  topScorerName?: string | null
+  reason?: string | null
+}
+
+export function useSetLongTipOutcomes() {
+  const api = useApi()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (body: SetLongTipOutcomesInput) =>
+      api.put<LongTipOutcomes>('/api/admin/long-tips/outcomes', body),
+    onSuccess: (data) => {
+      qc.setQueryData(['admin', 'long-tips', 'outcomes'], data)
+      qc.invalidateQueries({ queryKey: ['leaderboard'] })
+      qc.invalidateQueries({ queryKey: ['admin', 'audit'] })
+    },
   })
 }

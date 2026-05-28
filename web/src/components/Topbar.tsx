@@ -1,9 +1,11 @@
 import { useAuth0 } from '@auth0/auth0-react'
 import { Link } from 'react-router'
+import { useMe } from '../api/hooks'
 import { isAuthConfigured } from '../auth/authConfig'
 
 export function Topbar() {
   const { isAuthenticated, isLoading, user, loginWithRedirect, logout, error } = useAuth0()
+  const me = useMe()
 
   return (
     <header className="border-b-2 border-stone-900 bg-white">
@@ -18,6 +20,9 @@ export function Topbar() {
           <Link to="/team" className="text-stone-600 hover:text-stone-900">Csapat</Link>
           <Link to="/leaderboard" className="text-stone-600 hover:text-stone-900">Ranglista</Link>
           <Link to="/me" className="text-stone-600 hover:text-stone-900">Profil</Link>
+          {me.data?.isAdmin && (
+            <Link to="/admin" className="text-orange-600 hover:text-orange-800">Admin</Link>
+          )}
         </nav>
         <div className="ml-auto flex items-center gap-3">
           {!isAuthConfigured && (
