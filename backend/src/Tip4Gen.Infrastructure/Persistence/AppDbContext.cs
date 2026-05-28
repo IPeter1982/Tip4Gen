@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Tip4Gen.Domain.Admin;
 using Tip4Gen.Domain.Ai;
 using Tip4Gen.Domain.Scoring;
 using Tip4Gen.Domain.Teams;
@@ -21,6 +22,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<TeamMember> TeamMembers => Set<TeamMember>();
     public DbSet<TeamInvite> TeamInvites => Set<TeamInvite>();
     public DbSet<AiTipAttempt> AiTipAttempts => Set<AiTipAttempt>();
+    public DbSet<AdminAudit> AdminAudits => Set<AdminAudit>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -46,7 +48,16 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             b.Property(t => t.StartsAtUtc).HasColumnName("starts_at_utc").IsRequired();
             b.Property(t => t.EndsAtUtc).HasColumnName("ends_at_utc");
             b.Property(t => t.CreatedAt).HasColumnName("created_at").IsRequired();
+            b.Property(t => t.WinnerTeamId).HasColumnName("winner_team_id");
+            b.Property(t => t.TopScorerName).HasColumnName("top_scorer_name").HasMaxLength(120);
             b.HasIndex(t => new { t.ExternalLeagueId, t.Season }).IsUnique();
+
+            // Restrict deletion: blocking a national-team delete when it's recorded as
+            // the tournament winner is safer than silently nulling the field out.
+            b.HasOne<NationalTeam>()
+                .WithMany()
+                .HasForeignKey(t => t.WinnerTeamId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<NationalTeam>(b =>
@@ -376,6 +387,34 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             // Lookup pattern: "how many attempts for (member, match) before now?" The
             // schedule policy reads this count and decides AttemptAi / WriteFallback / Skip.
             b.HasIndex(a => new { a.TeamMemberId, a.MatchId });
+        });
+
+        modelBuilder.Entity<AdminAudit>(b =>
+        {
+            b.ToTable("admin_audit");
+            b.HasKey(a => a.Id);
+            b.Property(a => a.Id).HasColumnName("id");
+            b.Property(a => a.AdminUserId).HasColumnName("admin_user_id").IsRequired();
+            b.Property(a => a.Action)
+                .HasColumnName("action")
+                .HasConversion<string>()
+                .HasMaxLength(40)
+                .IsRequired();
+            b.Property(a => a.EntityType).HasColumnName("entity_type").HasMaxLength(40).IsRequired();
+            b.Property(a => a.EntityId).HasColumnName("entity_id");
+            b.Property(a => a.BeforeJson).HasColumnName("before_json").HasColumnType("jsonb");
+            b.Property(a => a.AfterJson).HasColumnName("after_json").HasColumnType("jsonb");
+            b.Property(a => a.Reason).HasColumnName("reason").HasMaxLength(500);
+            b.Property(a => a.OccurredAt).HasColumnName("occurred_at").IsRequired();
+
+            b.HasOne<User>()
+                .WithMany()
+                .HasForeignKey(a => a.AdminUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Query patterns: latest-first (admin scrolls the audit log) and per-entity.
+            b.HasIndex(a => a.OccurredAt).IsDescending();
+            b.HasIndex(a => new { a.EntityType, a.EntityId });
         });
     }
 }

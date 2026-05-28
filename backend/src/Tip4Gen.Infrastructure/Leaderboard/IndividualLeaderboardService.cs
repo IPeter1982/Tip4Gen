@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Tip4Gen.Domain.Leaderboard;
 using Tip4Gen.Domain.Scoring;
+using Tip4Gen.Domain.Tipping;
 using Tip4Gen.Infrastructure.Persistence;
 
 namespace Tip4Gen.Infrastructure.Leaderboard;
@@ -26,9 +27,9 @@ public interface IIndividualLeaderboardService
 /// a single SELECT per data type then in-memory grouping is fast enough; we deliberately
 /// skip the materialized-view optimization the plan flags as [CUT-OK].
 ///
-/// Long-term tip outcomes (winner / top scorer) aren't recorded yet — Phase 8 will add
-/// the admin entry endpoint. Until then we pass nulls and the §9 tiebreakers for those
-/// rules act as neutral (handled inside LeaderboardRanker).
+/// Long-term tip outcomes (winner / top scorer) are read from the active tournament's
+/// recorded fields (Phase 8 admin entry). If either is null, the ranker treats the
+/// corresponding §9 tiebreaker as neutral.
 /// </summary>
 public class IndividualLeaderboardService(AppDbContext db) : IIndividualLeaderboardService
 {
@@ -37,6 +38,18 @@ public class IndividualLeaderboardService(AppDbContext db) : IIndividualLeaderbo
         var users = await db.Users.AsNoTracking()
             .Select(u => new { u.Id, u.DisplayName })
             .ToListAsync(ct);
+
+        // Outcomes from the active tournament; nullable until admin enters them.
+        var outcomes = await db.Tournaments.AsNoTracking()
+            .OrderByDescending(t => t.StartsAtUtc)
+            .Select(t => new { t.WinnerTeamId, t.TopScorerName })
+            .FirstOrDefaultAsync(ct);
+
+        // Each user's long-term tips, so we can compare against outcomes per user.
+        var longTips = await db.LongTermTips.AsNoTracking()
+            .Select(l => new LongTipRow(l.UserId, l.Type, l.TargetTeamId, l.TargetPlayerName))
+            .ToListAsync(ct);
+        var longTipsByUser = longTips.GroupBy(l => l.UserId).ToDictionary(g => g.Key, g => g.ToList());
 
         // Only human scored tips count toward the individual board — AI tips key on
         // team_member_id and are excluded here. (§7: AI is team-aggregated only.)
@@ -60,13 +73,16 @@ public class IndividualLeaderboardService(AppDbContext db) : IIndividualLeaderbo
             var exact = rows.Count(r => r.Category == ScoreCategory.Exact);
             var streak = StreakCalculator.LongestStreak(rows.Select(r => r.FinalPoints));
 
+            longTipsByUser.TryGetValue(u.Id, out var userLongTips);
+            var (winnerCorrect, topScorerCorrect) = ComputeLongTipCorrectness(outcomes?.WinnerTeamId, outcomes?.TopScorerName, userLongTips);
+
             return new LeaderboardEntry(
                 UserId: u.Id,
                 DisplayName: u.DisplayName,
                 TotalPoints: total,
                 ExactCount: exact,
-                WinnerCorrect: null,
-                TopScorerCorrect: null,
+                WinnerCorrect: winnerCorrect,
+                TopScorerCorrect: topScorerCorrect,
                 LongestStreak: streak);
         });
 
@@ -83,4 +99,38 @@ public class IndividualLeaderboardService(AppDbContext db) : IIndividualLeaderbo
             LongestStreak: r.Entry.LongestStreak,
             IsMe: currentUserId.HasValue && r.Entry.UserId == currentUserId.Value)).ToList();
     }
+
+    /// <summary>
+    /// Compare a user's long-term tips against the recorded outcomes. Null outcome
+    /// → null correctness (ranker treats as neutral). Outcome recorded but user
+    /// never tipped → false (they were wrong by default).
+    /// Top-scorer match is case-insensitive on trimmed values to absorb minor input
+    /// variance ("Lionel Messi" vs " lionel messi ") without false negatives.
+    /// </summary>
+    private static (bool? WinnerCorrect, bool? TopScorerCorrect) ComputeLongTipCorrectness(
+        Guid? actualWinnerTeamId,
+        string? actualTopScorerName,
+        IReadOnlyList<LongTipRow>? userLongTips)
+    {
+        bool? winnerCorrect = null;
+        if (actualWinnerTeamId is Guid winnerId)
+        {
+            var winnerTip = userLongTips?.FirstOrDefault(l => l.Type == LongTermTipType.Winner);
+            winnerCorrect = winnerTip is not null && winnerTip.TargetTeamId == winnerId;
+        }
+
+        bool? topScorerCorrect = null;
+        if (!string.IsNullOrWhiteSpace(actualTopScorerName))
+        {
+            var trimmedActual = actualTopScorerName.Trim();
+            var topTip = userLongTips?.FirstOrDefault(l => l.Type == LongTermTipType.TopScorer);
+            var tipped = topTip?.TargetPlayerName;
+            topScorerCorrect = !string.IsNullOrWhiteSpace(tipped)
+                && string.Equals(tipped.Trim(), trimmedActual, StringComparison.OrdinalIgnoreCase);
+        }
+
+        return (winnerCorrect, topScorerCorrect);
+    }
+
+    private sealed record LongTipRow(Guid UserId, LongTermTipType Type, Guid? TargetTeamId, string? TargetPlayerName);
 }

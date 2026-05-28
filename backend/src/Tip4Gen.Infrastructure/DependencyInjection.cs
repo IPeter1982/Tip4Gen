@@ -7,6 +7,7 @@ using Microsoft.Extensions.Options;
 using Tip4Gen.Domain.Ai;
 using Tip4Gen.Domain.Football;
 using Tip4Gen.Domain.Tournaments.Events;
+using Tip4Gen.Infrastructure.Admin;
 using Tip4Gen.Infrastructure.Ai;
 using Tip4Gen.Infrastructure.Football;
 using Tip4Gen.Infrastructure.Leaderboard;
@@ -68,6 +69,9 @@ public static class DependencyInjection
         services.AddScoped<IIndividualLeaderboardService, IndividualLeaderboardService>();
         services.AddScoped<ITeamLeaderboardService, TeamLeaderboardService>();
         services.AddScoped<IAiTippingService, AiTippingService>();
+        services.AddScoped<IAdminAuditWriter, AdminAuditWriter>();
+        services.AddScoped<IMatchAdminService, MatchAdminService>();
+        services.AddScoped<ILongTipOutcomesService, LongTipOutcomesService>();
 
         return services;
     }
