@@ -6,7 +6,7 @@ Hungarian-language Football World Cup tipping game web app. Target launch: **202
 
 - `Tip4Gen-guide.html` — **the rules.** Scoring, joker, team aggregation, tiebreakers, abandoned matches, AI fallback. When in doubt about behavior, read this — the §-numbered sections are referenced throughout the plan.
 - `implementation-plan.md` — phased delivery plan (Phases 0–11), runway tracker, cut order, status snapshot at top.
-- `tech-stack.md` — original stack proposal (read with skepticism: Auth0 + full Azure are flagged as overkill for this scope; see plan's stack callouts).
+- `tech-stack.md` — original stack proposal. Hosting section is **superseded** — see the Railway addendum at the bottom of that file and the "Prod hosting (Railway)" section below.
 
 ## Layout
 
@@ -62,15 +62,15 @@ backend/                    ASP.NET Core 9 solution (planned 10, on 9 for speed)
     Admin/                  IAdminAuditWriter + AdminAuditWriter (stage row in
                             same transaction as caller), MatchAdminService
                             (SetResult / Cancel / Postpone), LongTipOutcomesService
-  src/Tip4Gen.Workers       BackgroundService host — FixturePoller (Phase 2)
+    Workers/                BackgroundService host — FixturePoller (Phase 2)
                             + TeamLockJob (Phase 5) + AiTippingJob (Phase 6),
-                            shares Api's UserSecretsId for shared dev config
-    FixturePoller.cs        Calls FixtureSyncService when DB has active matches
-    FixturePollerOptions.cs IntervalMinutes / ActiveWindowHours / LookaheadMinutes
-    TeamLockJob.cs          Calls TeamLockService.LockAllAsync on a coarse cadence
-    TeamLockJobOptions.cs   IntervalMinutes (default 5) / StartupDelaySeconds
-    AiTippingJob.cs         Calls AiTippingService.RunOnceAsync on a 5-min tick
-    AiTippingJobOptions.cs  IntervalMinutes (default 5) / StartupDelaySeconds
+                            co-located in the API process (Phase 8.5 deploy)
+      FixturePoller.cs        Calls FixtureSyncService when DB has active matches
+      FixturePollerOptions.cs IntervalMinutes / ActiveWindowHours / LookaheadMinutes
+      TeamLockJob.cs          Calls TeamLockService.LockAllAsync on a coarse cadence
+      TeamLockJobOptions.cs   IntervalMinutes (default 5) / StartupDelaySeconds
+      AiTippingJob.cs         Calls AiTippingService.RunOnceAsync on a 5-min tick
+      AiTippingJobOptions.cs  IntervalMinutes (default 5) / StartupDelaySeconds
   tests/Tip4Gen.Domain.Tests  xUnit — StageMapper, MatchStatusMapper,
                               TipRulesValidator, LongTermTipRulesValidator,
                               MatchScorer, StageMultipliers, TeamRulesValidator,
@@ -96,17 +96,15 @@ web/                        Vite + React 19 + TS frontend
   .env.local                VITE_AUTH0_* (gitignored)
 ```
 
-Dependency direction: **Api → Infrastructure → Domain**; **Workers → Infrastructure**; **Tests → Domain**. Don't add ASP.NET or EF to Domain.
+Dependency direction: **Api → Infrastructure → Domain**; **Tests → Domain**. Don't add ASP.NET or EF to Domain. Background services live in `Tip4Gen.Api/Workers/` and run in the API process (one deployable on Railway).
 
 ## Dev commands (PowerShell)
 
 ```powershell
-# Backend (port 5050)
+# Backend (port 5050) — includes the three background services (FixturePoller,
+# TeamLockJob, AiTippingJob). Override their cadence via config for quick ticks:
+#   dotnet run --project backend/src/Tip4Gen.Api --FixturePoller:IntervalMinutes=1
 dotnet run --project backend/src/Tip4Gen.Api
-
-# Workers (fixture poller — separate process, shares Api user-secrets)
-dotnet run --project backend/src/Tip4Gen.Workers
-# Quick tick for testing: --FixturePoller:IntervalMinutes=1 --FixturePoller:StartupDelaySeconds=2
 
 # Frontend (port 5173, proxies /api)
 npm run dev --prefix web
@@ -145,7 +143,7 @@ The SPA's `ApiError` lifts `reason` to a typed field so forms can map it to per-
 
 ## Secrets
 
-All dev credentials live in `dotnet user-secrets` for `backend/src/Tip4Gen.Api` — never in `appsettings.json`, never in the repo. The Workers project's csproj declares the same `UserSecretsId`, so both processes resolve the same secret store. Current keys:
+All dev credentials live in `dotnet user-secrets` for `backend/src/Tip4Gen.Api` — never in `appsettings.json`, never in the repo. Current keys:
 
 - `ConnectionStrings:AppDb` — local Postgres 18 (`tip4gen_dev` DB, `tip4gen` role)
 - `Auth0:Domain` / `Auth0:Audience` / `Auth0:AdminSub` — tenant `dev-yifcd0c5p4s0wcj5.eu.auth0.com`, audience `https://api.tip4gen.local`
@@ -153,6 +151,32 @@ All dev credentials live in `dotnet user-secrets` for `backend/src/Tip4Gen.Api` 
 - `OpenAi:ApiKey` — OpenAI project-scoped key (`sk-proj-…`). Optional: when unset, `OpenAiTipper` returns `AiTipResult.Disabled` and the schedule policy still writes the 1–1 fallback at T-1h. `OpenAi:Model` (default `gpt-4o-mini`), `OpenAi:Temperature` (0.7), `OpenAi:TimeoutSeconds` (15) are bindable from the same section.
 
 Frontend env in `web/.env.local` (also gitignored): `VITE_AUTH0_DOMAIN`, `VITE_AUTH0_CLIENT_ID`, `VITE_AUTH0_AUDIENCE`.
+
+## Prod hosting (Railway)
+
+Single Railway project (EU-West/Amsterdam), three services + the Postgres plugin. Auto-deploys on push to `main`. The SPA service's nginx reverse-proxies `/api/*` to the API over Railway's private network, so prod is same-origin and CORS-free (mirrors the dev Vite proxy).
+
+```
+SPA service (nginx)  ──/api private──►  API service (.NET)  ──private──►  Postgres plugin
+```
+
+- **API service** — `backend/Dockerfile` (multi-stage sdk:9.0 → aspnet:9.0). Listens on `$PORT`. Runs `db.Database.Migrate()` at startup. The three `BackgroundService` jobs (FixturePoller / TeamLockJob / AiTippingJob) live in this same process.
+- **SPA service** — `web/Dockerfile` (node:22-alpine build → nginx:alpine serve). `web/nginx.conf` is templated with `envsubst` at container start so `$PORT`, `$API_HOST`, `$API_PORT` come from Railway env. Nginx-runtime variables (`$uri`, `$host`, etc.) are *not* in the envsubst allowlist and survive intact.
+- **DB** — Railway Postgres plugin exposes `DATABASE_URL` in URI form. `Tip4Gen.Infrastructure/DependencyInjection.cs` translates it to Npgsql keyword/value form (with `SSL Mode=Require;Trust Server Certificate=true`) when `ConnectionStrings:AppDb` is not set.
+
+**API env vars** (all `__` for nested keys):
+- `ASPNETCORE_ENVIRONMENT=Production`
+- `DATABASE_URL` (auto-injected from the Postgres plugin reference)
+- `Auth0__Domain`, `Auth0__Audience`, `Auth0__AdminSub`
+- `FootballApi__Provider`, `__ApiKey`, `__BaseUrl`, `__LeagueId`, `__Season`
+- `OpenAi__ApiKey` (optional — when unset, the tipper short-circuits and the 1–1 fallback still writes at T-1h)
+- `Cors__AllowedOrigin` = SPA public URL (defensive belt-and-braces; the reverse-proxy means the browser never CORS-talks to the API)
+
+**SPA env vars**: `API_HOST` (default `api.railway.internal`), `API_PORT` (default `8080`), `PORT` (auto-injected by Railway). No `VITE_*` build-time vars needed for prod — same-origin via nginx means `useApi` just calls `/api/...` as in dev.
+
+**Auth0 callback URLs**: add the SPA's `*.up.railway.app` URL to Allowed Callback URLs, Allowed Logout URLs, Allowed Web Origins (alongside the existing `http://localhost:5173`). API audience identifier unchanged.
+
+**Deploy + rollback**: push to `main` triggers per-service builds. Failed releases → "Redeploy" a previous build via the Railway dashboard. Bad migration → revert locally, push, then `railway run dotnet ef migrations remove --project backend/src/Tip4Gen.Infrastructure --startup-project backend/src/Tip4Gen.Api`.
 
 ## Data caveat — WC 2026 fixtures
 

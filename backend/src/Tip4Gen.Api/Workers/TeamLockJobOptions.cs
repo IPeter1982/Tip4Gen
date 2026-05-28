@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace Tip4Gen.Workers;
+namespace Tip4Gen.Api.Workers;
 
 public class TeamLockJobOptions
 {

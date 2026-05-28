@@ -1,27 +1,25 @@
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Tip4Gen.Infrastructure.Teams;
+using Tip4Gen.Infrastructure.Ai;
 
-namespace Tip4Gen.Workers;
+namespace Tip4Gen.Api.Workers;
 
 /// <summary>
-/// Periodically calls <see cref="ITeamLockService.LockAllAsync"/>. The service is
-/// itself idempotent and cheap when there are no Forming teams, so a coarse cadence
-/// is fine — we just need to *eventually* lock teams once tournament-start passes.
+/// Drives <see cref="IAiTippingService.RunOnceAsync"/> on a coarse cadence. The service
+/// itself filters down to the right (member, match) pairs and uses the schedule policy
+/// to decide what to do — the job is just a heartbeat. Active-window gating lives in
+/// the service (it short-circuits when there are no AI members or no upcoming matches).
 /// </summary>
-public class TeamLockJob(
+public class AiTippingJob(
     IServiceScopeFactory scopeFactory,
-    IOptions<TeamLockJobOptions> options,
-    ILogger<TeamLockJob> logger) : BackgroundService
+    IOptions<AiTippingJobOptions> options,
+    ILogger<AiTippingJob> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var opts = options.Value;
         var interval = TimeSpan.FromMinutes(opts.IntervalMinutes);
 
-        logger.LogInformation("TeamLockJob starting: interval={Interval}", interval);
+        logger.LogInformation("AiTippingJob starting: interval={Interval}", interval);
 
         try
         {
@@ -44,7 +42,7 @@ public class TeamLockJob(
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "TeamLockJob tick failed");
+                logger.LogError(ex, "AiTippingJob tick failed");
             }
 
             try
@@ -61,13 +59,13 @@ public class TeamLockJob(
     private async Task TickAsync(CancellationToken ct)
     {
         using var scope = scopeFactory.CreateScope();
-        var lockService = scope.ServiceProvider.GetRequiredService<ITeamLockService>();
-        var summary = await lockService.LockAllAsync(ct);
-        if (summary.Locked > 0 || summary.Disqualified > 0)
+        var service = scope.ServiceProvider.GetRequiredService<IAiTippingService>();
+        var summary = await service.RunOnceAsync(ct);
+        if (summary.AttemptsMade > 0 || summary.TipsWritten > 0 || summary.FallbacksWritten > 0)
         {
             logger.LogInformation(
-                "TeamLockJob tick: locked={Locked}, disqualified={Disqualified}, skipped={Skipped}",
-                summary.Locked, summary.Disqualified, summary.Skipped);
+                "AiTippingJob tick: attempts={Attempts}, written={Written}, fallbacks={Fallbacks}, skipped={Skipped}",
+                summary.AttemptsMade, summary.TipsWritten, summary.FallbacksWritten, summary.Skipped);
         }
     }
 }

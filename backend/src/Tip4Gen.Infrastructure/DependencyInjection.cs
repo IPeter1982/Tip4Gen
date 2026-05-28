@@ -24,13 +24,14 @@ public static class DependencyInjection
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
         var connectionString = configuration.GetConnectionString("AppDb")
-            ?? throw new InvalidOperationException("ConnectionStrings:AppDb is not configured");
+            ?? BuildConnectionStringFromDatabaseUrl(Environment.GetEnvironmentVariable("DATABASE_URL"))
+            ?? throw new InvalidOperationException(
+                "Neither ConnectionStrings:AppDb nor DATABASE_URL is configured");
 
         services.AddDbContext<AppDbContext>(opts => opts.UseNpgsql(connectionString));
 
-        // WebApplication.CreateBuilder auto-registers TimeProvider.System; the generic
-        // host used by Tip4Gen.Workers does not. AiTippingService injects TimeProvider,
-        // so we register it explicitly here so both processes resolve the same source.
+        // Explicit registration so a previous AddSingleton from the host (or its absence)
+        // is overridden uniformly. AiTippingService injects TimeProvider.
         services.AddSingleton(TimeProvider.System);
 
         services.AddOptions<ApiFootballOptions>()
@@ -79,5 +80,26 @@ public static class DependencyInjection
         services.AddScoped<ILongTipOutcomesService, LongTipOutcomesService>();
 
         return services;
+    }
+
+    /// <summary>
+    /// Railway Postgres exposes DATABASE_URL in URI form
+    /// (postgres://user:pass@host:port/dbname). Npgsql wants keyword/value form,
+    /// so we translate at startup. Returns null when the input is null/empty so
+    /// the caller can fall through to its own missing-config exception.
+    /// </summary>
+    internal static string? BuildConnectionStringFromDatabaseUrl(string? databaseUrl)
+    {
+        if (string.IsNullOrWhiteSpace(databaseUrl))
+            return null;
+
+        var uri = new Uri(databaseUrl);
+        var userInfo = uri.UserInfo.Split(':', 2);
+        var username = Uri.UnescapeDataString(userInfo[0]);
+        var password = userInfo.Length > 1 ? Uri.UnescapeDataString(userInfo[1]) : string.Empty;
+        var database = uri.AbsolutePath.TrimStart('/');
+        var port = uri.IsDefaultPort ? 5432 : uri.Port;
+
+        return $"Host={uri.Host};Port={port};Username={username};Password={password};Database={database};SSL Mode=Require;Trust Server Certificate=true";
     }
 }

@@ -1,13 +1,10 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Tip4Gen.Domain.Tournaments;
 using Tip4Gen.Infrastructure.Persistence;
 using Tip4Gen.Infrastructure.Tournaments;
 
-namespace Tip4Gen.Workers;
+namespace Tip4Gen.Api.Workers;
 
 public class FixturePoller(
     IServiceScopeFactory scopeFactory,

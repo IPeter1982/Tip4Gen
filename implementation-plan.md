@@ -17,23 +17,20 @@
 - **Phase 7:** ✅ done. Domain: `LeaderboardRanker` (full §9 tiebreaker chain + shared placement), `StreakCalculator`. Infrastructure: `IndividualLeaderboardService` (sum scored_tips, count Exact, longest ≥3-pt streak) + `TeamLeaderboardService` (best-3-of-4 per match, Locked-only). API: `GET /api/leaderboard/users` + `/api/leaderboard/teams`. Frontend: `/leaderboard` with Egyéni/Csapat tabs, "én"/"csapatom" highlights. 155/155 tests green (+18 new). Long-tip outcomes (Winner/TopScorer correctness) plumbed as nullable, defaulting to null until Phase 8 admin entry lands.
 - **Phase 6:** ✅ done end-to-end. Domain: `AiTipPromptBuilder` (team names + stage + AiMode), `AiTipResponseValidator` (0–15 goals, ≤500-char Hungarian reasoning), `AiTipSchedulePolicy` (T-2h attempt → T-90m retry → T-1h fallback → deadline), `IAiTipper` interface, `AiTipAttempt` entity. **Schema change**: `tips.user_id` → nullable, new `tips.team_member_id` (CHECK exactly-one) + `is_ai_fallback` + `reasoning`; same nullable+team_member_id treatment on `scored_tips`; new `ai_tip_attempts` table for restart-safe attempt counting. Aggregation services (`MatchScoringService`, `TeamAggregationService`, `TeamLeaderboardService`) updated to dual-key on either UserId or TeamMemberId — AI tips count toward team totals but never appear on the individual board. Infrastructure: `OpenAiTipper` (Chat Completions + `response_format: json_object`, returns Disabled when ApiKey unset), `AiTippingService` orchestrator. Workers: `AiTippingJob` (5-min cadence). API: `POST /api/admin/ai-tipper/preview` for manual smoke-test; `GET /api/matches/{id}/tips` surfaces AI tips with isAi/isAiFallback/reasoning. Frontend: post-deadline "Mindenki tippje" panel on TipSubmit with AI/Fallback/Joker chips + reasoning. 189/189 tests green (+34 new for Ai/). Live smoke test against OpenAI confirmed key + JSON mode + Hungarian reasoning all work.
 - **Phase 8:** ✅ done end-to-end. Domain: `AdminAudit` entity + `AdminAuditAction` enum; `Tournament.RecordOutcomes(winnerTeamId, topScorerName)`; `Match.AwardResult` for FIFA-decided outcomes (lands `MatchStatus.Awarded` distinctly from `Finished`). **Schema migration `Phase8AdminAudit`**: `admin_audit` table (admin_user_id FK + action enum + entity_type/id + jsonb before/after + reason + occurred_at; indexes on occurred_at desc and (entity_type, entity_id)); `tournaments.winner_team_id` (FK restrict) + `top_scorer_name` columns. Infrastructure: `IAdminAuditWriter` (stages row without SaveChanges so caller owns the transaction), `MatchAdminService` (SetResult / Cancel / Postpone), `LongTipOutcomesService`; cancel uses `ExecuteDeleteAsync`+`ExecuteUpdateAsync` for scored_tips deletion + joker refund. `IndividualLeaderboardService` now fetches tournament outcomes and computes per-user `winnerCorrect`/`topScorerCorrect` (case-insensitive trimmed name match). API: `PUT /api/admin/matches/{id}/result`, `POST .../cancel`, `POST .../postpone`, `GET /api/admin/audit` (paginated, server-clamped take ≤200), `GET`+`PUT /api/admin/long-tips/outcomes`. Frontend: `useMe()` cached at app level (staleTime: Infinity); `RequireAdmin` guard renders 403 panel; Topbar shows admin link conditionally; reusable `ConfirmDialog` with destructive variant + Escape/click-outside cancel + focus management; admin pages `/admin` (match list with phase filter), `/admin/matches/:id` (result form + postpone + cancel with confirm), `/admin/audit` (paginated, collapse/expand JSON), `/admin/long-tips` (winner select + top-scorer text input). 189/189 tests green.
+- **Phase 8.5 (Railway deploy):** ✅ code prep done (Workers co-located into API, Dockerfiles for API + SPA, nginx reverse-proxy config, DATABASE_URL adapter, migration-on-startup, `$PORT` binding, prod CORS). 189/189 tests green, both Dockerfiles build, web bundle builds. Pending: Railway project provisioning + Auth0 callback URL additions + first deploy smoke test (manual one-time setup, not in repo).
 - **Phases 9–11:** not started.
-- **Open decisions:** hosting swap (Fly.io+Vercel+Neon vs Azure) — see callouts. Auth decision is locked: **Auth0**.
+- **Open decisions:** none — hosting is now Railway (was: Azure vs Fly.io+Vercel+Neon vs Railway). Auth is Auth0.
 - **Football data source:** api-football Free plan (100 req/day) verified. WC 2022 (64 fixtures, full results) accessible; WC 2026 is `coverage.fixtures=false` on Free → **dev against `season=2022`, swap to 2026 once we upgrade or change provider**. Admin manual-entry now works via the Phase 8 endpoints, so the data-source risk is contained. api-football's WC labels are matchday-style (`Group Stage - 1/2/3`) — group letter has to come from `/standings`, see Phase 2 follow-up below.
-- **Next:** Phase 9 (notifications, **[CUT-OK]**) or Phase 11 (deploy + secrets, **needed for launch**).
+- **Next:** Provision Railway services (one-time manual setup using the Dockerfiles already in repo), then Phase 9 (notifications, **[CUT-OK]**) → Phase 10 (polish) → Phase 11 (beta + launch).
 
 ## How to read this plan
 
 Phases run roughly sequentially, but tasks within a phase are often parallelizable. Each task is sized to ~0.5–1 day of focused work. Tasks marked **[CUT-OK]** can be deferred to v1.1 if you're behind on launch day — the game still works without them. Tasks marked **[CRITICAL]** are blocking for tournament-day operation.
 
-## Stack risk callouts before you start
+## Stack risk callouts (resolved)
 
-Two stack choices will cost you days you don't have. Decide now whether to keep or swap:
-
-1. **Auth0** — strong product, but setup + audience config + first-login user linking + Hungarian-language login UI customization is 1–2 days. **Alternative:** Better Auth (you have a Skill for it locally), Clerk, or Supabase Auth — all cheaper, faster to wire up, fine for 50–200 users.
-2. **Azure end-to-end** — App Service + Static Web Apps + Postgres Flexible + Key Vault + Managed Identity wiring is 1–2 days. **Alternatives that ship in hours:** Fly.io or Railway for the API, Vercel/Netlify for the SPA, Neon/Supabase for Postgres. You lose the "all on Azure" tidiness, gain ~2 days.
-
-If you're already comfortable with the Azure + Auth0 path, keep it. Otherwise, switch on day 1, not day 10.
+1. **Auth0** — kept. Shipped in Phase 1 (`f094978`); gotchas documented in CLAUDE.md.
+2. **Hosting** — **Railway** (was: Azure). Decision recorded in Phase 8.5 below. Single Railway project with API + SPA + Postgres-plugin services, auto-deploy from `main`, EU-West region for Hungarian audience. Workers are co-located in the API process — no separate deployable.
 
 ---
 
@@ -322,6 +319,43 @@ If you're already comfortable with the Azure + Auth0 path, keep it. Otherwise, s
 
 ---
 
+# Phase 8.5 — Railway deploy prep (Day 12) — ✅ CODE READY
+
+**Goal:** every code change needed to deploy on Railway is in the repo. Provisioning the Railway project is a separate one-time manual step.
+
+**Shipped 2026-05-28:**
+
+- [x] Workers consolidated into the API. Three `BackgroundService` classes (FixturePoller / TeamLockJob / AiTippingJob) moved to `backend/src/Tip4Gen.Api/Workers/` under namespace `Tip4Gen.Api.Workers`. Options bindings + `AddHostedService` registrations live in `Program.cs`. Config sections merged into the API's `appsettings.json`. Standalone `Tip4Gen.Workers` project deleted, solution reference removed. One deployable, not two.
+- [x] Migration-on-startup: `Program.cs` calls `db.Database.Migrate()` in a scoped service block after `app.Build()`. Failed migrations stop boot loudly rather than silently drift.
+- [x] `$PORT` binding: `Program.cs` reads the Railway-injected `PORT` env var and calls `builder.WebHost.UseUrls($"http://*:{port}")` before service registration. Falls through to ASP.NET defaults when unset (local dev unaffected).
+- [x] Prod CORS policy: env-driven `Cors:AllowedOrigin` registers a `Prod` CORS policy applied in non-Development environments. Defensive belt-and-braces — the SPA's nginx reverse-proxy means the browser never CORS-talks to the API in prod.
+- [x] `DATABASE_URL` adapter: `Infrastructure/DependencyInjection.cs` parses the URI form (`postgres://user:pass@host:port/db`) into Npgsql keyword/value form when `ConnectionStrings:AppDb` is not set. Tagged internal so a future test can exercise it.
+- [x] `backend/Dockerfile` + `.dockerignore`: multi-stage `sdk:9.0` → `aspnet:9.0`, restore-then-copy ordering for cache efficiency. Builds locally.
+- [x] `web/Dockerfile` + `.dockerignore` + `web/nginx.conf`: multi-stage node build → nginx:alpine serve. `nginx.conf` templated with `envsubst` at container start, allowlist `'$PORT $API_HOST $API_PORT'` so nginx runtime vars (`$uri`, `$host`, etc.) survive. `/api/*` reverse-proxies to `api.railway.internal:$API_PORT` over the private network — same-origin in prod.
+- [x] CLAUDE.md updated: "Prod hosting (Railway)" section added with the architecture diagram + env-var list; layout tree + dev commands updated to reflect the API-co-located workers; stale "Workers project shares UserSecretsId" note removed.
+- [x] tech-stack.md: Azure hosting section marked superseded; Railway addendum at the bottom.
+- [x] Verification: `dotnet build backend/Tip4Gen.sln` clean (0 warnings), `dotnet test backend/Tip4Gen.sln` 189/189, `npm run build --prefix web` produces `dist/`.
+
+**Pending (one-time Railway provisioning — not in repo):**
+
+1. Create Railway project, region **EU-West (Amsterdam)**, provision Postgres plugin.
+2. Add API service from this repo, root `backend/`, Dockerfile `backend/Dockerfile`. Env vars (Postgres plugin reference auto-injects `DATABASE_URL`): `ASPNETCORE_ENVIRONMENT=Production`, `Auth0__Domain`, `Auth0__Audience`, `Auth0__AdminSub`, `FootballApi__Provider`, `FootballApi__ApiKey`, `FootballApi__BaseUrl`, `FootballApi__LeagueId`, `FootballApi__Season`, `OpenAi__ApiKey`, `Cors__AllowedOrigin` (= SPA URL, fill after step 3).
+3. Add SPA service from this repo, root `web/`, Dockerfile `web/Dockerfile`. Env: `API_HOST=api.railway.internal`, `API_PORT=8080`.
+4. Set API healthcheck path to `/api/health`.
+5. Add SPA `*.up.railway.app` URL to Auth0 SPA application's Allowed Callback URLs / Logout URLs / Web Origins.
+6. First deploy → confirm migration log line, `/api/health=200` on the public API URL, login flow works on the SPA URL, then hit `POST /api/admin/fixtures/seed` with an admin JWT.
+7. Mobile smoke walk (the user runs the tournament from their phone).
+
+**Lessons banked:**
+
+- Consolidating Workers into the API saved one Railway service slot + one csproj + one set of UserSecretsId duplication. The `BackgroundService` classes are unchanged code-wise — only the host moved. At 50–200 users a stuck poller can't realistically starve the API.
+- The nginx `envsubst` allowlist (`'$PORT $API_HOST $API_PORT'`) is the only thing keeping nginx's own `$uri`/`$host`/etc. variables from being blank-substituted into the rendered config. Don't drop the explicit allowlist.
+- `WebApplication.CreateBuilder` already registers `TimeProvider.System`, and `AddInfrastructure` registers it again. Last-registered wins in DI, so functionally identical — but updated the comment in `DependencyInjection.cs` since the original justification ("Workers' generic host doesn't register it") no longer applies.
+
+**[CRITICAL]** ✅ — code complete; provisioning is a manual step.
+
+---
+
 # Phase 9 — Notifications (Day 12–13)
 
 **Goal:** people get reminded so they don't forget to tip.
@@ -363,14 +397,14 @@ If you're already comfortable with the Azure + Auth0 path, keep it. Otherwise, s
 
 # Phase 11 — Beta + launch (Day 15–19)
 
-**Goal:** real people use it before the World Cup opens.
+**Goal:** real people use it before the World Cup opens. Deploy infrastructure is already shaken out in Phase 8.5 — this phase is beta, bugs, and tournament-eve readiness.
 
 - [ ] Pick 5–10 friends for closed beta, give them accounts
-- [ ] Run a fake/test match — admin enters a result, verify scoring + leaderboard + notifications all work end-to-end
+- [ ] Run a fake/test match — admin enters a result, verify scoring + leaderboard + notifications all work end-to-end on the live Railway URL
 - [ ] Have testers form 2 real teams and submit long-term tips
 - [ ] Bug-fix sprint based on beta feedback (reserve at least 2 days for this — there will be issues)
-- [ ] Final deploy + smoke test
-- [ ] Lock all configuration — Auth0 callback URLs, CORS origins, env vars, admin sub claim
+- [ ] (Optional) Custom domain swap: point `tip4gen.hu` (or similar) at the Railway SPA service, update Auth0 callback URLs accordingly. `*.up.railway.app` works for launch if no domain is available.
+- [ ] Lock all configuration — Auth0 callback URLs, `Cors__AllowedOrigin`, env vars, admin sub claim
 - [ ] Tournament-eve checklist:
   - [ ] All 104 fixtures loaded with correct kickoffs
   - [ ] Football API quota check — will it survive a full tournament's polling?

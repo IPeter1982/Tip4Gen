@@ -125,6 +125,8 @@ Do **not** recompute points on every read. When a match closes, compute each tip
 
 ## Hosting & deployment
 
+> **Superseded — see the Railway addendum at the bottom of this section.** Originally Azure end-to-end, swapped to Railway on 2026-05-28 for faster setup and lower ops surface at the friends-and-family scale. The Azure analysis below is kept for historical context but does not describe the live deployment.
+
 All on **Azure**, which is the most natural home for a .NET backend.
 
 | Layer | Choice | Notes |
@@ -143,6 +145,23 @@ All on **Azure**, which is the most natural home for a .NET backend.
 - **Background services co-located vs. separate.** The hosted services (match polling, tip closing, AI tipping) can run inside the same App Service instance to start. If they grow heavy, split the **Workers** project into its own Azure Container App so a slow scoring cycle can't affect API latency.
 - **Same region everywhere.** Put App Service, Postgres, and (if used) Azure SignalR Service in the same Azure region to keep latency and egress costs down.
 - **Managed Identity over connection strings.** Let App Service authenticate to Key Vault and Postgres via Managed Identity where possible, rather than storing raw credentials.
+
+### Railway addendum (current — replaces the Azure plan above)
+
+| Layer | Choice | Notes |
+|---|---|---|
+| Backend API | **Railway service** (Docker, `backend/Dockerfile`) | Multi-stage `sdk:9.0` → `aspnet:9.0`. Listens on `$PORT`. Includes the three `BackgroundService` jobs in-process (no separate Workers deployable). |
+| Frontend | **Railway service** (Docker, `web/Dockerfile`) | `node:22-alpine` build → `nginx:alpine` serve. `web/nginx.conf` templated with `envsubst` at start; reverse-proxies `/api/*` to the API over Railway's private network (same-origin, no CORS in prod). |
+| Database | **Railway Postgres plugin** | Exposes `DATABASE_URL` in URI form; `Tip4Gen.Infrastructure/DependencyInjection.cs` translates to Npgsql keyword/value form at startup. Private networking only — no public DB exposure. |
+| Realtime (Phase 10 if shipped) | **API service WebSockets** | SignalR works on Railway services as-is. No equivalent of Azure SignalR Service offload at this scale; Phase 10 is `[CUT-OK]` and may be replaced with 30s polling. |
+| Secrets | **Railway env vars** | Per-service env vars via the Railway dashboard. No Key Vault equivalent — fine at this scope. |
+| CI/CD | **Railway auto-deploy on push to `main`** | Per-service builds; rollback via the dashboard. No GitHub Actions workflow needed for deploy. |
+| Monitoring | **Railway logs + metrics** | Captures stdout/stderr (Serilog Console sink); built-in service-level metrics. Application Insights replaced. |
+| Region | **EU-West (Amsterdam)** | Closest Railway region to the Hungarian audience. |
+| Migrations | **API startup** | `db.Database.Migrate()` runs at boot; bad migrations stop boot loudly. Rollback path documented in CLAUDE.md. |
+| Domain | **`*.up.railway.app` for launch** | Custom domain (e.g. `tip4gen.hu`) is a 5-minute swap post-launch + Auth0 callback-URL update. |
+
+See CLAUDE.md "Prod hosting (Railway)" for the architecture diagram and env-var inventory, and implementation-plan.md Phase 8.5 for what code shipped.
 
 ---
 
