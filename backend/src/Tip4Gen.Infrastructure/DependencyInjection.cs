@@ -28,6 +28,11 @@ public static class DependencyInjection
 
         services.AddDbContext<AppDbContext>(opts => opts.UseNpgsql(connectionString));
 
+        // WebApplication.CreateBuilder auto-registers TimeProvider.System; the generic
+        // host used by Tip4Gen.Workers does not. AiTippingService injects TimeProvider,
+        // so we register it explicitly here so both processes resolve the same source.
+        services.AddSingleton(TimeProvider.System);
+
         services.AddOptions<ApiFootballOptions>()
             .Bind(configuration.GetSection("FootballApi"))
             .ValidateDataAnnotations()
