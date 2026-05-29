@@ -18,10 +18,12 @@
 - **Phase 6:** ✅ done end-to-end. Domain: `AiTipPromptBuilder` (team names + stage + AiMode), `AiTipResponseValidator` (0–15 goals, ≤500-char Hungarian reasoning), `AiTipSchedulePolicy` (T-2h attempt → T-90m retry → T-1h fallback → deadline), `IAiTipper` interface, `AiTipAttempt` entity. **Schema change**: `tips.user_id` → nullable, new `tips.team_member_id` (CHECK exactly-one) + `is_ai_fallback` + `reasoning`; same nullable+team_member_id treatment on `scored_tips`; new `ai_tip_attempts` table for restart-safe attempt counting. Aggregation services (`MatchScoringService`, `TeamAggregationService`, `TeamLeaderboardService`) updated to dual-key on either UserId or TeamMemberId — AI tips count toward team totals but never appear on the individual board. Infrastructure: `OpenAiTipper` (Chat Completions + `response_format: json_object`, returns Disabled when ApiKey unset), `AiTippingService` orchestrator. Workers: `AiTippingJob` (5-min cadence). API: `POST /api/admin/ai-tipper/preview` for manual smoke-test; `GET /api/matches/{id}/tips` surfaces AI tips with isAi/isAiFallback/reasoning. Frontend: post-deadline "Mindenki tippje" panel on TipSubmit with AI/Fallback/Joker chips + reasoning. 189/189 tests green (+34 new for Ai/). Live smoke test against OpenAI confirmed key + JSON mode + Hungarian reasoning all work.
 - **Phase 8:** ✅ done end-to-end. Domain: `AdminAudit` entity + `AdminAuditAction` enum; `Tournament.RecordOutcomes(winnerTeamId, topScorerName)`; `Match.AwardResult` for FIFA-decided outcomes (lands `MatchStatus.Awarded` distinctly from `Finished`). **Schema migration `Phase8AdminAudit`**: `admin_audit` table (admin_user_id FK + action enum + entity_type/id + jsonb before/after + reason + occurred_at; indexes on occurred_at desc and (entity_type, entity_id)); `tournaments.winner_team_id` (FK restrict) + `top_scorer_name` columns. Infrastructure: `IAdminAuditWriter` (stages row without SaveChanges so caller owns the transaction), `MatchAdminService` (SetResult / Cancel / Postpone), `LongTipOutcomesService`; cancel uses `ExecuteDeleteAsync`+`ExecuteUpdateAsync` for scored_tips deletion + joker refund. `IndividualLeaderboardService` now fetches tournament outcomes and computes per-user `winnerCorrect`/`topScorerCorrect` (case-insensitive trimmed name match). API: `PUT /api/admin/matches/{id}/result`, `POST .../cancel`, `POST .../postpone`, `GET /api/admin/audit` (paginated, server-clamped take ≤200), `GET`+`PUT /api/admin/long-tips/outcomes`. Frontend: `useMe()` cached at app level (staleTime: Infinity); `RequireAdmin` guard renders 403 panel; Topbar shows admin link conditionally; reusable `ConfirmDialog` with destructive variant + Escape/click-outside cancel + focus management; admin pages `/admin` (match list with phase filter), `/admin/matches/:id` (result form + postpone + cancel with confirm), `/admin/audit` (paginated, collapse/expand JSON), `/admin/long-tips` (winner select + top-scorer text input). 189/189 tests green.
 - **Phase 8.5 (Railway deploy):** ✅ code prep done (Workers co-located into API, Dockerfiles for API + SPA, nginx reverse-proxy config, DATABASE_URL adapter, migration-on-startup, `$PORT` binding, prod CORS). 189/189 tests green, both Dockerfiles build, web bundle builds. Pending: Railway project provisioning + Auth0 callback URL additions + first deploy smoke test (manual one-time setup, not in repo).
-- **Phases 9–11:** not started.
+- **Phase 10 (polish, partial):** ✅ shipped 2026-05-29. SignalR work replaced with `refetchInterval: 30_000` on the live-changing TanStack queries (`useMatches`, `useMatch`, `useMatchTips`, `useIndividualLeaderboard`, `useTeamLeaderboard`) with `refetchOnWindowFocus: true`; backgrounded tabs pause polling. New 4-step onboarding panel on `/` (Belépés ✓ · Csapat · Hosszú tipp · Első tipp) driven by `useMyTeam` + `useLongTips` + `useMatches('all')`, with tournament-start countdown banner; guest view shows "Hogyan működik" + login CTA. `/me` redone — no more raw `/api/me` JSON dump; shows display name, join date, admin badge, team status, quick links, logout button. Mobile pass: Topbar wraps on small viewports with `flex-wrap gap-y-*`, user name hidden below `sm`; admin matches table gets `overflow-x-auto` + `min-w-[640px]`, admin nav row wraps. Serilog config reviewed and left unchanged (Console at Information+ is correct for Railway log tail). 189/189 tests still green; web bundle builds.
+- **Phase 9 (notifications) + Phase 10 realtime (SignalR):** not started; both **[CUT-OK]** per launch plan. Polling replaces realtime; group-chat announcement replaces email reminders.
+- **Phase 11 (beta + launch):** not started; needs Railway provisioned first.
 - **Open decisions:** none — hosting is now Railway (was: Azure vs Fly.io+Vercel+Neon vs Railway). Auth is Auth0.
 - **Football data source:** api-football Free plan (100 req/day) verified. WC 2022 (64 fixtures, full results) accessible; WC 2026 is `coverage.fixtures=false` on Free → **dev against `season=2022`, swap to 2026 once we upgrade or change provider**. Admin manual-entry now works via the Phase 8 endpoints, so the data-source risk is contained. api-football's WC labels are matchday-style (`Group Stage - 1/2/3`) — group letter has to come from `/standings`, see Phase 2 follow-up below.
-- **Next:** Provision Railway services (one-time manual setup using the Dockerfiles already in repo), then Phase 9 (notifications, **[CUT-OK]**) → Phase 10 (polish) → Phase 11 (beta + launch).
+- **Next:** Provision Railway services (one-time manual setup using the Dockerfiles already in repo) → Phase 11 beta (test match dry-run, friends sign-up). Phase 9 notifications + Phase 10 realtime stay **[CUT-OK]** unless launch-day pressure subsides.
 
 ## How to read this plan
 
@@ -376,22 +378,25 @@ Phases run roughly sequentially, but tasks within a phase are often parallelizab
 
 ---
 
-# Phase 10 — Realtime + polish (Day 13–15)
+# Phase 10 — Realtime + polish (Day 13–15) — ✅ PARTIAL (polish done, realtime cut)
 
 **Goal:** the app feels alive during matches.
 
-- [ ] SignalR hub: subscribe to a tournament channel
-- [ ] Server pushes: `MatchFinalized`, `LeaderboardUpdated`, `MatchStatusChanged`
-- [ ] Frontend: SignalR client wired to TanStack Query invalidations
-- [ ] Live score banner during in-progress matches
-- [ ] **[CUT-OK alternative]** if SignalR is fighting you: refetch leaderboard and match list every 30s with TanStack Query — invisible to users at this scale
-- [ ] Onboarding flow: "1. log in → 2. join or create team → 3. submit long-term tips → 4. tip first match"
-- [ ] Empty states everywhere (no tips yet, no teams yet, leaderboard empty)
-- [ ] Mobile pass: every page tested on a phone (90% of tipping will happen mobile)
-- [ ] Loading + error states on every async surface
-- [ ] Production logging dialed in — Serilog + Application Insights (or platform log viewer)
+**Shipped 2026-05-29 (commit pending):**
 
-**[CUT-OK]** — the SignalR work is optional. Everything else here is polish that affects user trust.
+- [x] **[CUT-OK alternative]** SignalR replaced with `refetchInterval: 30_000` on `useMatches`/`useMatch`/`useMatchTips`/`useIndividualLeaderboard`/`useTeamLeaderboard`, plus `refetchOnWindowFocus: true`. Backgrounded tabs pause polling (TanStack default `refetchIntervalInBackground=false`). At 50–200 users this is invisible vs. SignalR.
+- [x] Onboarding flow on `/` — 4-step checklist (Belépés ✓ · Csapat · Hosszú tipp · Első tipp) reading `useMyTeam` + `useLongTips` + `useMatches('all')`. Each step has done/locked/pending state; tournament-start countdown banner; guest view shows "Hogyan működik" + login CTA. Dev-only `/api/health` dump removed.
+- [x] `/me` redesigned — no raw JSON dump; profile rows for display name + join date + admin badge + team status, quick links, logout button.
+- [x] Empty/error/loading audit — every async surface uses the existing consistent treatment (`betöltés…` / red-border error / `border-stone-300 bg-white p-6 text-center` empty box). No gaps found.
+- [x] Mobile pass: Topbar wraps via `flex-wrap gap-y-*` on tight viewports, user name hidden below `sm`. Admin matches table gets `overflow-x-auto min-w-[640px]` for narrow viewports; admin nav row wraps.
+- [x] Production logging reviewed — Serilog Console sink at `Information+` with `Microsoft.AspNetCore=Warning` is correct for Railway's container log tail. No change needed.
+
+**Cut (post-launch / [CUT-OK]):**
+
+- SignalR hub + `MatchFinalized` / `LeaderboardUpdated` / `MatchStatusChanged` pushes + live score banner. The polling fallback covers the user-visible need.
+- Application Insights / external log aggregation — Railway's built-in viewer is enough for 50–200 users; revisit if we ever need multi-week log retention or alerting.
+
+**[CUT-OK]** ✅ — realtime cut as planned; polish work shipped.
 
 ---
 

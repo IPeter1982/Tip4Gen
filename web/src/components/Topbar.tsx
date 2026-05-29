@@ -9,11 +9,11 @@ export function Topbar() {
 
   return (
     <header className="border-b-2 border-stone-900 bg-white">
-      <div className="max-w-5xl mx-auto px-6 py-4 flex items-center gap-6">
-        <Link to="/" className="font-black uppercase tracking-tight text-2xl">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3 flex items-center gap-x-4 gap-y-2 flex-wrap">
+        <Link to="/" className="font-black uppercase tracking-tight text-xl sm:text-2xl">
           Tip4Gen
         </Link>
-        <nav className="flex items-center gap-4 text-xs font-mono uppercase tracking-[0.15em]">
+        <nav className="flex items-center gap-x-4 gap-y-1 flex-wrap text-xs font-mono uppercase tracking-[0.15em]">
           <Link to="/" className="text-stone-600 hover:text-stone-900">Főoldal</Link>
           <Link to="/matches" className="text-stone-600 hover:text-stone-900">Mérkőzések</Link>
           <Link to="/long-tips" className="text-stone-600 hover:text-stone-900">Hosszú tipp</Link>
@@ -24,7 +24,7 @@ export function Topbar() {
             <Link to="/admin" className="text-orange-600 hover:text-orange-800">Admin</Link>
           )}
         </nav>
-        <div className="ml-auto flex items-center gap-3">
+        <div className="ml-auto flex items-center gap-2 sm:gap-3 flex-wrap">
           {!isAuthConfigured && (
             <span className="text-xs font-mono text-orange-600">Auth0 nincs beállítva</span>
           )}
@@ -47,7 +47,7 @@ export function Topbar() {
           )}
           {isAuthConfigured && isAuthenticated && (
             <>
-              <span className="text-xs font-mono text-stone-600 truncate max-w-[180px]">
+              <span className="hidden sm:inline text-xs font-mono text-stone-600 truncate max-w-[180px]">
                 {user?.name ?? user?.email ?? user?.sub}
               </span>
               <button

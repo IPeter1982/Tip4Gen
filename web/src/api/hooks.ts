@@ -33,11 +33,18 @@ export function useMe() {
   })
 }
 
+// 30s polling on live-changing queries (replaces the deferred SignalR work per
+// Phase 10's cut-OK alternative). refetchIntervalInBackground stays default
+// (false), so a backgrounded tab pauses polling.
+const LIVE_REFETCH_MS = 30_000
+
 export function useMatches(phase: Phase = 'upcoming') {
   const api = useApi()
   return useQuery({
     queryKey: ['matches', phase],
     queryFn: () => api.get<MatchListItem[]>(`/api/matches?phase=${phase}`),
+    refetchInterval: LIVE_REFETCH_MS,
+    refetchOnWindowFocus: true,
   })
 }
 
@@ -47,6 +54,8 @@ export function useMatch(matchId: string | undefined) {
     queryKey: ['match', matchId],
     queryFn: () => api.get<MatchListItem>(`/api/matches/${matchId}`),
     enabled: !!matchId,
+    refetchInterval: LIVE_REFETCH_MS,
+    refetchOnWindowFocus: true,
   })
 }
 
@@ -56,6 +65,8 @@ export function useMatchTips(matchId: string | undefined) {
     queryKey: ['match-tips', matchId],
     queryFn: () => api.get<MatchTipsResponse>(`/api/matches/${matchId}/tips`),
     enabled: !!matchId,
+    refetchInterval: LIVE_REFETCH_MS,
+    refetchOnWindowFocus: true,
   })
 }
 
@@ -216,6 +227,8 @@ export function useIndividualLeaderboard() {
   return useQuery({
     queryKey: ['leaderboard', 'users'],
     queryFn: () => api.get<IndividualLeaderboardRow[]>('/api/leaderboard/users'),
+    refetchInterval: LIVE_REFETCH_MS,
+    refetchOnWindowFocus: true,
   })
 }
 
@@ -224,6 +237,8 @@ export function useTeamLeaderboard() {
   return useQuery({
     queryKey: ['leaderboard', 'teams'],
     queryFn: () => api.get<TeamLeaderboardRow[]>('/api/leaderboard/teams'),
+    refetchInterval: LIVE_REFETCH_MS,
+    refetchOnWindowFocus: true,
   })
 }
 

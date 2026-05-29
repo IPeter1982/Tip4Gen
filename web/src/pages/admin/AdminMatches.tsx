@@ -33,7 +33,7 @@ export function AdminMatches() {
         <h1 className="text-4xl font-black uppercase tracking-tight mt-2">Mérkőzések</h1>
       </header>
 
-      <nav className="flex items-center gap-2">
+      <nav className="flex items-center gap-2 flex-wrap">
         {(['upcoming', 'past', 'all'] as Phase[]).map((p) => (
           <button
             key={p}
@@ -70,8 +70,8 @@ export function AdminMatches() {
       )}
 
       {matches.data && (
-        <section className="border-2 border-stone-900 bg-white">
-          <table className="w-full text-sm font-mono">
+        <section className="border-2 border-stone-900 bg-white overflow-x-auto">
+          <table className="w-full min-w-[640px] text-sm font-mono">
             <thead className="bg-stone-100 text-left text-xs uppercase tracking-[0.15em] text-stone-600">
               <tr>
                 <th className="px-3 py-2">Mikor</th>
