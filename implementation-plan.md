@@ -19,11 +19,12 @@
 - **Phase 8:** ✅ done end-to-end. Domain: `AdminAudit` entity + `AdminAuditAction` enum; `Tournament.RecordOutcomes(winnerTeamId, topScorerName)`; `Match.AwardResult` for FIFA-decided outcomes (lands `MatchStatus.Awarded` distinctly from `Finished`). **Schema migration `Phase8AdminAudit`**: `admin_audit` table (admin_user_id FK + action enum + entity_type/id + jsonb before/after + reason + occurred_at; indexes on occurred_at desc and (entity_type, entity_id)); `tournaments.winner_team_id` (FK restrict) + `top_scorer_name` columns. Infrastructure: `IAdminAuditWriter` (stages row without SaveChanges so caller owns the transaction), `MatchAdminService` (SetResult / Cancel / Postpone), `LongTipOutcomesService`; cancel uses `ExecuteDeleteAsync`+`ExecuteUpdateAsync` for scored_tips deletion + joker refund. `IndividualLeaderboardService` now fetches tournament outcomes and computes per-user `winnerCorrect`/`topScorerCorrect` (case-insensitive trimmed name match). API: `PUT /api/admin/matches/{id}/result`, `POST .../cancel`, `POST .../postpone`, `GET /api/admin/audit` (paginated, server-clamped take ≤200), `GET`+`PUT /api/admin/long-tips/outcomes`. Frontend: `useMe()` cached at app level (staleTime: Infinity); `RequireAdmin` guard renders 403 panel; Topbar shows admin link conditionally; reusable `ConfirmDialog` with destructive variant + Escape/click-outside cancel + focus management; admin pages `/admin` (match list with phase filter), `/admin/matches/:id` (result form + postpone + cancel with confirm), `/admin/audit` (paginated, collapse/expand JSON), `/admin/long-tips` (winner select + top-scorer text input). 189/189 tests green.
 - **Phase 8.5 (Railway deploy):** ✅ done end-to-end 2026-05-29. Code prep landed earlier (Workers co-located into API, Dockerfiles for API + SPA, nginx reverse-proxy config, DATABASE_URL adapter, migration-on-startup, `$PORT` binding, prod CORS). Railway project provisioned (EU-West / Amsterdam), Postgres plugin attached, API + SPA services deployed from `main` and reachable on their `*.up.railway.app` URLs, Auth0 callback / logout / web-origin URLs added for the SPA host. Auto-deploy on push to `main` working.
 - **Phase 10 (polish, partial):** ✅ shipped 2026-05-29. SignalR work replaced with `refetchInterval: 30_000` on the live-changing TanStack queries (`useMatches`, `useMatch`, `useMatchTips`, `useIndividualLeaderboard`, `useTeamLeaderboard`) with `refetchOnWindowFocus: true`; backgrounded tabs pause polling. New 4-step onboarding panel on `/` (Belépés ✓ · Csapat · Hosszú tipp · Első tipp) driven by `useMyTeam` + `useLongTips` + `useMatches('all')`, with tournament-start countdown banner; guest view shows "Hogyan működik" + login CTA. `/me` redone — no more raw `/api/me` JSON dump; shows display name, join date, admin badge, team status, quick links, logout button. Mobile pass: Topbar wraps on small viewports with `flex-wrap gap-y-*`, user name hidden below `sm`; admin matches table gets `overflow-x-auto` + `min-w-[640px]`, admin nav row wraps. Serilog config reviewed and left unchanged (Console at Information+ is correct for Railway log tail). 189/189 tests still green; web bundle builds.
-- **Phase 9 (notifications) + Phase 10 realtime (SignalR):** not started; both **[CUT-OK]** per launch plan. Polling replaces realtime; group-chat announcement replaces email reminders.
+- **Phase 9 (notifications):** ✅ done end-to-end 2026-05-29. Domain: `NotificationKind`, `INotificationSender`, `NotificationSendResult` tagged union, `TipReminderPolicy` (pure, T-24h / T-2h windows), `NotificationTemplates` (Hungarian HTML+text, Unicode-safe encoder). Schema migrations `Phase9Notifications` (`user_preferences`, `notification_log` with partial unique index for success-only dedup) + `Phase9UserEmail` (nullable `users.email`, captured from Auth0 claim on every login). Infrastructure: `ResendNotificationSender` (typed HttpClient + resilience, Disabled when ApiKey unset), `NotificationsService` orchestrator (fixed-K queries per tick, in-memory join), `NotificationsJob` BackgroundService at 10-min cadence. API: `GET/PUT /api/me/preferences` + `POST /api/admin/notifications/preview`. SPA: preferences toggle on `/me` with hasEmail-aware disabled state. 209/209 tests green (+20 new for `Notifications/`).
+- **Phase 10 realtime (SignalR):** not started; still **[CUT-OK]**. 30s polling + live-match banner cover it.
 - **Phase 11 (beta + launch):** not started; needs Railway provisioned first.
 - **Open decisions:** none — hosting is now Railway (was: Azure vs Fly.io+Vercel+Neon vs Railway). Auth is Auth0.
 - **Football data source:** api-football Free plan (100 req/day) verified. WC 2022 (64 fixtures, full results) accessible; WC 2026 is `coverage.fixtures=false` on Free → **dev against `season=2022`, swap to 2026 once we upgrade or change provider**. Admin manual-entry now works via the Phase 8 endpoints, so the data-source risk is contained. api-football's WC labels are matchday-style (`Group Stage - 1/2/3`) — group letter has to come from `/standings`, see Phase 2 follow-up below.
-- **Next:** Phase 11 beta — pick 5–10 friends, do a test-match dry-run on the live Railway URL, run the tournament-eve checklist. Phase 9 notifications + Phase 10 realtime stay **[CUT-OK]** unless launch-day pressure subsides.
+- **Next:** Phase 11 beta — pick 5–10 friends, do a test-match dry-run on the live Railway URL, run the tournament-eve checklist. Phase 10 realtime stays **[CUT-OK]**.
 
 ## How to read this plan
 
@@ -359,23 +360,29 @@ Phases run roughly sequentially, but tasks within a phase are often parallelizab
 
 ---
 
-# Phase 9 — Notifications (Day 12–13)
+# Phase 9 — Notifications (Day 12–13) — ✅ DONE
 
 **Goal:** people get reminded so they don't forget to tip.
 
-- [ ] Resend account + sender domain verified
-- [ ] DB: `user_preferences` — `email_reminders_enabled bool` (default true)
-- [ ] Background jobs:
-  - `T-24h`: email users who haven't tipped a match in the next 24h
-  - `T-2h`: last-call email to users still without a tip
-  - Post-match: per-user summary of points earned today
-- [ ] Email templates (Hungarian) — keep them short and link directly to the tip page
-- [ ] Frontend: preferences page to toggle reminders
-- [ ] Deduplication: don't email twice for the same match/event (track in DB)
+**Shipped 2026-05-29:**
 
-**Done when:** trigger a test match with kickoff in 24h, get the email, click through, tip, get no further reminders.
+- [x] Domain (`Tip4Gen.Domain.Notifications/`): `NotificationKind` (`TipReminder24h` · `TipReminder2h`), `INotificationSender` interface, `NotificationSendResult` tagged union (`Success` · `Disabled` · `Failed` · `RateLimited`), `UserPreferences` + `NotificationLog` entities, `TipReminderPolicy` (pure: T-24h window = [kickoff − 25h, kickoff − 23h), T-2h window = [kickoff − 3h, kickoff − 1h), T-2h beats T-24h when both unsent), `NotificationTemplates` (Hungarian subject/HTML/text with table-based layout for email-client compatibility; HtmlEncoder with `UnicodeRanges.All` so Hungarian letters survive while `<>&"'` get escaped).
+- [x] Schema migration `Phase9Notifications` — `user_preferences(user_id PK FK users, email_reminders_enabled bool default true, updated_at)` + `notification_log(id, user_id FK, kind, match_id nullable FK, sent_at, success, error)` with partial unique-ish index `ix_notification_log_dedup` filtered on `success = TRUE` so failed attempts don't poison retries. Separate migration `Phase9UserEmail` adds nullable `users.email` (max 254 chars); `CurrentUserService.GetOrCreateAsync` now stamps it from the Auth0 `email` claim on every authenticated request (no-op when unchanged, no spurious SaveChanges).
+- [x] Infrastructure (`Tip4Gen.Infrastructure.Notifications/`): `ResendNotificationSender` — typed HttpClient → POST `/emails` w/ `AddStandardResilienceHandler`. Returns `Disabled` cleanly when `Resend:ApiKey` is empty (mirrors `OpenAiTipper`). 429 → `RateLimited` (worker aborts that tick), 4xx/5xx → `Failed`. `NotificationsService` — one fixed-K query per tick (matches in 26h window + users w/ email + prefs + tipped pairs + sent log), in-memory join, per-(user, match) policy decision, send, log. Worker `NotificationsJob` at 10-min cadence (well inside the 2-hour windows).
+- [x] API: `GET /api/me/preferences` (returns `emailRemindersEnabled` + `hasEmail`, defaults enabled when no row), `PUT /api/me/preferences` (upserts the row). Admin `POST /api/admin/notifications/preview` renders + dispatches a sample to a given address — bypasses the dedup ledger so the admin can verify Resend/template plumbing before the cron starts. No audit row (preview is read-ish, mirrors the AI tipper preview's treatment).
+- [x] Frontend: `PreferencesPanel` on `/me` with the email-reminders toggle. Disabled state when `hasEmail === false` ("Az Auth0 fiókod nem tartalmaz email címet…"); shows mutation errors inline.
+- [x] Tests: 13 `TipReminderPolicy` cases (every window boundary, dedup, prefs-disabled, has-tipped, T-2h-priority-over-T-24h) + 7 `NotificationTemplates` cases (subject contents, HTML encoding of injected markup, CTA link, deadline-in-footer, unsupported-kind guard). **209/209 green.**
 
-**[CUT-OK]** — if launching behind, ship with one daily digest instead of per-match reminders. Add per-match later.
+**Lessons banked:**
+
+- `WebUtility.HtmlEncode` escapes all non-ASCII by default — that turned "Tipp leadása" into "Tipp lead&amp;#225;sa" in the rendered email until I swapped to `HtmlEncoder.Create(UnicodeRanges.All)` (System.Text.Encodings.Web). The new encoder still escapes the five dangerous chars but leaves Hungarian letters readable. Worth knowing for any future user-facing HTML rendering — the `WebUtility` variant is the wrong tool for UTF-8 output.
+- The notifications worker runs without a JWT, so `users.email` had to be persisted. The whole flow is "stamp it on every login via `CurrentUserService.GetOrCreateAsync`" — keep that fence in mind if anything ever moves the email-claim read elsewhere.
+- Dedup via a *partial* unique-ish index filtered on `success = TRUE` means failed attempts naturally retry until success or window-exit, without an explicit retry-counter column. Same pattern as `AiTipAttempt` (Phase 6) but inverted (Ai counts every attempt; notifications only care about the successful one).
+- Resend's free tier is 100 emails/day on a verified sender domain. At 200 users × ~12 matches × 2 reminders that's ~4800 emails per tournament — well above free. Plan to upgrade Resend before launch, or fall back to the daily-digest cut variant noted in the original plan.
+
+**Pending (manual setup before launch):**
+
+- [ ] Resend account: create, verify a sender domain (or stick with `onboarding@resend.dev` for the beta), set `Resend:ApiKey` + `Resend:FromAddress` on Railway. `Notifications:SiteBaseUrl` should point at the live SPA URL.
 
 ---
 

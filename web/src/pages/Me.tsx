@@ -1,6 +1,6 @@
 import { useAuth0 } from '@auth0/auth0-react'
 import { Link } from 'react-router'
-import { useMe, useMyTeam } from '../api/hooks'
+import { useMe, useMyTeam, usePreferences, useSetPreferences } from '../api/hooks'
 import { formatBudapest } from '../lib/format'
 
 export function Me() {
@@ -51,6 +51,8 @@ export function Me() {
         </section>
       )}
 
+      <PreferencesPanel />
+
       <section className="border-2 border-stone-300 bg-white p-5 space-y-3">
         <p className="text-xs font-mono uppercase tracking-[0.15em] text-stone-500">Gyors hivatkozások</p>
         <div className="flex flex-wrap gap-2">
@@ -69,6 +71,53 @@ export function Me() {
         Kilépés
       </button>
     </div>
+  )
+}
+
+function PreferencesPanel() {
+  const prefs = usePreferences()
+  const setPrefs = useSetPreferences()
+  const enabled = prefs.data?.emailRemindersEnabled ?? true
+  const hasEmail = prefs.data?.hasEmail ?? false
+  const disabled = prefs.isLoading || setPrefs.isPending || !hasEmail
+
+  return (
+    <section className="border-2 border-stone-300 bg-white p-5 space-y-3">
+      <p className="text-xs font-mono uppercase tracking-[0.15em] text-stone-500">Értesítések</p>
+
+      {prefs.error && (
+        <p className="border-2 border-red-700 bg-red-50 p-3 font-mono text-xs text-red-800">
+          ⚠ {prefs.error instanceof Error ? prefs.error.message : String(prefs.error)}
+        </p>
+      )}
+
+      <label className="flex items-start gap-3 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={enabled}
+          disabled={disabled}
+          onChange={(e) => setPrefs.mutate(e.target.checked)}
+          className="size-5 mt-0.5 border-2 border-stone-900 cursor-pointer disabled:cursor-not-allowed"
+        />
+        <span className="flex-1 space-y-1">
+          <span className="block text-sm font-mono">Tipp-emlékeztetők emailben</span>
+          <span className="block font-mono text-xs text-stone-500">
+            ~24 órával és ~2 órával a meccs előtt szólunk, ha még nem tippeltél.
+          </span>
+        </span>
+      </label>
+
+      {!hasEmail && (
+        <p className="text-xs font-mono text-stone-500">
+          Az Auth0 fiókod nem tartalmaz email címet, ezért nem tudunk emlékeztetőt küldeni.
+        </p>
+      )}
+      {setPrefs.error && (
+        <p className="text-xs font-mono text-red-700">
+          Nem sikerült menteni: {setPrefs.error instanceof Error ? setPrefs.error.message : String(setPrefs.error)}
+        </p>
+      )}
+    </section>
   )
 }
 

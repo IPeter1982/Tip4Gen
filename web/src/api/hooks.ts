@@ -14,6 +14,7 @@ import type {
   MatchTipsResponse,
   MeResponse,
   NationalTeam,
+  PreferencesResponse,
   TeamLeaderboardRow,
   TeamMatchBreakdownView,
   TeamView,
@@ -311,6 +312,28 @@ export function useAdminAuditLog(matchId?: string, take = 50, skip = 0) {
       params.set('take', String(take))
       params.set('skip', String(skip))
       return api.get<AdminAuditResponse>(`/api/admin/audit?${params.toString()}`)
+    },
+  })
+}
+
+// ----- Preferences (Phase 9) -----
+
+export function usePreferences() {
+  const api = useApi()
+  return useQuery({
+    queryKey: ['me', 'preferences'],
+    queryFn: () => api.get<PreferencesResponse>('/api/me/preferences'),
+  })
+}
+
+export function useSetPreferences() {
+  const api = useApi()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (emailRemindersEnabled: boolean) =>
+      api.put<PreferencesResponse>('/api/me/preferences', { emailRemindersEnabled }),
+    onSuccess: (data) => {
+      qc.setQueryData(['me', 'preferences'], data)
     },
   })
 }

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Tip4Gen.Domain.Admin;
 using Tip4Gen.Domain.Ai;
+using Tip4Gen.Domain.Notifications;
 using Tip4Gen.Domain.Scoring;
 using Tip4Gen.Domain.Teams;
 using Tip4Gen.Domain.Tipping;
@@ -23,6 +24,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<TeamInvite> TeamInvites => Set<TeamInvite>();
     public DbSet<AiTipAttempt> AiTipAttempts => Set<AiTipAttempt>();
     public DbSet<AdminAudit> AdminAudits => Set<AdminAudit>();
+    public DbSet<UserPreferences> UserPreferences => Set<UserPreferences>();
+    public DbSet<NotificationLog> NotificationLogs => Set<NotificationLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -33,6 +36,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             b.Property(u => u.Id).HasColumnName("id");
             b.Property(u => u.Auth0Sub).HasColumnName("auth0_sub").HasMaxLength(255).IsRequired();
             b.Property(u => u.DisplayName).HasColumnName("display_name").HasMaxLength(120).IsRequired();
+            b.Property(u => u.Email).HasColumnName("email").HasMaxLength(254);
             b.Property(u => u.CreatedAt).HasColumnName("created_at").IsRequired();
             b.HasIndex(u => u.Auth0Sub).IsUnique();
         });
@@ -415,6 +419,59 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             // Query patterns: latest-first (admin scrolls the audit log) and per-entity.
             b.HasIndex(a => a.OccurredAt).IsDescending();
             b.HasIndex(a => new { a.EntityType, a.EntityId });
+        });
+
+        modelBuilder.Entity<UserPreferences>(b =>
+        {
+            b.ToTable("user_preferences");
+            b.HasKey(p => p.UserId);
+            b.Property(p => p.UserId).HasColumnName("user_id");
+            b.Property(p => p.EmailRemindersEnabled)
+                .HasColumnName("email_reminders_enabled")
+                .HasDefaultValue(true)
+                .IsRequired();
+            b.Property(p => p.UpdatedAt).HasColumnName("updated_at").IsRequired();
+
+            b.HasOne<User>()
+                .WithMany()
+                .HasForeignKey(p => p.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<NotificationLog>(b =>
+        {
+            b.ToTable("notification_log", t =>
+            {
+                t.HasCheckConstraint("ck_notification_log_kind",
+                    "kind IN ('TipReminder24h','TipReminder2h')");
+            });
+            b.HasKey(l => l.Id);
+            b.Property(l => l.Id).HasColumnName("id");
+            b.Property(l => l.UserId).HasColumnName("user_id").IsRequired();
+            b.Property(l => l.Kind)
+                .HasColumnName("kind")
+                .HasConversion<string>()
+                .HasMaxLength(40)
+                .IsRequired();
+            b.Property(l => l.MatchId).HasColumnName("match_id");
+            b.Property(l => l.SentAt).HasColumnName("sent_at").IsRequired();
+            b.Property(l => l.Success).HasColumnName("success").IsRequired();
+            b.Property(l => l.Error).HasColumnName("error").HasMaxLength(500);
+
+            b.HasOne<User>()
+                .WithMany()
+                .HasForeignKey(l => l.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            b.HasOne<Match>()
+                .WithMany()
+                .HasForeignKey(l => l.MatchId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Dedup lookup: "has user U already received kind K for match M?" Filtered
+            // to success=true so failed attempts don't poison the retry path.
+            b.HasIndex(l => new { l.UserId, l.Kind, l.MatchId })
+                .HasDatabaseName("ix_notification_log_dedup")
+                .HasFilter("success = TRUE");
         });
     }
 }

@@ -36,9 +36,14 @@ builder.Services.AddOptions<AiTippingJobOptions>()
     .Bind(builder.Configuration.GetSection(AiTippingJobOptions.SectionName))
     .ValidateDataAnnotations()
     .ValidateOnStart();
+builder.Services.AddOptions<NotificationsJobOptions>()
+    .Bind(builder.Configuration.GetSection(NotificationsJobOptions.SectionName))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
 builder.Services.AddHostedService<FixturePoller>();
 builder.Services.AddHostedService<TeamLockJob>();
 builder.Services.AddHostedService<AiTippingJob>();
+builder.Services.AddHostedService<NotificationsJob>();
 
 const string DevCorsPolicy = "Dev";
 const string ProdCorsPolicy = "Prod";

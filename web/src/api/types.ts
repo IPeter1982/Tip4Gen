@@ -157,6 +157,13 @@ export type TeamLeaderboardRow = {
   isMyTeam: boolean
 }
 
+// ----- Preferences (Phase 9) -----
+
+export type PreferencesResponse = {
+  emailRemindersEnabled: boolean
+  hasEmail: boolean
+}
+
 // ----- Admin (Phase 8) -----
 
 export type AdminAuditAction =

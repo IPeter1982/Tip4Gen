@@ -21,17 +21,27 @@ public class CurrentUserService(AppDbContext db, IHttpContextAccessor httpContex
     public async Task<User> GetOrCreateAsync(CancellationToken ct = default)
     {
         var sub = Auth0Sub ?? throw new InvalidOperationException("No 'sub' claim on authenticated request");
+        var emailClaim = httpContextAccessor.HttpContext?.User?.FindFirstValue("email");
 
         var user = await db.Users.FirstOrDefaultAsync(u => u.Auth0Sub == sub, ct);
-        if (user is not null) return user;
+        if (user is not null)
+        {
+            // Keep the email column in sync with the claim on every authenticated request
+            // so the notifications worker (Phase 9) always has a current address. SetEmail
+            // no-ops when nothing changed, so the SaveChanges only fires on actual drift.
+            user.SetEmail(emailClaim);
+            if (db.ChangeTracker.HasChanges())
+                await db.SaveChangesAsync(ct);
+            return user;
+        }
 
         var displayName =
             httpContextAccessor.HttpContext?.User?.FindFirstValue("name")
             ?? httpContextAccessor.HttpContext?.User?.FindFirstValue("nickname")
-            ?? httpContextAccessor.HttpContext?.User?.FindFirstValue("email")
+            ?? emailClaim
             ?? sub;
 
-        user = new User(sub, displayName);
+        user = new User(sub, displayName, emailClaim);
         db.Users.Add(user);
         await db.SaveChangesAsync(ct);
         return user;

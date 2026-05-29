@@ -6,11 +6,13 @@ using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Options;
 using Tip4Gen.Domain.Ai;
 using Tip4Gen.Domain.Football;
+using Tip4Gen.Domain.Notifications;
 using Tip4Gen.Domain.Tournaments.Events;
 using Tip4Gen.Infrastructure.Admin;
 using Tip4Gen.Infrastructure.Ai;
 using Tip4Gen.Infrastructure.Football;
 using Tip4Gen.Infrastructure.Leaderboard;
+using Tip4Gen.Infrastructure.Notifications;
 using Tip4Gen.Infrastructure.Persistence;
 using Tip4Gen.Infrastructure.Scoring;
 using Tip4Gen.Infrastructure.Teams;
@@ -78,6 +80,26 @@ public static class DependencyInjection
         services.AddScoped<IAdminAuditWriter, AdminAuditWriter>();
         services.AddScoped<IMatchAdminService, MatchAdminService>();
         services.AddScoped<ILongTipOutcomesService, LongTipOutcomesService>();
+
+        // Notifications (Phase 9). Resend ApiKey is intentionally optional — when unset
+        // ResendNotificationSender returns Disabled and the worker logs but doesn't fail.
+        services.AddOptions<ResendOptions>()
+            .Bind(configuration.GetSection("Resend"))
+            .ValidateDataAnnotations();
+        services.AddOptions<NotificationsOptions>()
+            .Bind(configuration.GetSection("Notifications"))
+            .ValidateDataAnnotations();
+
+        services.AddHttpClient<INotificationSender, ResendNotificationSender>((sp, http) =>
+            {
+                var opts = sp.GetRequiredService<IOptions<ResendOptions>>().Value;
+                http.BaseAddress = new Uri(opts.BaseUrl.TrimEnd('/') + "/");
+                http.Timeout = TimeSpan.FromSeconds(opts.TimeoutSeconds);
+                if (!string.IsNullOrWhiteSpace(opts.ApiKey))
+                    http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", opts.ApiKey);
+            })
+            .AddStandardResilienceHandler();
+        services.AddScoped<INotificationsService, NotificationsService>();
 
         return services;
     }
