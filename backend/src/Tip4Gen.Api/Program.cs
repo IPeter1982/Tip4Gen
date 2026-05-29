@@ -21,6 +21,13 @@ builder.Services
 builder.Services.AddOpenApi();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<Tip4Gen.Api.Auth.CurrentUserService>();
+builder.Services.AddHttpClient<Tip4Gen.Api.Auth.IAuth0UserInfoClient, Tip4Gen.Api.Auth.Auth0UserInfoClient>((sp, http) =>
+{
+    var auth0 = sp.GetRequiredService<Tip4Gen.Api.Auth.Auth0Options>();
+    if (!string.IsNullOrWhiteSpace(auth0.Domain))
+        http.BaseAddress = new Uri($"https://{auth0.Domain}/");
+    http.Timeout = TimeSpan.FromSeconds(10);
+});
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddAuth0(builder.Configuration);
 
