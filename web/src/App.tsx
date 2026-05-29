@@ -1,12 +1,14 @@
 import { Route, Routes } from 'react-router'
 import { RequireAdmin } from './auth/RequireAdmin'
 import { RequireAuth } from './auth/RequireAuth'
+import { LiveMatchBanner } from './components/LiveMatchBanner'
 import { Topbar } from './components/Topbar'
 import { Home } from './pages/Home'
 import { Leaderboard } from './pages/Leaderboard'
 import { LongTips } from './pages/LongTips'
 import { Matches } from './pages/Matches'
 import { Me } from './pages/Me'
+import { NotFound } from './pages/NotFound'
 import { Team } from './pages/Team'
 import { TeamJoin } from './pages/TeamJoin'
 import { TipSubmit } from './pages/TipSubmit'
@@ -19,6 +21,7 @@ export default function App() {
   return (
     <div className="min-h-svh bg-stone-100 text-stone-900">
       <Topbar />
+      <LiveMatchBanner />
       <Routes>
         <Route path="/" element={<Home />} />
         <Route
@@ -117,6 +120,7 @@ export default function App() {
             </RequireAuth>
           }
         />
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </div>
   )

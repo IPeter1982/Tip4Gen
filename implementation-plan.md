@@ -382,7 +382,7 @@ Phases run roughly sequentially, but tasks within a phase are often parallelizab
 
 **Goal:** the app feels alive during matches.
 
-**Shipped 2026-05-29 (commit pending):**
+**Shipped 2026-05-29:**
 
 - [x] **[CUT-OK alternative]** SignalR replaced with `refetchInterval: 30_000` on `useMatches`/`useMatch`/`useMatchTips`/`useIndividualLeaderboard`/`useTeamLeaderboard`, plus `refetchOnWindowFocus: true`. Backgrounded tabs pause polling (TanStack default `refetchIntervalInBackground=false`). At 50–200 users this is invisible vs. SignalR.
 - [x] Onboarding flow on `/` — 4-step checklist (Belépés ✓ · Csapat · Hosszú tipp · Első tipp) reading `useMyTeam` + `useLongTips` + `useMatches('all')`. Each step has done/locked/pending state; tournament-start countdown banner; guest view shows "Hogyan működik" + login CTA. Dev-only `/api/health` dump removed.
@@ -390,10 +390,12 @@ Phases run roughly sequentially, but tasks within a phase are often parallelizab
 - [x] Empty/error/loading audit — every async surface uses the existing consistent treatment (`betöltés…` / red-border error / `border-stone-300 bg-white p-6 text-center` empty box). No gaps found.
 - [x] Mobile pass: Topbar wraps via `flex-wrap gap-y-*` on tight viewports, user name hidden below `sm`. Admin matches table gets `overflow-x-auto min-w-[640px]` for narrow viewports; admin nav row wraps.
 - [x] Production logging reviewed — Serilog Console sink at `Information+` with `Microsoft.AspNetCore=Warning` is correct for Railway's container log tail. No change needed.
+- [x] 404 fallback — `<Route path="*" element={<NotFound />}>` so unknown URLs render a Hungarian "Nincs ilyen oldal" page with quick links instead of a blank body.
+- [x] Live-match banner — sticky orange strip below the Topbar showing every `status==='Live'` match (team names + live score, click → match tip page). Reuses the existing `useMatches('upcoming')` query (TanStack dedupe keeps it free), gated on Auth0 `isAuthenticated`. Renders nothing when no matches are live.
 
 **Cut (post-launch / [CUT-OK]):**
 
-- SignalR hub + `MatchFinalized` / `LeaderboardUpdated` / `MatchStatusChanged` pushes + live score banner. The polling fallback covers the user-visible need.
+- SignalR hub + `MatchFinalized` / `LeaderboardUpdated` / `MatchStatusChanged` pushes. The polling fallback + live banner cover the user-visible need.
 - Application Insights / external log aggregation — Railway's built-in viewer is enough for 50–200 users; revisit if we ever need multi-week log retention or alerting.
 
 **[CUT-OK]** ✅ — realtime cut as planned; polish work shipped.
