@@ -14,16 +14,22 @@ Hungarian-language Football World Cup tipping game web app. Target launch: **202
 backend/                    ASP.NET Core 9 solution (planned 10, on 9 for speed)
   src/Tip4Gen.Api           Controllers, Program.cs, Serilog, OpenAPI, Auth0
     Auth/                   Auth0Options, AuthExtensions, CurrentUserService
-    Controllers/            HealthController, MeController, AdminController,
-                            FixturesAdminController, ScoringAdminController,
-                            TeamsAdminController, NationalTeamsController,
-                            MatchesController, TipsController, LongTipsController,
-                            TeamsController, LeaderboardController,
+    Avatars/                DataUrlParser (decodes data:image/...;base64,...
+                            payloads from the SPA canvas-resize pipeline)
+    Controllers/            HealthController, MeController (+ avatar PUT/DELETE),
+                            AdminController, FixturesAdminController,
+                            ScoringAdminController, TeamsAdminController,
+                            NationalTeamsController, MatchesController,
+                            TipsController, LongTipsController, TeamsController,
+                            LeaderboardController, UsersController (avatar GET),
                             AiTipperAdminController (preview endpoint),
+                            AiAvatarController (public binary GET),
+                            AiAvatarAdminController (admin PUT/DELETE),
                             MatchesAdminController (result/cancel/postpone),
                             AdminAuditController, LongTipsAdminController
   src/Tip4Gen.Domain        Pure domain types — no EF, no ASP.NET refs
-    Users/User.cs
+    Users/User.cs           + UserRulesValidator (display name + avatar bytes)
+    Settings/AiAvatarSetting.cs  Singleton entity (id = 1) for admin AI avatar
     Tournaments/            Stage + MatchStatus enums, Tournament, NationalTeam,
                             Match, StageMapper, MatchStatusMapper
     Tournaments/Events/     MatchFinalized record + IMatchFinalizedHandler
@@ -62,6 +68,8 @@ backend/                    ASP.NET Core 9 solution (planned 10, on 9 for speed)
     Admin/                  IAdminAuditWriter + AdminAuditWriter (stage row in
                             same transaction as caller), MatchAdminService
                             (SetResult / Cancel / Postpone), LongTipOutcomesService
+    Settings/               AiAvatarAdminService (singleton upsert/clear +
+                            audit; same DataUrlParser/ValidateAvatar pipeline)
     Workers/                BackgroundService host — FixturePoller (Phase 2)
                             + TeamLockJob (Phase 5) + AiTippingJob (Phase 6),
                             co-located in the API process (Phase 8.5 deploy)
@@ -73,10 +81,11 @@ backend/                    ASP.NET Core 9 solution (planned 10, on 9 for speed)
       AiTippingJobOptions.cs  IntervalMinutes (default 5) / StartupDelaySeconds
   tests/Tip4Gen.Domain.Tests  xUnit — StageMapper, MatchStatusMapper,
                               TipRulesValidator, LongTermTipRulesValidator,
+                              UserRulesValidator (display name + avatar),
                               MatchScorer, StageMultipliers, TeamRulesValidator,
                               TeamAggregator, TeamLockPolicy, LeaderboardRanker,
                               StreakCalculator, AiTipResponseValidator,
-                              AiTipSchedulePolicy, AiTipPromptBuilder (189 tests)
+                              AiTipSchedulePolicy, AiTipPromptBuilder (225 tests)
 web/                        Vite + React 19 + TS frontend
   src/auth/                 AuthProvider, RequireAuth, useApi (typed + ApiError),
                             authConfig
@@ -84,12 +93,17 @@ web/                        Vite + React 19 + TS frontend
                             types.ts (shared response shapes),
                             hooks.ts (TanStack Query wrappers)
   src/lib/format.ts         Budapest TZ formatters + countdown + HU labels
+  src/lib/imageResize.ts    Canvas square-crop → 128×128 JPEG q=0.85 → data URL
+                            (shared by /me upload and /admin/ai-avatar)
   src/components/Topbar.tsx
   src/pages/                Home, Me, Matches, TipSubmit, LongTips, Team, TeamJoin,
                             Leaderboard
-  src/pages/admin/          AdminMatches, AdminMatchEditor, AdminAudit, AdminLongTips
+  src/pages/admin/          AdminMatches, AdminMatchEditor, AdminAudit,
+                            AdminLongTips, AdminAiAvatar
   src/auth/RequireAdmin     Gates admin routes; renders 403 panel for non-admins
-  src/components/           Topbar, ConfirmDialog (modal w/ destructive variant)
+  src/components/           Topbar, ConfirmDialog (modal w/ destructive variant),
+                            Avatar (img-by-userId or letter-circle fallback;
+                            isAi prop routes to the global /api/ai-avatar)
   src/main.tsx              <AuthProvider><QueryClientProvider><BrowserRouter>…
   src/index.css             Single line: @import "tailwindcss"
   vite.config.ts            port 5173, strictPort, dev proxy /api → :5050
@@ -254,6 +268,17 @@ Single admin (the project owner). Gated by Auth0 `sub` claim matching the `Auth0
 - `AiTippingService` writes one `ai_tip_attempts` row per IAiTipper call (success or failure). The schedule policy reads that count to decide retry vs. skip — without persistent counting, a process restart in the [T-2h, T-1h] window would re-burn quota.
 - The OpenAI prompt currently passes team names as-is. Hungarian team names like "Magyarország" can confuse the model into hallucinating a wrong opponent — production data from api-football uses English names so this doesn't bite. If you ever localize team names in the DB, pass both English + Hungarian into `AiTipPromptBuilder.Build`.
 - `OperationCanceledException` catch in `OpenAiTipper.GenerateAsync` uses `when (!ct.IsCancellationRequested)` to distinguish HttpClient timeout (our own deadline → return `Timeout`) from caller-cancel (let it propagate). Don't simplify that guard.
+
+## Avatar gotchas
+
+- **No server-side image library.** The SPA's `web/src/lib/imageResize.ts` does the square-crop + resize to 128×128 JPEG q=0.85 on a canvas before posting. Server only validates content-type prefix (`image/jpeg|png|webp`) + 50 KB byte cap (`UserRulesValidator.ValidateAvatar`). If you ever need server-side processing (e.g. EXIF strip, auto-orient), add SixLabors.ImageSharp — don't roll your own.
+- **GET endpoints are anonymous.** `<img src>` can't carry Bearer tokens, so `GET /api/users/{id}/avatar` and `GET /api/ai-avatar` are `[AllowAnonymous]`. User IDs are GUIDs (unguessable) and only surface inside authenticated pages, so leakage risk is acceptable for a friend-group app. Don't put avatars behind `[Authorize]` "to be safe" — it breaks `<img>` rendering silently.
+- **Cache headers are aggressive on purpose.** Both endpoints return `Cache-Control: public, max-age=86400, immutable` plus an `ETag` derived from the version. The avatar URL carries `?v={version}` — the version is the first 8 chars of `SHA256(bytes)` in lowercase. A new upload changes the version → URL changes → browser refetches. The `v` query param is ignored server-side.
+- **`MeResponse.aiAvatarVersion` drives the AI branch of `<Avatar />`.** The component is hook-aware (`useMe()` inside); only render it inside a tree where `/api/me` is fetched. AI team members never have `userId`, so the order of checks in `Avatar.tsx` matters: AI branch first, then human-with-version, then letter-circle. `useSetAiAvatar` / `useDeleteAiAvatar` invalidate `['me']` so the version propagates everywhere automatically.
+- **`ai_avatar_setting` is a singleton.** `CHECK (id = 1)` on the table + `SingletonId = 1` const in the entity. `AiAvatarAdminService.SetAsync` does upsert via Add-or-Replace; `ClearAsync` deletes. Don't write code that assumes >1 row.
+- **Audit payload never contains the bytes.** `AdminAuditAction.AiAvatarSet` / `AiAvatarDeleted` before/after carry `{version, contentType}` only. Dumping the bytea into `admin_audit.jsonb` would blow up the row and the audit-log UI. Mirror this shape if you add more avatar admin actions.
+- **`DataUrlParser` is shared.** Both `MeController.SetAvatar` and `AiAvatarAdminController.Set` call `Tip4Gen.Api.Avatars.DataUrlParser.TryParse`. Pre-decode length cap is `User.MaxAvatarBytes * 4/3 + 256` — cheap O(1) guard before allocating a `byte[]` from a hostile body. If you tweak the limit, update both.
+- **Topbar shows local display name, not Auth0's.** `Topbar.tsx` prefers `me.data?.displayName` over `user?.name` from the Auth0 SDK, falling back only while `me` is loading. The avatar URL requires `me.data.id`, so the rendering already depends on `useMe()` resolving.
 
 ## Forms gotcha — Zod + react-hook-form
 
