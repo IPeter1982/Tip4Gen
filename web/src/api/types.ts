@@ -107,6 +107,7 @@ export type TeamView = {
   status: TeamStatus
   aiMode: AiMode | null
   createdAt: string
+  avatarVersion: string | null
   members: TeamMemberView[]
 }
 
@@ -127,6 +128,7 @@ export type MemberBreakdownView = {
 export type TeamMatchBreakdownView = {
   teamId: string
   teamName: string
+  teamAvatarVersion: string | null
   matchId: string
   totalPoints: number
   members: MemberBreakdownView[]
@@ -158,6 +160,7 @@ export type TeamLeaderboardRow = {
   rank: number
   teamId: string
   teamName: string
+  teamAvatarVersion: string | null
   totalPoints: number
   members: TeamLeaderboardMember[]
   isMyTeam: boolean

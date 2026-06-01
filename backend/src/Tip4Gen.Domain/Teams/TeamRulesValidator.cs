@@ -1,3 +1,5 @@
+using Tip4Gen.Domain.Users;
+
 namespace Tip4Gen.Domain.Teams;
 
 public enum TeamRejectionReason
@@ -10,6 +12,10 @@ public enum TeamRejectionReason
     TeamFull,
     AiSlotTaken,
     UserAlreadyInTeam,
+    AvatarMissing,
+    AvatarUnsupportedFormat,
+    AvatarTooLarge,
+    AvatarInvalidDataUrl,
 }
 
 public readonly record struct TeamValidationResult(bool IsValid, TeamRejectionReason Reason, string? Message)
@@ -72,5 +78,24 @@ public static class TeamRulesValidator
                 TeamRejectionReason.AiSlotTaken,
                 "A csapatban már van AI tag.");
         return TeamValidationResult.Ok();
+    }
+
+    /// <summary>
+    /// Bytes + content-type validation for a team avatar. Same rules as
+    /// <see cref="UserRulesValidator.ValidateAvatar"/>; just remapped onto the team
+    /// rejection enum so the controller can translate to ProblemDetails uniformly.
+    /// </summary>
+    public static TeamValidationResult ValidateAvatar(byte[]? bytes, string? contentType)
+    {
+        var inner = UserRulesValidator.ValidateAvatar(bytes, contentType);
+        if (inner.IsValid) return TeamValidationResult.Ok();
+        var mapped = inner.Reason switch
+        {
+            UserRejectionReason.AvatarMissing => TeamRejectionReason.AvatarMissing,
+            UserRejectionReason.AvatarUnsupportedFormat => TeamRejectionReason.AvatarUnsupportedFormat,
+            UserRejectionReason.AvatarTooLarge => TeamRejectionReason.AvatarTooLarge,
+            _ => TeamRejectionReason.AvatarInvalidDataUrl,
+        };
+        return TeamValidationResult.Fail(mapped, inner.Message ?? "");
     }
 }

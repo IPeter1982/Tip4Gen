@@ -1,3 +1,5 @@
+using Tip4Gen.Domain.Users;
+
 namespace Tip4Gen.Domain.Teams;
 
 public class Team
@@ -5,6 +7,7 @@ public class Team
     public const int MaxMembers = 4;
     public const int MaxAiMembers = 1;
     public const int MaxNameLength = 80;
+    public const int MaxAvatarBytes = User.MaxAvatarBytes;
 
     public Guid Id { get; private set; }
     public string Name { get; private set; } = default!;
@@ -12,6 +15,10 @@ public class Team
     public AiMode? AiMode { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset UpdatedAt { get; private set; }
+
+    public byte[]? Avatar { get; private set; }
+    public string? AvatarContentType { get; private set; }
+    public string? AvatarVersion { get; private set; }
 
     private Team() { }
 
@@ -50,6 +57,22 @@ public class Team
     public void Disqualify()
     {
         Status = TeamStatus.Disqualified;
+        UpdatedAt = DateTimeOffset.UtcNow;
+    }
+
+    public void SetAvatar(byte[] bytes, string contentType, string version)
+    {
+        Avatar = bytes;
+        AvatarContentType = contentType;
+        AvatarVersion = version;
+        UpdatedAt = DateTimeOffset.UtcNow;
+    }
+
+    public void ClearAvatar()
+    {
+        Avatar = null;
+        AvatarContentType = null;
+        AvatarVersion = null;
         UpdatedAt = DateTimeOffset.UtcNow;
     }
 }

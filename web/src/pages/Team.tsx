@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { ApiError } from '../api/errors'
@@ -7,14 +7,18 @@ import {
   useAddAiMember,
   useCreateInvite,
   useCreateTeam,
+  useDeleteTeamAvatar,
   useLeaveTeam,
   useLongTips,
   useMyTeam,
   usePatchTeam,
+  useSetTeamAvatar,
 } from '../api/hooks'
 import type { AiMode, TeamView } from '../api/types'
 import { Avatar } from '../components/Avatar'
+import { TeamAvatar } from '../components/TeamAvatar'
 import { formatBudapest, formatCountdown } from '../lib/format'
+import { resizeToDataUrl } from '../lib/imageResize'
 
 const AI_MODE_LABEL: Record<AiMode, string> = {
   Conservative: 'Óvatos',
@@ -45,6 +49,14 @@ function reasonMessage(reason: string): string {
     case 'UserAlreadyInTeam':
     case 'AlreadyInTeam':
       return 'Már tagja vagy egy másik csapatnak.'
+    case 'AvatarMissing':
+      return 'Nincs kép kiválasztva.'
+    case 'AvatarUnsupportedFormat':
+      return 'Csak JPEG, PNG vagy WebP képek tölthetők fel.'
+    case 'AvatarTooLarge':
+      return 'A kép maximum 50 KB lehet.'
+    case 'AvatarInvalidDataUrl':
+      return 'Érvénytelen kép-adat.'
     default:
       return 'A művelet nem hajtható végre.'
   }
@@ -250,9 +262,17 @@ function LockBanner({
 function MembersPanel({ team, editable }: { team: TeamView; editable: boolean }) {
   return (
     <section className="border-2 border-stone-900 bg-white p-5 space-y-3">
-      <div className="flex items-baseline justify-between">
-        <h2 className="text-2xl font-black uppercase tracking-tight">{team.name}</h2>
-        <span className="text-xs font-mono uppercase tracking-[0.15em] text-stone-500">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <TeamAvatar
+            teamId={team.id}
+            teamName={team.name}
+            version={team.avatarVersion}
+            size={48}
+          />
+          <h2 className="text-2xl font-black uppercase tracking-tight truncate">{team.name}</h2>
+        </div>
+        <span className="text-xs font-mono uppercase tracking-[0.15em] text-stone-500 shrink-0">
           {STATUS_LABEL[team.status]} · {team.members.length}/4
         </span>
       </div>
@@ -320,11 +340,20 @@ function RenamePanel({ team }: { team: TeamView }) {
   }
 
   return (
-    <section className="border-2 border-stone-300 bg-white p-5 space-y-3">
-      <h3 className="text-xs font-mono uppercase tracking-[0.15em] text-stone-500">Átnevezés</h3>
+    <section className="border-2 border-stone-300 bg-white p-5 space-y-4">
+      <h3 className="text-xs font-mono uppercase tracking-[0.15em] text-stone-500">
+        Név és profilkép
+      </h3>
       <form onSubmit={handleSubmit(onValid)} className="flex gap-2 items-start">
         <div className="flex-1 space-y-1">
+          <label
+            htmlFor={`team-name-${team.id}`}
+            className="block text-xs font-mono uppercase tracking-[0.15em] text-stone-500"
+          >
+            Csapatnév
+          </label>
           <input
+            id={`team-name-${team.id}`}
             type="text"
             maxLength={80}
             {...register('name')}
@@ -340,12 +369,131 @@ function RenamePanel({ team }: { team: TeamView }) {
         <button
           type="submit"
           disabled={!isDirty || isSubmitting || patch.isPending}
-          className="border-2 border-stone-900 bg-stone-900 text-white px-4 py-2 text-xs font-mono uppercase tracking-[0.15em] hover:bg-orange-600 hover:border-orange-600 disabled:opacity-40 disabled:cursor-not-allowed"
+          className="self-end border-2 border-stone-900 bg-stone-900 text-white px-4 py-2 text-xs font-mono uppercase tracking-[0.15em] hover:bg-orange-600 hover:border-orange-600 disabled:opacity-40 disabled:cursor-not-allowed"
         >
           mentés
         </button>
       </form>
+      <TeamAvatarPanel team={team} />
     </section>
+  )
+}
+
+function TeamAvatarPanel({ team }: { team: TeamView }) {
+  const setAvatar = useSetTeamAvatar()
+  const deleteAvatar = useDeleteTeamAvatar()
+  const inputRef = useRef<HTMLInputElement | null>(null)
+  const [preview, setPreview] = useState<string | null>(null)
+  const [err, setErr] = useState<string | null>(null)
+  const busy = setAvatar.isPending || deleteAvatar.isPending
+
+  const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setErr(null)
+    try {
+      const dataUrl = await resizeToDataUrl(file)
+      setPreview(dataUrl)
+    } catch (e2) {
+      setErr(e2 instanceof Error ? e2.message : 'Nem sikerült a kép feldolgozása.')
+    }
+  }
+
+  const onSave = async () => {
+    if (!preview) return
+    setErr(null)
+    try {
+      await setAvatar.mutateAsync({ teamId: team.id, dataUrl: preview })
+      setPreview(null)
+    } catch (e) {
+      setErr(errorMessage(e))
+    }
+  }
+
+  const onDelete = async () => {
+    setErr(null)
+    try {
+      await deleteAvatar.mutateAsync(team.id)
+    } catch (e) {
+      setErr(errorMessage(e))
+    }
+  }
+
+  return (
+    <div className="space-y-2 border-t-2 border-stone-200 pt-4">
+      <span className="block text-xs font-mono uppercase tracking-[0.15em] text-stone-500">
+        Profilkép
+      </span>
+      <div className="flex items-center gap-4">
+        {preview ? (
+          <img
+            src={preview}
+            alt=""
+            style={{ width: 80, height: 80 }}
+            className="rounded-full border-2 border-orange-600 object-cover bg-white shrink-0"
+          />
+        ) : (
+          <TeamAvatar
+            teamId={team.id}
+            teamName={team.name}
+            version={team.avatarVersion}
+            size={80}
+          />
+        )}
+        <div className="flex-1 min-w-0 space-y-2">
+          <input
+            ref={inputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            hidden
+            onChange={onFileChange}
+          />
+          {preview ? (
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={onSave}
+                disabled={busy}
+                className="border-2 border-stone-900 bg-stone-900 text-white px-3 py-1.5 text-xs font-mono uppercase tracking-[0.15em] hover:bg-orange-600 hover:border-orange-600 disabled:opacity-40"
+              >
+                {setAvatar.isPending ? 'mentés…' : 'mentés'}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setPreview(null); setErr(null) }}
+                disabled={busy}
+                className="border-2 border-stone-300 px-3 py-1.5 text-xs font-mono uppercase tracking-[0.15em] text-stone-700 hover:border-stone-900 hover:text-stone-900 disabled:opacity-40"
+              >
+                mégse
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => inputRef.current?.click()}
+                disabled={busy}
+                className="border-2 border-stone-300 px-3 py-1.5 text-xs font-mono uppercase tracking-[0.15em] text-stone-700 hover:border-stone-900 hover:text-stone-900 disabled:opacity-40"
+              >
+                kép feltöltése
+              </button>
+              {team.avatarVersion && (
+                <button
+                  type="button"
+                  onClick={onDelete}
+                  disabled={busy}
+                  className="border-2 border-stone-300 px-3 py-1.5 text-xs font-mono uppercase tracking-[0.15em] text-red-700 hover:border-red-700 disabled:opacity-40"
+                >
+                  {deleteAvatar.isPending ? 'törlés…' : 'törlés'}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+      {err && <p className="text-xs font-mono text-red-700">{err}</p>}
+    </div>
   )
 }
 

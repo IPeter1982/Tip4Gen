@@ -52,7 +52,7 @@ export function Avatar({ userId, displayName, version, isAi, size = 32, classNam
   )
 }
 
-function hashHue(seed: string): number {
+export function hashHue(seed: string): number {
   let h = 0
   for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0
   return h % 360

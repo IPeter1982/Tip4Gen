@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Tip4Gen.Api.Auth;
+using Tip4Gen.Api.Avatars;
 using Tip4Gen.Domain.Teams;
 using Tip4Gen.Infrastructure.Teams;
 
@@ -9,6 +10,7 @@ namespace Tip4Gen.Api.Controllers;
 public record CreateTeamRequest(string Name);
 public record PatchTeamRequest(string? Name, AiMode? AiMode, bool ClearAiMode = false);
 public record AddAiMemberRequest(string DisplayName, AiMode Mode);
+public record SetTeamAvatarRequest(string DataUrl);
 
 [ApiController]
 [Route("api/teams")]
@@ -126,6 +128,56 @@ public class TeamsController(
         };
     }
 
+    [HttpPut("{teamId:guid}/avatar")]
+    public async Task<IActionResult> SetAvatar(Guid teamId, [FromBody] SetTeamAvatarRequest request, CancellationToken ct)
+    {
+        if (!DataUrlParser.TryParse(request.DataUrl, out var contentType, out var bytes) || bytes is null || contentType is null)
+            return Rejected(TeamValidationResult.Fail(
+                TeamRejectionReason.AvatarInvalidDataUrl,
+                "Érvénytelen kép-adat."));
+
+        var user = await currentUser.GetOrCreateAsync(ct);
+        var result = await teams.SetAvatarAsync(user.Id, teamId, bytes, contentType, ct);
+        return result switch
+        {
+            TeamPatchResult.Success s => Ok(s.Team),
+            TeamPatchResult.NotFound => NotFound(),
+            TeamPatchResult.NotMember => Forbid(),
+            TeamPatchResult.Rejected r => Rejected(r.Validation),
+            _ => throw new InvalidOperationException($"Unhandled TeamPatchResult: {result.GetType().Name}"),
+        };
+    }
+
+    [HttpDelete("{teamId:guid}/avatar")]
+    public async Task<IActionResult> DeleteAvatar(Guid teamId, CancellationToken ct)
+    {
+        var user = await currentUser.GetOrCreateAsync(ct);
+        var result = await teams.ClearAvatarAsync(user.Id, teamId, ct);
+        return result switch
+        {
+            TeamPatchResult.Success s => Ok(s.Team),
+            TeamPatchResult.NotFound => NotFound(),
+            TeamPatchResult.NotMember => Forbid(),
+            TeamPatchResult.Rejected r => Rejected(r.Validation),
+            _ => throw new InvalidOperationException($"Unhandled TeamPatchResult: {result.GetType().Name}"),
+        };
+    }
+
+    /// <summary>
+    /// Public avatar binary. Anonymous because &lt;img src&gt; can't carry Bearer tokens.
+    /// Cache-Control: immutable for a day; URL changes when the version (?v=) changes.
+    /// </summary>
+    [HttpGet("{teamId:guid}/avatar")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetAvatar(Guid teamId, CancellationToken ct)
+    {
+        var avatar = await teams.GetAvatarBytesAsync(teamId, ct);
+        if (avatar is null) return NotFound();
+        Response.Headers.CacheControl = "public, max-age=86400, immutable";
+        Response.Headers.ETag = $"\"{avatar.Version}\"";
+        return File(avatar.Bytes, avatar.ContentType);
+    }
+
     [HttpPost("join/{token}")]
     public async Task<IActionResult> Join(string token, CancellationToken ct)
     {
@@ -179,6 +231,10 @@ public class TeamsController(
         TeamRejectionReason.TeamFull => "Team full",
         TeamRejectionReason.AiSlotTaken => "AI slot taken",
         TeamRejectionReason.UserAlreadyInTeam => "Already in a team",
+        TeamRejectionReason.AvatarMissing => "Avatar missing",
+        TeamRejectionReason.AvatarUnsupportedFormat => "Avatar format unsupported",
+        TeamRejectionReason.AvatarTooLarge => "Avatar too large",
+        TeamRejectionReason.AvatarInvalidDataUrl => "Avatar data URL invalid",
         _ => "Team request rejected",
     };
 }

@@ -16,6 +16,7 @@ public sealed record TeamLeaderboardRow(
     int Rank,
     Guid TeamId,
     string TeamName,
+    string? TeamAvatarVersion,
     int TotalPoints,
     IReadOnlyList<TeamLeaderboardMember> Members,
     bool IsMyTeam);
@@ -42,7 +43,7 @@ public class TeamLeaderboardService(AppDbContext db) : ITeamLeaderboardService
     {
         var teams = await db.Teams.AsNoTracking()
             .Where(t => t.Status == TeamStatus.Locked)
-            .Select(t => new { t.Id, t.Name })
+            .Select(t => new { t.Id, t.Name, t.AvatarVersion })
             .ToListAsync(ct);
 
         if (teams.Count == 0) return [];
@@ -173,6 +174,7 @@ public class TeamLeaderboardService(AppDbContext db) : ITeamLeaderboardService
                 Rank: rank,
                 TeamId: team.Id,
                 TeamName: team.Name,
+                TeamAvatarVersion: team.AvatarVersion,
                 TotalPoints: total,
                 Members: memberViews,
                 IsMyTeam: myTeamId == team.Id));

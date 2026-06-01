@@ -2,6 +2,7 @@ import { useSearchParams } from 'react-router'
 import { useIndividualLeaderboard, useTeamLeaderboard } from '../api/hooks'
 import type { IndividualLeaderboardRow, TeamLeaderboardRow } from '../api/types'
 import { Avatar } from '../components/Avatar'
+import { TeamAvatar } from '../components/TeamAvatar'
 
 type Tab = 'users' | 'teams'
 
@@ -131,16 +132,22 @@ function TeamRow({ row }: { row: TeamLeaderboardRow }) {
   return (
     <article className={`border-2 ${cls} bg-white`}>
       <header className="flex items-center justify-between px-4 py-3 border-b-2 border-stone-200">
-        <div className="flex items-center gap-3">
-          <span className="text-xl font-black tabular-nums">{row.rank}.</span>
-          <span className="text-base font-bold">{row.teamName}</span>
+        <div className="flex items-center gap-3 min-w-0">
+          <span className="text-xl font-black tabular-nums shrink-0">{row.rank}.</span>
+          <TeamAvatar
+            teamId={row.teamId}
+            teamName={row.teamName}
+            version={row.teamAvatarVersion}
+            size={32}
+          />
+          <span className="text-base font-bold truncate">{row.teamName}</span>
           {row.isMyTeam && (
-            <span className="text-[10px] uppercase tracking-[0.15em] bg-orange-100 text-orange-800 px-2 py-0.5">
+            <span className="text-[10px] uppercase tracking-[0.15em] bg-orange-100 text-orange-800 px-2 py-0.5 shrink-0">
               csapatom
             </span>
           )}
         </div>
-        <span className="text-2xl font-mono tabular-nums font-bold">{row.totalPoints}</span>
+        <span className="text-2xl font-mono tabular-nums font-bold shrink-0">{row.totalPoints}</span>
       </header>
       <ul className="px-4 py-2 text-xs font-mono text-stone-600 grid grid-cols-2 gap-x-4 gap-y-1">
         {row.members.map((m) => (

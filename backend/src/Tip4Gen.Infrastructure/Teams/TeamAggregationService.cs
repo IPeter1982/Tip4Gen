@@ -15,6 +15,7 @@ public record MemberBreakdownView(
 public record TeamMatchBreakdownView(
     Guid TeamId,
     string TeamName,
+    string? TeamAvatarVersion,
     Guid MatchId,
     int TotalPoints,
     IReadOnlyList<MemberBreakdownView> Members);
@@ -94,6 +95,7 @@ public class TeamAggregationService(AppDbContext db) : ITeamAggregationService
         var view = new TeamMatchBreakdownView(
             team.Id,
             team.Name,
+            team.AvatarVersion,
             matchId,
             aggregate.TotalPoints,
             memberRows.Select(r => new MemberBreakdownView(

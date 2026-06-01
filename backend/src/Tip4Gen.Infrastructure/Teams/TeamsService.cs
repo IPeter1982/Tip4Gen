@@ -14,7 +14,10 @@ public record TeamView(
     TeamStatus Status,
     AiMode? AiMode,
     DateTimeOffset CreatedAt,
+    string? AvatarVersion,
     IReadOnlyList<TeamMemberView> Members);
+
+public sealed record TeamAvatarBytes(byte[] Bytes, string ContentType, string Version);
 
 public record InviteView(string Token, DateTimeOffset ExpiresAt);
 
@@ -78,6 +81,9 @@ public interface ITeamsService
     Task<AddAiMemberResult> AddAiMemberAsync(Guid actingUserId, AddAiMemberCommand cmd, CancellationToken ct);
     Task<CreateInviteResult> CreateInviteAsync(Guid actingUserId, Guid teamId, CancellationToken ct);
     Task<JoinResult> JoinByTokenAsync(Guid actingUserId, string token, CancellationToken ct);
+    Task<TeamPatchResult> SetAvatarAsync(Guid actingUserId, Guid teamId, byte[] bytes, string contentType, CancellationToken ct);
+    Task<TeamPatchResult> ClearAvatarAsync(Guid actingUserId, Guid teamId, CancellationToken ct);
+    Task<TeamAvatarBytes?> GetAvatarBytesAsync(Guid teamId, CancellationToken ct);
 }
 
 public class TeamsService(AppDbContext db, ILogger<TeamsService> logger) : ITeamsService
@@ -304,6 +310,57 @@ public class TeamsService(AppDbContext db, ILogger<TeamsService> logger) : ITeam
             IsAi: r.m.IsAi,
             JoinedAt: r.m.JoinedAt)).ToList();
 
-        return new TeamView(team.Id, team.Name, team.Status, team.AiMode, team.CreatedAt, members);
+        return new TeamView(team.Id, team.Name, team.Status, team.AiMode, team.CreatedAt, team.AvatarVersion, members);
+    }
+
+    public async Task<TeamPatchResult> SetAvatarAsync(Guid actingUserId, Guid teamId, byte[] bytes, string contentType, CancellationToken ct)
+    {
+        var team = await db.Teams.FirstOrDefaultAsync(t => t.Id == teamId, ct);
+        if (team is null) return new TeamPatchResult.NotFound();
+
+        var isMember = await db.TeamMembers.AnyAsync(m => m.TeamId == team.Id && m.UserId == actingUserId, ct);
+        if (!isMember) return new TeamPatchResult.NotMember();
+
+        var mutability = await CheckMutabilityAsync(team, ct);
+        if (!mutability.IsValid) return new TeamPatchResult.Rejected(mutability);
+
+        var avatarValidation = TeamRulesValidator.ValidateAvatar(bytes, contentType);
+        if (!avatarValidation.IsValid) return new TeamPatchResult.Rejected(avatarValidation);
+
+        // Version = first 8 hex chars of SHA-256 over the bytes. Same scheme as User/AI avatars
+        // so the SPA's <img src="...?v={version}"> cache-busting works identically.
+        var hash = SHA256.HashData(bytes);
+        var version = Convert.ToHexString(hash, 0, 4).ToLowerInvariant();
+
+        team.SetAvatar(bytes, contentType, version);
+        await db.SaveChangesAsync(ct);
+        return new TeamPatchResult.Success(await ProjectAsync(team.Id, ct));
+    }
+
+    public async Task<TeamPatchResult> ClearAvatarAsync(Guid actingUserId, Guid teamId, CancellationToken ct)
+    {
+        var team = await db.Teams.FirstOrDefaultAsync(t => t.Id == teamId, ct);
+        if (team is null) return new TeamPatchResult.NotFound();
+
+        var isMember = await db.TeamMembers.AnyAsync(m => m.TeamId == team.Id && m.UserId == actingUserId, ct);
+        if (!isMember) return new TeamPatchResult.NotMember();
+
+        var mutability = await CheckMutabilityAsync(team, ct);
+        if (!mutability.IsValid) return new TeamPatchResult.Rejected(mutability);
+
+        team.ClearAvatar();
+        await db.SaveChangesAsync(ct);
+        return new TeamPatchResult.Success(await ProjectAsync(team.Id, ct));
+    }
+
+    public async Task<TeamAvatarBytes?> GetAvatarBytesAsync(Guid teamId, CancellationToken ct)
+    {
+        var row = await db.Teams.AsNoTracking()
+            .Where(t => t.Id == teamId)
+            .Select(t => new { t.Avatar, t.AvatarContentType, t.AvatarVersion })
+            .FirstOrDefaultAsync(ct);
+        if (row is null || row.Avatar is null || row.AvatarContentType is null || row.AvatarVersion is null)
+            return null;
+        return new TeamAvatarBytes(row.Avatar, row.AvatarContentType, row.AvatarVersion);
     }
 }

@@ -285,6 +285,31 @@ export function useJoinTeam() {
   })
 }
 
+export function useSetTeamAvatar() {
+  const api = useApi()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ teamId, dataUrl }: { teamId: string; dataUrl: string }) =>
+      api.put<TeamView>(`/api/teams/${teamId}/avatar`, { dataUrl }),
+    onSuccess: (team) => {
+      qc.setQueryData(TEAM_ME_KEY, team)
+      qc.invalidateQueries({ queryKey: ['leaderboard', 'teams'] })
+    },
+  })
+}
+
+export function useDeleteTeamAvatar() {
+  const api = useApi()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (teamId: string) => api.del<TeamView>(`/api/teams/${teamId}/avatar`),
+    onSuccess: (team) => {
+      qc.setQueryData(TEAM_ME_KEY, team)
+      qc.invalidateQueries({ queryKey: ['leaderboard', 'teams'] })
+    },
+  })
+}
+
 export function useTeamMatchBreakdown(teamId: string | undefined, matchId: string | undefined) {
   const api = useApi()
   return useQuery({

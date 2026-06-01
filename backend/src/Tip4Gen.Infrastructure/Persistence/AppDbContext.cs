@@ -309,6 +309,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                 .HasMaxLength(16);
             b.Property(t => t.CreatedAt).HasColumnName("created_at").IsRequired();
             b.Property(t => t.UpdatedAt).HasColumnName("updated_at").IsRequired();
+            b.Property(t => t.Avatar).HasColumnName("team_avatar");
+            b.Property(t => t.AvatarContentType).HasColumnName("team_avatar_content_type").HasMaxLength(32);
+            b.Property(t => t.AvatarVersion).HasColumnName("team_avatar_version").HasMaxLength(16);
         });
 
         modelBuilder.Entity<TeamMember>(b =>
