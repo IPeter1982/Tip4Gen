@@ -4,6 +4,8 @@ export type MeResponse = {
   auth0Sub: string
   createdAt: string
   isAdmin: boolean
+  avatarVersion: string | null
+  aiAvatarVersion: string | null
 }
 
 export type Stage = 'Group' | 'R32' | 'R16' | 'QF' | 'SF' | 'Bronze' | 'Final'
@@ -94,6 +96,7 @@ export type TeamMemberView = {
   id: string
   userId: string | null
   displayName: string
+  avatarVersion: string | null
   isAi: boolean
   joinedAt: string
 }
@@ -133,6 +136,7 @@ export type IndividualLeaderboardRow = {
   rank: number
   userId: string
   displayName: string
+  avatarVersion: string | null
   totalPoints: number
   exactCount: number
   winnerCorrect: boolean | null
@@ -143,7 +147,9 @@ export type IndividualLeaderboardRow = {
 
 export type TeamLeaderboardMember = {
   memberId: string
+  userId: string | null
   displayName: string
+  avatarVersion: string | null
   isAi: boolean
   points: number
 }

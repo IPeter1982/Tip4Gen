@@ -2,6 +2,7 @@ import { useAuth0 } from '@auth0/auth0-react'
 import { Link } from 'react-router'
 import { useMe } from '../api/hooks'
 import { isAuthConfigured } from '../auth/authConfig'
+import { Avatar } from './Avatar'
 
 export function Topbar() {
   const { isAuthenticated, isLoading, user, loginWithRedirect, logout, error } = useAuth0()
@@ -47,9 +48,21 @@ export function Topbar() {
           )}
           {isAuthConfigured && isAuthenticated && (
             <>
-              <span className="hidden sm:inline text-xs font-mono text-stone-600 truncate max-w-[180px]">
-                {user?.name ?? user?.email ?? user?.sub}
-              </span>
+              {me.data ? (
+                <span className="hidden sm:flex items-center gap-2 text-xs font-mono text-stone-600 max-w-[220px]">
+                  <Avatar
+                    userId={me.data.id}
+                    displayName={me.data.displayName}
+                    version={me.data.avatarVersion}
+                    size={24}
+                  />
+                  <span className="truncate">{me.data.displayName}</span>
+                </span>
+              ) : (
+                <span className="hidden sm:inline text-xs font-mono text-stone-600 truncate max-w-[180px]">
+                  {user?.name ?? user?.email ?? user?.sub}
+                </span>
+              )}
               <button
                 type="button"
                 onClick={() => logout({ logoutParams: { returnTo: window.location.origin } })}

@@ -3,6 +3,7 @@ using Tip4Gen.Domain.Admin;
 using Tip4Gen.Domain.Ai;
 using Tip4Gen.Domain.Notifications;
 using Tip4Gen.Domain.Scoring;
+using Tip4Gen.Domain.Settings;
 using Tip4Gen.Domain.Teams;
 using Tip4Gen.Domain.Tipping;
 using Tip4Gen.Domain.Tournaments;
@@ -26,6 +27,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<AdminAudit> AdminAudits => Set<AdminAudit>();
     public DbSet<UserPreferences> UserPreferences => Set<UserPreferences>();
     public DbSet<NotificationLog> NotificationLogs => Set<NotificationLog>();
+    public DbSet<AiAvatarSetting> AiAvatarSettings => Set<AiAvatarSetting>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -38,6 +40,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             b.Property(u => u.DisplayName).HasColumnName("display_name").HasMaxLength(120).IsRequired();
             b.Property(u => u.Email).HasColumnName("email").HasMaxLength(254);
             b.Property(u => u.CreatedAt).HasColumnName("created_at").IsRequired();
+            b.Property(u => u.Avatar).HasColumnName("avatar").HasColumnType("bytea");
+            b.Property(u => u.AvatarContentType).HasColumnName("avatar_content_type").HasMaxLength(32);
+            b.Property(u => u.AvatarVersion).HasColumnName("avatar_version").HasMaxLength(16);
             b.HasIndex(u => u.Auth0Sub).IsUnique();
         });
 
@@ -472,6 +477,21 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             b.HasIndex(l => new { l.UserId, l.Kind, l.MatchId })
                 .HasDatabaseName("ix_notification_log_dedup")
                 .HasFilter("success = TRUE");
+        });
+
+        modelBuilder.Entity<AiAvatarSetting>(b =>
+        {
+            b.ToTable("ai_avatar_setting", t =>
+            {
+                t.HasCheckConstraint("ck_ai_avatar_singleton", "id = 1");
+            });
+            b.HasKey(s => s.Id);
+            b.Property(s => s.Id).HasColumnName("id").ValueGeneratedNever();
+            b.Property(s => s.Avatar).HasColumnName("avatar").HasColumnType("bytea").IsRequired();
+            b.Property(s => s.ContentType).HasColumnName("content_type").HasMaxLength(32).IsRequired();
+            b.Property(s => s.Version).HasColumnName("version").HasMaxLength(16).IsRequired();
+            b.Property(s => s.UpdatedAtUtc).HasColumnName("updated_at_utc").IsRequired();
+            b.Property(s => s.UpdatedByUserId).HasColumnName("updated_by_user_id").IsRequired();
         });
     }
 }

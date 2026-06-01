@@ -60,6 +60,12 @@ export function AdminMatches() {
         >
           Hosszú tippek
         </Link>
+        <Link
+          to="/admin/ai-avatar"
+          className="border-2 border-stone-900 bg-white px-3 py-1 text-xs font-mono uppercase tracking-[0.15em] hover:bg-stone-100"
+        >
+          AI profilkép
+        </Link>
       </nav>
 
       {matches.isLoading && <p className="font-mono text-stone-500">betöltés…</p>}

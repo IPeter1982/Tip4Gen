@@ -6,7 +6,7 @@ using Tip4Gen.Infrastructure.Persistence;
 
 namespace Tip4Gen.Infrastructure.Teams;
 
-public record TeamMemberView(Guid Id, Guid? UserId, string DisplayName, bool IsAi, DateTimeOffset JoinedAt);
+public record TeamMemberView(Guid Id, Guid? UserId, string DisplayName, string? AvatarVersion, bool IsAi, DateTimeOffset JoinedAt);
 
 public record TeamView(
     Guid Id,
@@ -289,14 +289,20 @@ public class TeamsService(AppDbContext db, ILogger<TeamsService> logger) : ITeam
             from m in db.TeamMembers.AsNoTracking().Where(m => m.TeamId == teamId)
             from u in db.Users.AsNoTracking().Where(u => u.Id == m.UserId).DefaultIfEmpty()
             orderby m.JoinedAt
-            select new { m, UserName = u != null ? u.DisplayName : null }).ToListAsync(ct);
+            select new
+            {
+                m,
+                UserName = u != null ? u.DisplayName : null,
+                UserAvatarVersion = u != null ? u.AvatarVersion : null,
+            }).ToListAsync(ct);
 
         var members = rows.Select(r => new TeamMemberView(
-            r.m.Id,
-            r.m.UserId,
-            r.m.IsAi ? r.m.AiDisplayName! : (r.UserName ?? "?"),
-            r.m.IsAi,
-            r.m.JoinedAt)).ToList();
+            Id: r.m.Id,
+            UserId: r.m.UserId,
+            DisplayName: r.m.IsAi ? r.m.AiDisplayName! : (r.UserName ?? "?"),
+            AvatarVersion: r.m.IsAi ? null : r.UserAvatarVersion,
+            IsAi: r.m.IsAi,
+            JoinedAt: r.m.JoinedAt)).ToList();
 
         return new TeamView(team.Id, team.Name, team.Status, team.AiMode, team.CreatedAt, members);
     }

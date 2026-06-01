@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Tip4Gen.Infrastructure.Persistence;
@@ -11,9 +12,11 @@ using Tip4Gen.Infrastructure.Persistence;
 namespace Tip4Gen.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260601073425_UserAvatar")]
+    partial class UserAvatar
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -253,45 +256,6 @@ namespace Tip4Gen.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("ck_scored_tips_owner_xor", "(user_id IS NOT NULL AND team_member_id IS NULL) OR (user_id IS NULL AND team_member_id IS NOT NULL)");
 
                             t.HasCheckConstraint("ck_scored_tips_points_non_negative", "base_points >= 0 AND final_points >= 0");
-                        });
-                });
-
-            modelBuilder.Entity("Tip4Gen.Domain.Settings.AiAvatarSetting", b =>
-                {
-                    b.Property<int>("Id")
-                        .HasColumnType("integer")
-                        .HasColumnName("id");
-
-                    b.Property<byte[]>("Avatar")
-                        .IsRequired()
-                        .HasColumnType("bytea")
-                        .HasColumnName("avatar");
-
-                    b.Property<string>("ContentType")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)")
-                        .HasColumnName("content_type");
-
-                    b.Property<DateTimeOffset>("UpdatedAtUtc")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at_utc");
-
-                    b.Property<Guid>("UpdatedByUserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("updated_by_user_id");
-
-                    b.Property<string>("Version")
-                        .IsRequired()
-                        .HasMaxLength(16)
-                        .HasColumnType("character varying(16)")
-                        .HasColumnName("version");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("ai_avatar_setting", null, t =>
-                        {
-                            t.HasCheckConstraint("ck_ai_avatar_singleton", "id = 1");
                         });
                 });
 

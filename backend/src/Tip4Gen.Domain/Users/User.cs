@@ -3,6 +3,7 @@ namespace Tip4Gen.Domain.Users;
 public class User
 {
     public const int MaxDisplayNameLength = 120;
+    public const int MaxAvatarBytes = 50 * 1024;
 
     public Guid Id { get; private set; }
     public string Auth0Sub { get; private set; } = default!;
@@ -14,6 +15,10 @@ public class User
     /// </summary>
     public string? Email { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
+
+    public byte[]? Avatar { get; private set; }
+    public string? AvatarContentType { get; private set; }
+    public string? AvatarVersion { get; private set; }
 
     private User() { }
 
@@ -27,6 +32,20 @@ public class User
     }
 
     public void Rename(string displayName) => DisplayName = displayName;
+
+    public void SetAvatar(byte[] bytes, string contentType, string version)
+    {
+        Avatar = bytes;
+        AvatarContentType = contentType;
+        AvatarVersion = version;
+    }
+
+    public void ClearAvatar()
+    {
+        Avatar = null;
+        AvatarContentType = null;
+        AvatarVersion = null;
+    }
 
     public void SetEmail(string? email)
     {

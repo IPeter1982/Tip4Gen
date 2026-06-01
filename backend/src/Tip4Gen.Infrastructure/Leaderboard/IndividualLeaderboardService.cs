@@ -10,6 +10,7 @@ public sealed record IndividualLeaderboardRow(
     int Rank,
     Guid UserId,
     string DisplayName,
+    string? AvatarVersion,
     int TotalPoints,
     int ExactCount,
     bool? WinnerCorrect,
@@ -36,8 +37,9 @@ public class IndividualLeaderboardService(AppDbContext db) : IIndividualLeaderbo
     public async Task<IReadOnlyList<IndividualLeaderboardRow>> GetAsync(Guid? currentUserId, CancellationToken ct)
     {
         var users = await db.Users.AsNoTracking()
-            .Select(u => new { u.Id, u.DisplayName })
+            .Select(u => new { u.Id, u.DisplayName, u.AvatarVersion })
             .ToListAsync(ct);
+        var avatarVersionByUser = users.ToDictionary(u => u.Id, u => u.AvatarVersion);
 
         // Outcomes from the active tournament; nullable until admin enters them.
         var outcomes = await db.Tournaments.AsNoTracking()
@@ -92,6 +94,7 @@ public class IndividualLeaderboardService(AppDbContext db) : IIndividualLeaderbo
             Rank: r.Rank,
             UserId: r.Entry.UserId,
             DisplayName: r.Entry.DisplayName,
+            AvatarVersion: avatarVersionByUser.GetValueOrDefault(r.Entry.UserId),
             TotalPoints: r.Entry.TotalPoints,
             ExactCount: r.Entry.ExactCount,
             WinnerCorrect: r.Entry.WinnerCorrect,

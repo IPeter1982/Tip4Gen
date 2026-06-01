@@ -1,6 +1,7 @@
 import { useSearchParams } from 'react-router'
 import { useIndividualLeaderboard, useTeamLeaderboard } from '../api/hooks'
 import type { IndividualLeaderboardRow, TeamLeaderboardRow } from '../api/types'
+import { Avatar } from '../components/Avatar'
 
 type Tab = 'users' | 'teams'
 
@@ -77,20 +78,28 @@ function UserRow({ row }: { row: IndividualLeaderboardRow }) {
     <tr className={`border-b border-stone-200 last:border-b-0 ${cls}`}>
       <Td className="text-center font-bold">{row.rank}</Td>
       <Td>
-        <span>{row.displayName}</span>
-        {row.isMe && (
-          <span className="ml-2 text-[10px] uppercase tracking-[0.15em] text-orange-700">én</span>
-        )}
-        {row.winnerCorrect === true && (
-          <span className="ml-2 text-[10px] uppercase tracking-[0.15em] bg-yellow-100 text-yellow-800 px-1.5 py-0.5">
-            győztes ✓
-          </span>
-        )}
-        {row.topScorerCorrect === true && (
-          <span className="ml-2 text-[10px] uppercase tracking-[0.15em] bg-yellow-100 text-yellow-800 px-1.5 py-0.5">
-            gólkirály ✓
-          </span>
-        )}
+        <span className="flex items-center gap-2 flex-wrap">
+          <Avatar
+            userId={row.userId}
+            displayName={row.displayName}
+            version={row.avatarVersion}
+            size={28}
+          />
+          <span>{row.displayName}</span>
+          {row.isMe && (
+            <span className="text-[10px] uppercase tracking-[0.15em] text-orange-700">én</span>
+          )}
+          {row.winnerCorrect === true && (
+            <span className="text-[10px] uppercase tracking-[0.15em] bg-yellow-100 text-yellow-800 px-1.5 py-0.5">
+              győztes ✓
+            </span>
+          )}
+          {row.topScorerCorrect === true && (
+            <span className="text-[10px] uppercase tracking-[0.15em] bg-yellow-100 text-yellow-800 px-1.5 py-0.5">
+              gólkirály ✓
+            </span>
+          )}
+        </span>
       </Td>
       <Td className="text-right tabular-nums font-bold">{row.totalPoints}</Td>
       <Td className="text-right tabular-nums hidden sm:table-cell text-stone-600">{row.exactCount}</Td>
@@ -135,12 +144,19 @@ function TeamRow({ row }: { row: TeamLeaderboardRow }) {
       </header>
       <ul className="px-4 py-2 text-xs font-mono text-stone-600 grid grid-cols-2 gap-x-4 gap-y-1">
         {row.members.map((m) => (
-          <li key={m.memberId} className="flex justify-between gap-2">
-            <span className="truncate">
-              {m.displayName}
-              {m.isAi && <span className="ml-1 text-[10px] uppercase text-stone-400">AI</span>}
+          <li key={m.memberId} className="flex items-center justify-between gap-2">
+            <span className="flex items-center gap-2 truncate min-w-0">
+              <Avatar
+                userId={m.userId}
+                displayName={m.displayName}
+                version={m.avatarVersion}
+                isAi={m.isAi}
+                size={20}
+              />
+              <span className="truncate">{m.displayName}</span>
+              {m.isAi && <span className="text-[10px] uppercase text-stone-400">AI</span>}
             </span>
-            <span className="tabular-nums text-stone-500">{m.points}</span>
+            <span className="tabular-nums text-stone-500 shrink-0">{m.points}</span>
           </li>
         ))}
       </ul>

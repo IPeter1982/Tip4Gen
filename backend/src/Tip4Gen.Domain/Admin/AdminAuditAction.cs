@@ -12,4 +12,6 @@ public enum AdminAuditAction
     MatchPostpone = 2,
     MatchRescore = 3,
     LongTipOutcomesSet = 4,
+    AiAvatarSet = 5,
+    AiAvatarDeleted = 6,
 }

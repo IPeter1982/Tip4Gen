@@ -12,6 +12,7 @@ import { NotFound } from './pages/NotFound'
 import { Team } from './pages/Team'
 import { TeamJoin } from './pages/TeamJoin'
 import { TipSubmit } from './pages/TipSubmit'
+import { AdminAiAvatar } from './pages/admin/AdminAiAvatar'
 import { AdminAudit } from './pages/admin/AdminAudit'
 import { AdminLongTips } from './pages/admin/AdminLongTips'
 import { AdminMatchEditor } from './pages/admin/AdminMatchEditor'
@@ -116,6 +117,16 @@ export default function App() {
             <RequireAuth>
               <RequireAdmin>
                 <AdminLongTips />
+              </RequireAdmin>
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/admin/ai-avatar"
+          element={
+            <RequireAuth>
+              <RequireAdmin>
+                <AdminAiAvatar />
               </RequireAdmin>
             </RequireAuth>
           }

@@ -4,7 +4,13 @@ using Tip4Gen.Infrastructure.Persistence;
 
 namespace Tip4Gen.Infrastructure.Leaderboard;
 
-public sealed record TeamLeaderboardMember(Guid MemberId, string DisplayName, bool IsAi, int Points);
+public sealed record TeamLeaderboardMember(
+    Guid MemberId,
+    Guid? UserId,
+    string DisplayName,
+    string? AvatarVersion,
+    bool IsAi,
+    int Points);
 
 public sealed record TeamLeaderboardRow(
     int Rank,
@@ -55,6 +61,7 @@ public class TeamLeaderboardService(AppDbContext db) : ITeamLeaderboardService
                 m.IsAi,
                 m.AiDisplayName,
                 HumanName = u != null ? u.DisplayName : null,
+                HumanAvatarVersion = u != null ? u.AvatarVersion : null,
             }).ToListAsync(ct);
 
         var membersByTeam = memberRows.GroupBy(r => r.TeamId)
@@ -154,10 +161,12 @@ public class TeamLeaderboardService(AppDbContext db) : ITeamLeaderboardService
 
             var memberViews = (membersByTeam.GetValueOrDefault(team.Id) ?? [])
                 .Select(m => new TeamLeaderboardMember(
-                    m.Id,
-                    m.IsAi ? m.AiDisplayName! : (m.HumanName ?? "?"),
-                    m.IsAi,
-                    totalByMember.GetValueOrDefault(m.Id)))
+                    MemberId: m.Id,
+                    UserId: m.UserId,
+                    DisplayName: m.IsAi ? m.AiDisplayName! : (m.HumanName ?? "?"),
+                    AvatarVersion: m.IsAi ? null : m.HumanAvatarVersion,
+                    IsAi: m.IsAi,
+                    Points: totalByMember.GetValueOrDefault(m.Id)))
                 .ToList();
 
             rows.Add(new TeamLeaderboardRow(

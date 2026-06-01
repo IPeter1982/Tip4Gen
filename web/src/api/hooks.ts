@@ -51,6 +51,63 @@ export function useRenameMe() {
   })
 }
 
+export function useSetAvatar() {
+  const api = useApi()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (dataUrl: string) => api.put<MeResponse>('/api/me/avatar', { dataUrl }),
+    onSuccess: (updated) => {
+      qc.setQueryData(['me'], updated)
+      qc.invalidateQueries({ queryKey: ['leaderboard'] })
+    },
+  })
+}
+
+export function useDeleteAvatar() {
+  const api = useApi()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => api.del<MeResponse>('/api/me/avatar'),
+    onSuccess: (updated) => {
+      qc.setQueryData(['me'], updated)
+      qc.invalidateQueries({ queryKey: ['leaderboard'] })
+    },
+  })
+}
+
+export function useSetAiAvatar() {
+  const api = useApi()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ dataUrl, reason }: { dataUrl: string; reason?: string | null }) =>
+      api.put<{ aiAvatarVersion: string | null }>('/api/admin/ai-avatar', { dataUrl, reason }),
+    onSuccess: () => {
+      // Re-fetch /api/me so every Avatar reading me.data?.aiAvatarVersion refreshes.
+      qc.invalidateQueries({ queryKey: ['me'] })
+      qc.invalidateQueries({ queryKey: ['team'] })
+      qc.invalidateQueries({ queryKey: ['leaderboard'] })
+      qc.invalidateQueries({ queryKey: ['admin', 'audit'] })
+    },
+  })
+}
+
+export function useDeleteAiAvatar() {
+  const api = useApi()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (reason?: string | null) => {
+      const qs = reason ? `?reason=${encodeURIComponent(reason)}` : ''
+      return api.del<{ aiAvatarVersion: string | null }>(`/api/admin/ai-avatar${qs}`)
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['me'] })
+      qc.invalidateQueries({ queryKey: ['team'] })
+      qc.invalidateQueries({ queryKey: ['leaderboard'] })
+      qc.invalidateQueries({ queryKey: ['admin', 'audit'] })
+    },
+  })
+}
+
 // 30s polling on live-changing queries (replaces the deferred SignalR work per
 // Phase 10's cut-OK alternative). refetchIntervalInBackground stays default
 // (false), so a backgrounded tab pauses polling.

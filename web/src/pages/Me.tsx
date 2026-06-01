@@ -1,12 +1,22 @@
 import { useAuth0 } from '@auth0/auth0-react'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { Link } from 'react-router'
 import { z } from 'zod'
 import { ApiError } from '../api/errors'
-import { useMe, useMyTeam, usePreferences, useRenameMe, useSetPreferences } from '../api/hooks'
+import {
+  useDeleteAvatar,
+  useMe,
+  useMyTeam,
+  usePreferences,
+  useRenameMe,
+  useSetAvatar,
+  useSetPreferences,
+} from '../api/hooks'
+import { Avatar } from '../components/Avatar'
 import { formatBudapest } from '../lib/format'
+import { resizeToDataUrl } from '../lib/imageResize'
 
 function errorMessage(e: unknown): string {
   if (e instanceof ApiError) return e.message
@@ -36,7 +46,12 @@ export function Me() {
       )}
 
       {me.data && (
-        <section className="border-2 border-stone-900 bg-white p-5 space-y-3">
+        <section className="border-2 border-stone-900 bg-white p-5 space-y-4">
+          <AvatarSection
+            userId={me.data.id}
+            displayName={me.data.displayName}
+            avatarVersion={me.data.avatarVersion}
+          />
           <DisplayNameRow displayName={me.data.displayName} />
           <Row label="Csatlakozott" value={formatBudapest(me.data.createdAt)} />
           {me.data.isAdmin && (
@@ -129,6 +144,127 @@ function PreferencesPanel() {
         </p>
       )}
     </section>
+  )
+}
+
+function AvatarSection({
+  userId,
+  displayName,
+  avatarVersion,
+}: {
+  userId: string
+  displayName: string
+  avatarVersion: string | null
+}) {
+  const [preview, setPreview] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const inputRef = useRef<HTMLInputElement | null>(null)
+  const setAvatar = useSetAvatar()
+  const deleteAvatar = useDeleteAvatar()
+
+  const pickFile = () => inputRef.current?.click()
+
+  const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setError(null)
+    try {
+      const dataUrl = await resizeToDataUrl(file)
+      setPreview(dataUrl)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Nem sikerült a kép feldolgozása.')
+    }
+  }
+
+  const onSave = async () => {
+    if (!preview) return
+    setError(null)
+    try {
+      await setAvatar.mutateAsync(preview)
+      setPreview(null)
+    } catch (err) {
+      setError(errorMessage(err))
+    }
+  }
+
+  const onDelete = async () => {
+    setError(null)
+    try {
+      await deleteAvatar.mutateAsync()
+    } catch (err) {
+      setError(errorMessage(err))
+    }
+  }
+
+  const busy = setAvatar.isPending || deleteAvatar.isPending
+  const hasAvatar = !!avatarVersion
+
+  return (
+    <div className="flex items-center gap-4 border-b border-stone-200 pb-4">
+      {preview ? (
+        <img
+          src={preview}
+          alt=""
+          style={{ width: 96, height: 96 }}
+          className="rounded-full border-2 border-orange-600 object-cover bg-white shrink-0"
+        />
+      ) : (
+        <Avatar userId={userId} displayName={displayName} version={avatarVersion} size={96} />
+      )}
+      <div className="flex-1 min-w-0 space-y-2">
+        <p className="text-xs font-mono uppercase tracking-[0.15em] text-stone-500">Profilkép</p>
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          hidden
+          onChange={onFileChange}
+        />
+        {preview ? (
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={onSave}
+              disabled={busy}
+              className="border-2 border-stone-900 bg-stone-900 text-white px-3 py-1.5 text-xs font-mono uppercase tracking-[0.15em] hover:bg-orange-600 hover:border-orange-600 disabled:opacity-40"
+            >
+              {setAvatar.isPending ? 'mentés…' : 'Mentés'}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setPreview(null); setError(null) }}
+              disabled={busy}
+              className="border-2 border-stone-300 px-3 py-1.5 text-xs font-mono uppercase tracking-[0.15em] text-stone-700 hover:border-stone-900 hover:text-stone-900 disabled:opacity-40"
+            >
+              Mégse
+            </button>
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={pickFile}
+              disabled={busy}
+              className="border-2 border-stone-300 px-3 py-1.5 text-xs font-mono uppercase tracking-[0.15em] text-stone-700 hover:border-stone-900 hover:text-stone-900 disabled:opacity-40"
+            >
+              Kép feltöltése
+            </button>
+            {hasAvatar && (
+              <button
+                type="button"
+                onClick={onDelete}
+                disabled={busy}
+                className="border-2 border-stone-300 px-3 py-1.5 text-xs font-mono uppercase tracking-[0.15em] text-red-700 hover:border-red-700 disabled:opacity-40"
+              >
+                {deleteAvatar.isPending ? 'törlés…' : 'Törlés'}
+              </button>
+            )}
+          </div>
+        )}
+        {error && <p className="text-xs font-mono text-red-700">{error}</p>}
+      </div>
+    </div>
   )
 }
 

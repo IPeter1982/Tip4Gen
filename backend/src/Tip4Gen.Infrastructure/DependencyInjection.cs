@@ -15,6 +15,7 @@ using Tip4Gen.Infrastructure.Leaderboard;
 using Tip4Gen.Infrastructure.Notifications;
 using Tip4Gen.Infrastructure.Persistence;
 using Tip4Gen.Infrastructure.Scoring;
+using Tip4Gen.Infrastructure.Settings;
 using Tip4Gen.Infrastructure.Teams;
 using Tip4Gen.Infrastructure.Tipping;
 using Tip4Gen.Infrastructure.Tournaments;
@@ -80,6 +81,7 @@ public static class DependencyInjection
         services.AddScoped<IAdminAuditWriter, AdminAuditWriter>();
         services.AddScoped<IMatchAdminService, MatchAdminService>();
         services.AddScoped<ILongTipOutcomesService, LongTipOutcomesService>();
+        services.AddScoped<AiAvatarAdminService>();
 
         // Notifications (Phase 9). Resend ApiKey is intentionally optional — when unset
         // ResendNotificationSender returns Disabled and the worker logs but doesn't fail.

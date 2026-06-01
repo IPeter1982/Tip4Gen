@@ -5,6 +5,9 @@ public enum UserRejectionReason
     None = 0,
     DisplayNameBlank,
     DisplayNameTooLong,
+    AvatarMissing,
+    AvatarUnsupportedFormat,
+    AvatarTooLarge,
 }
 
 public readonly record struct UserValidationResult(bool IsValid, UserRejectionReason Reason, string? Message)
@@ -26,6 +29,23 @@ public static class UserRulesValidator
             return UserValidationResult.Fail(
                 UserRejectionReason.DisplayNameTooLong,
                 $"A megjelenített név maximum {User.MaxDisplayNameLength} karakter lehet.");
+        return UserValidationResult.Ok();
+    }
+
+    public static UserValidationResult ValidateAvatar(byte[]? bytes, string? contentType)
+    {
+        if (bytes is null || bytes.Length == 0)
+            return UserValidationResult.Fail(
+                UserRejectionReason.AvatarMissing,
+                "Nincs kép kiválasztva.");
+        if (contentType is not ("image/jpeg" or "image/png" or "image/webp"))
+            return UserValidationResult.Fail(
+                UserRejectionReason.AvatarUnsupportedFormat,
+                "Csak JPEG, PNG vagy WebP képek tölthetők fel.");
+        if (bytes.Length > User.MaxAvatarBytes)
+            return UserValidationResult.Fail(
+                UserRejectionReason.AvatarTooLarge,
+                $"A kép maximum {User.MaxAvatarBytes / 1024} KB lehet.");
         return UserValidationResult.Ok();
     }
 }

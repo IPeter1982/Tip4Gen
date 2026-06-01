@@ -13,6 +13,7 @@ import {
   usePatchTeam,
 } from '../api/hooks'
 import type { AiMode, TeamView } from '../api/types'
+import { Avatar } from '../components/Avatar'
 import { formatBudapest, formatCountdown } from '../lib/format'
 
 const AI_MODE_LABEL: Record<AiMode, string> = {
@@ -258,7 +259,14 @@ function MembersPanel({ team, editable }: { team: TeamView; editable: boolean })
       <ul className="divide-y-2 divide-stone-200">
         {team.members.map((m) => (
           <li key={m.id} className="py-2 flex items-center gap-3 font-mono text-sm">
-            <span className="flex-1">{m.displayName}</span>
+            <Avatar
+              userId={m.userId}
+              displayName={m.displayName}
+              version={m.avatarVersion}
+              isAi={m.isAi}
+              size={32}
+            />
+            <span className="flex-1 truncate">{m.displayName}</span>
             {m.isAi && (
               <span className="bg-stone-900 text-white px-2 py-0.5 text-xs uppercase tracking-[0.15em]">
                 AI
