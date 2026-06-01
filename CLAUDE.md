@@ -19,9 +19,11 @@ backend/                    ASP.NET Core 9 solution (planned 10, on 9 for speed)
     Controllers/            HealthController, MeController (+ avatar PUT/DELETE),
                             AdminController, FixturesAdminController,
                             ScoringAdminController, TeamsAdminController,
-                            NationalTeamsController, MatchesController,
+                            NationalTeamsController, MatchesController
+                              (+ /tips returns per-tip Score after deadline),
                             TipsController, LongTipsController, TeamsController,
-                            LeaderboardController, UsersController (avatar GET),
+                            LeaderboardController,
+                            UsersController (avatar GET + closed-match tip history),
                             AiTipperAdminController (preview endpoint),
                             AiAvatarController (public binary GET),
                             AiAvatarAdminController (admin PUT/DELETE),
@@ -54,7 +56,9 @@ backend/                    ASP.NET Core 9 solution (planned 10, on 9 for speed)
     DependencyInjection.cs  AddInfrastructure(IConfiguration)
     Football/               ApiFootballProvider + Options + DTOs
     Tournaments/            FixtureSyncService (idempotent upsert + event dispatch)
-    Tipping/                TipsService, LongTermTipsService (tagged-union results)
+    Tipping/                TipsService, LongTermTipsService (tagged-union results),
+                            UserTipHistoryService (closed-match drilldown from
+                            individual leaderboard — LEFT JOIN scored_tips)
     Scoring/                MatchScoringService (idempotent re-score, dual-key),
                             MatchFinalizedScoringHandler (event handler)
     Teams/                  TeamsService (CRUD + invites + join, tagged-union),
@@ -100,7 +104,7 @@ web/                        Vite + React 19 + TS frontend
                             ENG/WAL/SCO/NIR → gb-eng/gb-wls/gb-sct/gb-nir)
   src/components/Topbar.tsx
   src/pages/                Home, Me, Matches, TipSubmit, LongTips, Team, TeamJoin,
-                            Leaderboard
+                            Leaderboard, UserTips (closed-match history for one player)
   src/pages/admin/          AdminMatches, AdminMatchEditor, AdminAudit,
                             AdminLongTips, AdminAiAvatar
   src/auth/RequireAdmin     Gates admin routes; renders 403 panel for non-admins
@@ -255,6 +259,7 @@ Single admin (the project owner). Gated by Auth0 `sub` claim matching the `Auth0
 - `tips.is_ai_fallback` is `false` for human tips and AI successes; `true` only for the deterministic 1–1 row written at T-1h. `tips.reasoning` is null for human tips, optional for AI successes, and set to `"AI nem válaszolt időben."` for fallbacks.
 - `ck_tips_ai_no_joker` enforces that AI tips never claim a joker (joker is human-only per §6). Don't relax this unless §6 changes.
 - The leaderboard split is load-bearing: `IndividualLeaderboardService` filters `WHERE user_id IS NOT NULL` so AI rows never appear; `TeamLeaderboardService` and `TeamAggregationService` look up points by `UserId` (humans) OR `TeamMemberId` (AI). If you add a new aggregation, mirror the dual-key lookup or AI tips silently score zero.
+- **Per-tip score shape is shared.** Two endpoints surface scoring details for a tip: `GET /api/users/{userId}/tips` (UserTips page, humans only) and `GET /api/matches/{matchId}/tips` (TipSubmit's `Mindenki tippje` panel — only after the deadline). Both LEFT-JOIN `scored_tips` so cancelled / not-yet-scored matches return `score: null` — the SPA already handles that branch. On the SPA, reuse the `UserTipScore` / `ScoreCategoryName` aliases in `web/src/api/types.ts` and `CATEGORY_LABEL_HU` in `web/src/lib/format.ts` instead of rolling new ones — they're the single source for the `{category} · ×{multiplier} · ×2 (joker)` rendering.
 
 ## Admin schema + flow gotchas (Phase 8)
 
