@@ -1,7 +1,18 @@
 import { useAuth0 } from '@auth0/auth0-react'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { useState } from 'react'
+import { useForm } from 'react-hook-form'
 import { Link } from 'react-router'
-import { useMe, useMyTeam, usePreferences, useSetPreferences } from '../api/hooks'
+import { z } from 'zod'
+import { ApiError } from '../api/errors'
+import { useMe, useMyTeam, usePreferences, useRenameMe, useSetPreferences } from '../api/hooks'
 import { formatBudapest } from '../lib/format'
+
+function errorMessage(e: unknown): string {
+  if (e instanceof ApiError) return e.message
+  if (e instanceof Error) return e.message
+  return String(e)
+}
 
 export function Me() {
   const { logout } = useAuth0()
@@ -26,7 +37,7 @@ export function Me() {
 
       {me.data && (
         <section className="border-2 border-stone-900 bg-white p-5 space-y-3">
-          <Row label="Megjelenített név" value={me.data.displayName} />
+          <DisplayNameRow displayName={me.data.displayName} />
           <Row label="Csatlakozott" value={formatBudapest(me.data.createdAt)} />
           {me.data.isAdmin && (
             <Row
@@ -118,6 +129,108 @@ function PreferencesPanel() {
         </p>
       )}
     </section>
+  )
+}
+
+const renameSchema = z.object({
+  displayName: z
+    .string()
+    .trim()
+    .min(1, 'A megjelenített név nem lehet üres.')
+    .max(120, 'Maximum 120 karakter.'),
+})
+type RenameValues = z.infer<typeof renameSchema>
+
+function DisplayNameRow({ displayName }: { displayName: string }) {
+  const [editing, setEditing] = useState(false)
+  const rename = useRenameMe()
+  const {
+    register,
+    handleSubmit,
+    setError,
+    reset,
+    formState: { errors, isSubmitting },
+  } = useForm<RenameValues>({
+    resolver: zodResolver(renameSchema),
+    defaultValues: { displayName },
+  })
+
+  const onValid = async (values: RenameValues) => {
+    try {
+      await rename.mutateAsync(values.displayName.trim())
+      setEditing(false)
+    } catch (e) {
+      setError('displayName', { message: errorMessage(e) })
+    }
+  }
+
+  const cancel = () => {
+    reset({ displayName })
+    setEditing(false)
+  }
+
+  if (!editing) {
+    return (
+      <Row
+        label="Megjelenített név"
+        value={
+          <span className="flex items-baseline gap-3 justify-end">
+            <span className="break-words min-w-0">{displayName}</span>
+            <button
+              type="button"
+              onClick={() => {
+                reset({ displayName })
+                setEditing(true)
+              }}
+              className="border-2 border-stone-300 px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.15em] text-stone-700 hover:border-stone-900 hover:text-stone-900 shrink-0"
+            >
+              Átnevez
+            </button>
+          </span>
+        }
+      />
+    )
+  }
+
+  return (
+    <div className="border-b border-stone-200 pb-3 last:border-b-0 last:pb-0 space-y-2">
+      <label
+        htmlFor="displayName"
+        className="block text-xs font-mono uppercase tracking-[0.15em] text-stone-500"
+      >
+        Megjelenített név
+      </label>
+      <form onSubmit={handleSubmit(onValid)} className="space-y-2">
+        <input
+          id="displayName"
+          type="text"
+          maxLength={120}
+          autoFocus
+          {...register('displayName')}
+          className="w-full border-2 border-stone-900 px-3 py-2 font-mono text-sm"
+        />
+        {errors.displayName && (
+          <p className="text-xs font-mono text-red-700">{errors.displayName.message}</p>
+        )}
+        <div className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={cancel}
+            disabled={isSubmitting || rename.isPending}
+            className="border-2 border-stone-300 px-3 py-1.5 text-xs font-mono uppercase tracking-[0.15em] text-stone-700 hover:border-stone-900 hover:text-stone-900 disabled:opacity-40"
+          >
+            Mégse
+          </button>
+          <button
+            type="submit"
+            disabled={isSubmitting || rename.isPending}
+            className="border-2 border-stone-900 bg-stone-900 text-white px-3 py-1.5 text-xs font-mono uppercase tracking-[0.15em] hover:bg-orange-600 hover:border-orange-600 disabled:opacity-40"
+          >
+            {rename.isPending || isSubmitting ? 'mentés…' : 'Mentés'}
+          </button>
+        </div>
+      </form>
+    </div>
   )
 }
 

@@ -34,6 +34,23 @@ export function useMe() {
   })
 }
 
+export function useRenameMe() {
+  const api = useApi()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (displayName: string) =>
+      api.patch<MeResponse>('/api/me', { displayName }),
+    onSuccess: (updated) => {
+      qc.setQueryData(['me'], updated)
+      // Renames are rare → invalidate every surface that renders the name.
+      qc.invalidateQueries({ queryKey: ['team'] })
+      qc.invalidateQueries({ queryKey: ['match-tips'] })
+      qc.invalidateQueries({ queryKey: ['leaderboard'] })
+      qc.invalidateQueries({ queryKey: ['admin', 'audit'] })
+    },
+  })
+}
+
 // 30s polling on live-changing queries (replaces the deferred SignalR work per
 // Phase 10's cut-OK alternative). refetchIntervalInBackground stays default
 // (false), so a backgrounded tab pauses polling.

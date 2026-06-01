@@ -2,6 +2,8 @@ namespace Tip4Gen.Domain.Users;
 
 public class User
 {
+    public const int MaxDisplayNameLength = 120;
+
     public Guid Id { get; private set; }
     public string Auth0Sub { get; private set; } = default!;
     public string DisplayName { get; private set; } = default!;
