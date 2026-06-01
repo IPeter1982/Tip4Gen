@@ -17,7 +17,7 @@ export function Topbar() {
         <nav className="flex items-center gap-x-4 gap-y-1 flex-wrap text-xs font-mono uppercase tracking-[0.15em]">
           <Link to="/" className="text-stone-600 hover:text-stone-900">Főoldal</Link>
           <Link to="/matches" className="text-stone-600 hover:text-stone-900">Mérkőzések</Link>
-          <Link to="/long-tips" className="text-stone-600 hover:text-stone-900">Hosszú tipp</Link>
+          <Link to="/long-tips" className="text-stone-600 hover:text-stone-900">Végső győztes</Link>
           <Link to="/team" className="text-stone-600 hover:text-stone-900">Csapat</Link>
           <Link to="/leaderboard" className="text-stone-600 hover:text-stone-900">Ranglista</Link>
           <Link to="/me" className="text-stone-600 hover:text-stone-900">Profil</Link>

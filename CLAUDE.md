@@ -95,6 +95,9 @@ web/                        Vite + React 19 + TS frontend
   src/lib/format.ts         Budapest TZ formatters + countdown + HU labels
   src/lib/imageResize.ts    Canvas square-crop → 128×128 JPEG q=0.85 → data URL
                             (shared by /me upload and /admin/ai-avatar)
+  src/lib/teamFlag.ts       api-football 3-letter code → ISO 3166-1 alpha-2
+                            (verified WC 2022 codes + FIFA-standard aliases;
+                            ENG/WAL/SCO/NIR → gb-eng/gb-wls/gb-sct/gb-nir)
   src/components/Topbar.tsx
   src/pages/                Home, Me, Matches, TipSubmit, LongTips, Team, TeamJoin,
                             Leaderboard
@@ -103,7 +106,11 @@ web/                        Vite + React 19 + TS frontend
   src/auth/RequireAdmin     Gates admin routes; renders 403 panel for non-admins
   src/components/           Topbar, ConfirmDialog (modal w/ destructive variant),
                             Avatar (img-by-userId or letter-circle fallback;
-                            isAi prop routes to the global /api/ai-avatar)
+                            isAi prop routes to the global /api/ai-avatar),
+                            TeamFlag (flagcdn.com <img>, hides on null/error),
+                            TeamLabel (flag + name flex wrapper),
+                            TeamSelect (@headlessui/react Listbox so flags
+                            render inside <option> rows too)
   src/main.tsx              <AuthProvider><QueryClientProvider><BrowserRouter>…
   src/index.css             Single line: @import "tailwindcss"
   vite.config.ts            port 5173, strictPort, dev proxy /api → :5050
@@ -139,6 +146,7 @@ dotnet ef database update --project backend/src/Tip4Gen.Infrastructure --startup
 - **Tailwind v4** via `@tailwindcss/vite` plugin. **No PostCSS, no `tailwind.config.js`** — single `@import "tailwindcss"` in `index.css`. Configure via `@theme` in CSS, not JS.
 - **React Router v7** — unified package `react-router` (not `react-router-dom`).
 - **TanStack Query v5** + **react-hook-form** + **Zod** for data fetching and forms. `useApi` returns typed `get/put/post/del` helpers and parses ProblemDetails into `ApiError` (with `reason` extension).
+- **@headlessui/react** powers `TeamSelect` (only consumer so far). Use it when a native `<select>` is too limiting (e.g. needs images in option rows) — don't reach for it for plain text dropdowns.
 - **Serilog** wired via `Host.UseSerilog((ctx, _, cfg) => cfg.ReadFrom.Configuration(ctx.Configuration))` — all config lives in `appsettings.json`.
 - **Enums on the wire are strings.** `Program.cs` registers `JsonStringEnumConverter` globally, so any enum returned from a controller serializes by name (`"Forming"`, not `0`). New DTOs can use enum types directly; don't sprinkle `.ToString()` at the controller boundary. Frontend `type` aliases (`type TeamStatus = 'Forming' | 'Locked' | …`) compare-by-string and rely on this. `MatchesController` still does manual `.ToString()` from before the global converter landed — fine, no behavior change, can be cleaned up later.
 - **CORS** policy applies to non-proxied paths only; in dev, Vite proxies `/api` so CORS rarely fires.
@@ -279,6 +287,13 @@ Single admin (the project owner). Gated by Auth0 `sub` claim matching the `Auth0
 - **Audit payload never contains the bytes.** `AdminAuditAction.AiAvatarSet` / `AiAvatarDeleted` before/after carry `{version, contentType}` only. Dumping the bytea into `admin_audit.jsonb` would blow up the row and the audit-log UI. Mirror this shape if you add more avatar admin actions.
 - **`DataUrlParser` is shared.** Both `MeController.SetAvatar` and `AiAvatarAdminController.Set` call `Tip4Gen.Api.Avatars.DataUrlParser.TryParse`. Pre-decode length cap is `User.MaxAvatarBytes * 4/3 + 256` — cheap O(1) guard before allocating a `byte[]` from a hostile body. If you tweak the limit, update both.
 - **Topbar shows local display name, not Auth0's.** `Topbar.tsx` prefers `me.data?.displayName` over `user?.name` from the Auth0 SDK, falling back only while `me` is loading. The avatar URL requires `me.data.id`, so the rendering already depends on `useMe()` resolving.
+
+## National-team flag gotchas
+
+- **api-football's `code` is NOT FIFA.** Their WC seed uses their own 3-letter abbreviations — `Iran=IRA` (not IRN), `Netherlands=NET` (not NED), `Spain=SPA` (not ESP), `Japan=JAP` (not JPN), `Saudi Arabia=SAU` (not KSA), `Serbia=SER` (not SRB), `Switzerland=SWI` (not SUI), `Cameroon=CAM` (not CMR), `Costa Rica=COS` (not CRC), `Morocco=MOR` (not MAR). `web/src/lib/teamFlag.ts` ships both the verified api-football codes AND the FIFA aliases so a future provider swap doesn't silently break. If you're staring at a missing flag, dump `teams_national.code` first — don't trust your memory of the FIFA spec.
+- **Flag images are runtime CDN.** `<TeamFlag code={...} />` renders `<img src="https://flagcdn.com/{iso}.svg">` with `onError` → render-nothing fallback. No flag assets in the repo. flagcdn supports UK subdivisions (`gb-eng` / `gb-wls` / `gb-sct` / `gb-nir`) so each home nation gets its own flag — that's why `ENG → gb-eng` in the map, not `gb`.
+- **`<TeamLabel team={...} />` is the default for every team-name render site.** Plain `{team.name}` was replaced everywhere (Matches list, TipSubmit header + score-input labels, LiveMatchBanner, AdminMatches, AdminMatchEditor). If you add a new site that renders a team name, use `<TeamLabel />` — don't reinvent the flex layout.
+- **Native `<select>` can't render images in `<option>`.** Both long-tip dropdowns (LongTips + AdminLongTips) use `<TeamSelect />` (Headless UI Listbox). In `LongTips`, the dropdown is wrapped in RHF `Controller` — that's the integration pattern; mirror it if you ever need a Listbox inside an RHF form. The component maps `value=''` ↔ `null` at the boundary so existing form-state shapes (which use empty-string for "no selection") still work.
 
 ## Forms gotcha — Zod + react-hook-form
 
