@@ -79,6 +79,7 @@ export type MatchTip = {
   homeGoals: number | null
   awayGoals: number | null
   joker: boolean | null
+  score: UserTipScore | null
 }
 
 export type MatchTipsResponse = {

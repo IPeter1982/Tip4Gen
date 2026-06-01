@@ -5,9 +5,10 @@ import { Link, useNavigate, useParams } from 'react-router'
 import { z } from 'zod'
 import { useMatch, useMatchTips, useSubmitTip } from '../api/hooks'
 import { ApiError } from '../api/errors'
-import type { MatchListItem, MatchTip } from '../api/types'
+import type { MatchListItem, MatchTip, UserTipScore } from '../api/types'
 import { TeamLabel } from '../components/TeamLabel'
 import {
+  CATEGORY_LABEL_HU,
   STAGE_LABEL_HU,
   formatBudapest,
   formatCountdown,
@@ -142,6 +143,7 @@ function AllTipsPanel({ matchId }: { matchId: string }) {
                 {tip.homeGoals}:{tip.awayGoals}
               </span>
             </div>
+            {tip.score && <TipPointsLine score={tip.score} />}
             {tip.reasoning && (
               <p className="text-xs italic text-stone-600 pl-1">{tip.reasoning}</p>
             )}
@@ -154,6 +156,28 @@ function AllTipsPanel({ matchId }: { matchId: string }) {
 
 function tipKey(tip: MatchTip): string {
   return tip.userId ?? tip.teamMemberId ?? tip.displayName
+}
+
+function TipPointsLine({ score }: { score: UserTipScore }) {
+  const isZero = score.finalPoints === 0
+  const label = CATEGORY_LABEL_HU[score.category] ?? score.category
+  return (
+    <p className="text-xs font-mono pl-1 flex items-center gap-2 flex-wrap">
+      <span
+        className={
+          isZero
+            ? 'text-stone-500'
+            : 'text-green-700 font-bold tabular-nums'
+        }
+      >
+        {isZero ? '0 pt' : `+${score.finalPoints} pt`}
+      </span>
+      <span className="text-stone-500">
+        {label} · ×{score.multiplier}
+        {score.jokerApplied && ' · ×2 (joker)'}
+      </span>
+    </p>
+  )
 }
 
 function TipForm({

@@ -49,7 +49,15 @@ public record MatchTipResponse(
     DateTimeOffset? UpdatedAt,
     int? HomeGoals,
     int? AwayGoals,
-    bool? Joker);
+    bool? Joker,
+    MatchTipScore? Score);
+
+public record MatchTipScore(
+    string Category,
+    int BasePoints,
+    decimal Multiplier,
+    bool JokerApplied,
+    int FinalPoints);
 
 [ApiController]
 [Route("api/matches")]
@@ -173,27 +181,38 @@ public class MatchesController(AppDbContext db, CurrentUserService currentUser) 
 
         // Tips come in two flavours: human (UserId set) and AI (TeamMemberId set).
         // LEFT-JOIN both sides so every tip surfaces, then resolve the display name
-        // from whichever side is populated.
+        // from whichever side is populated. ScoredTips also LEFT-JOINed: a row exists
+        // only once the match has been scored, and is wiped when the match is cancelled.
         var rows = await (
             from t in db.Tips.AsNoTracking().Where(t => t.MatchId == matchId)
             from u in db.Users.AsNoTracking().Where(u => t.UserId == u.Id).DefaultIfEmpty()
             from m in db.TeamMembers.AsNoTracking().Where(m => t.TeamMemberId == m.Id).DefaultIfEmpty()
+            from s in db.ScoredTips.AsNoTracking().Where(s => s.TipId == t.Id).DefaultIfEmpty()
             select new
             {
                 Tip = t,
                 UserName = u != null ? u.DisplayName : null,
                 AiName = m != null ? m.AiDisplayName : null,
+                Scored = s,
             }).ToListAsync(ct);
 
         // Order by display name in memory (the source column varies row-to-row).
         var ordered = rows
-            .Select(r => new { r.Tip, Name = r.UserName ?? r.AiName ?? "?" })
+            .Select(r => new { r.Tip, r.Scored, Name = r.UserName ?? r.AiName ?? "?" })
             .OrderBy(r => r.Name, StringComparer.CurrentCulture)
             .ToList();
 
         var tips = ordered.Select(r =>
         {
             var isAi = r.Tip.TeamMemberId != null;
+            var score = r.Scored is null
+                ? null
+                : new MatchTipScore(
+                    r.Scored.Category.ToString(),
+                    r.Scored.BasePoints,
+                    r.Scored.Multiplier,
+                    r.Scored.JokerApplied,
+                    r.Scored.FinalPoints);
             return deadlinePassed
                 ? new MatchTipResponse(
                     UserId: r.Tip.UserId,
@@ -206,7 +225,8 @@ public class MatchesController(AppDbContext db, CurrentUserService currentUser) 
                     UpdatedAt: r.Tip.UpdatedAt,
                     HomeGoals: r.Tip.HomeGoals,
                     AwayGoals: r.Tip.AwayGoals,
-                    Joker: r.Tip.Joker)
+                    Joker: r.Tip.Joker,
+                    Score: score)
                 : new MatchTipResponse(
                     UserId: r.Tip.UserId,
                     TeamMemberId: r.Tip.TeamMemberId,
@@ -218,7 +238,8 @@ public class MatchesController(AppDbContext db, CurrentUserService currentUser) 
                     UpdatedAt: null,
                     HomeGoals: null,
                     AwayGoals: null,
-                    Joker: null);
+                    Joker: null,
+                    Score: null);
         }).ToList();
 
         return Ok(new MatchTipsResponse(matchId, deadline, deadlinePassed, tips.Count, tips));
