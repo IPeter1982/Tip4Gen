@@ -12,6 +12,7 @@ import { NotFound } from './pages/NotFound'
 import { Team } from './pages/Team'
 import { TeamJoin } from './pages/TeamJoin'
 import { TipSubmit } from './pages/TipSubmit'
+import { UserTips } from './pages/UserTips'
 import { AdminAiAvatar } from './pages/admin/AdminAiAvatar'
 import { AdminAudit } from './pages/admin/AdminAudit'
 import { AdminLongTips } from './pages/admin/AdminLongTips'
@@ -70,6 +71,14 @@ export default function App() {
           element={
             <RequireAuth>
               <Leaderboard />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/leaderboard/user/:userId"
+          element={
+            <RequireAuth>
+              <UserTips />
             </RequireAuth>
           }
         />

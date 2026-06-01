@@ -166,6 +166,53 @@ export type TeamLeaderboardRow = {
   isMyTeam: boolean
 }
 
+// ----- User tip history (drilldown from individual leaderboard) -----
+
+export type ScoreCategoryName =
+  | 'Nothing'
+  | 'OneTeamGoals'
+  | 'Winner'
+  | 'WinnerAndGoalDiff'
+  | 'Exact'
+
+export type UserTipScore = {
+  category: ScoreCategoryName
+  basePoints: number
+  multiplier: number
+  jokerApplied: boolean
+  finalPoints: number
+}
+
+export type UserTipDetail = {
+  homeGoals: number
+  awayGoals: number
+  joker: boolean
+  submittedAt: string
+  score: UserTipScore | null
+}
+
+export type UserTipHistoryItem = {
+  matchId: string
+  stage: Stage
+  groupCode: string | null
+  roundLabel: string | null
+  homeTeam: TeamSummary
+  awayTeam: TeamSummary
+  kickoffUtc: string
+  status: MatchStatus
+  homeGoals: number | null
+  awayGoals: number | null
+  tip: UserTipDetail
+}
+
+export type UserTipHistoryResponse = {
+  userId: string
+  displayName: string
+  avatarVersion: string | null
+  totalPoints: number
+  items: UserTipHistoryItem[]
+}
+
 // ----- Preferences (Phase 9) -----
 
 export type PreferencesResponse = {

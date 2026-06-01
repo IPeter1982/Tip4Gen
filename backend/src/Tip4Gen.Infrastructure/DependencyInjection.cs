@@ -69,6 +69,7 @@ public static class DependencyInjection
 
         services.AddScoped<IFixtureSyncService, FixtureSyncService>();
         services.AddScoped<ITipsService, TipsService>();
+        services.AddScoped<IUserTipHistoryService, UserTipHistoryService>();
         services.AddScoped<ILongTermTipsService, LongTermTipsService>();
         services.AddScoped<IMatchScoringService, MatchScoringService>();
         services.AddScoped<IMatchFinalizedHandler, MatchFinalizedScoringHandler>();

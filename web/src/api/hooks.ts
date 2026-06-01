@@ -19,6 +19,7 @@ import type {
   TeamMatchBreakdownView,
   TeamView,
   TipResponse,
+  UserTipHistoryResponse,
 } from './types'
 
 type Phase = 'upcoming' | 'past' | 'all'
@@ -339,6 +340,15 @@ export function useTeamLeaderboard() {
     queryFn: () => api.get<TeamLeaderboardRow[]>('/api/leaderboard/teams'),
     refetchInterval: LIVE_REFETCH_MS,
     refetchOnWindowFocus: true,
+  })
+}
+
+export function useUserTipHistory(userId: string | undefined) {
+  const api = useApi()
+  return useQuery({
+    queryKey: ['user-tip-history', userId],
+    queryFn: () => api.get<UserTipHistoryResponse>(`/api/users/${userId}/tips`),
+    enabled: !!userId,
   })
 }
 

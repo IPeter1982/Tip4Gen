@@ -1,4 +1,4 @@
-import { useSearchParams } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
 import { useIndividualLeaderboard, useTeamLeaderboard } from '../api/hooks'
 import type { IndividualLeaderboardRow, TeamLeaderboardRow } from '../api/types'
 import { Avatar } from '../components/Avatar'
@@ -80,13 +80,18 @@ function UserRow({ row }: { row: IndividualLeaderboardRow }) {
       <Td className="text-center font-bold">{row.rank}</Td>
       <Td>
         <span className="flex items-center gap-2 flex-wrap">
-          <Avatar
-            userId={row.userId}
-            displayName={row.displayName}
-            version={row.avatarVersion}
-            size={28}
-          />
-          <span>{row.displayName}</span>
+          <Link
+            to={`/leaderboard/user/${row.userId}`}
+            className="flex items-center gap-2 text-stone-900 hover:underline"
+          >
+            <Avatar
+              userId={row.userId}
+              displayName={row.displayName}
+              version={row.avatarVersion}
+              size={28}
+            />
+            <span>{row.displayName}</span>
+          </Link>
           {row.isMe && (
             <span className="text-[10px] uppercase tracking-[0.15em] text-orange-700">én</span>
           )}

@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Tip4Gen.Infrastructure.Persistence;
+using Tip4Gen.Infrastructure.Tipping;
 
 namespace Tip4Gen.Api.Controllers;
 
@@ -26,5 +27,16 @@ public class UsersController(AppDbContext db) : ControllerBase
         if (!string.IsNullOrEmpty(row.AvatarVersion))
             Response.Headers.ETag = $"\"{row.AvatarVersion}\"";
         return File(row.Avatar, row.AvatarContentType);
+    }
+
+    [HttpGet("{userId:guid}/tips")]
+    [Authorize]
+    public async Task<ActionResult<UserTipHistoryResponse>> Tips(
+        Guid userId,
+        [FromServices] IUserTipHistoryService svc,
+        CancellationToken ct)
+    {
+        var resp = await svc.GetAsync(userId, ct);
+        return resp is null ? NotFound() : Ok(resp);
     }
 }

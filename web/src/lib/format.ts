@@ -66,3 +66,11 @@ export const STATUS_LABEL_HU: Record<string, string> = {
   Abandoned: 'félbeszakadt',
   Awarded: 'odaítélt',
 }
+
+export const CATEGORY_LABEL_HU: Record<string, string> = {
+  Exact: 'pontos eredmény',
+  WinnerAndGoalDiff: 'győztes + gólkülönbség',
+  Winner: 'győztes',
+  OneTeamGoals: 'egy csapat gólja',
+  Nothing: 'nincs találat',
+}
