@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { useMatches } from '../api/hooks'
 import type { MatchListItem } from '../api/types'
+import { TeamLabel } from '../components/TeamLabel'
 import {
   STAGE_LABEL_HU,
   STATUS_LABEL_HU,
@@ -152,8 +153,8 @@ function MatchRow({ match, now }: { match: MatchListItem; now: Date }) {
 
         <div className="mt-3 flex items-center justify-between gap-4">
           <div className="flex-1">
-            <div className="text-base font-bold">{match.homeTeam.name}</div>
-            <div className="text-base font-bold">{match.awayTeam.name}</div>
+            <div className="text-base font-bold"><TeamLabel team={match.homeTeam} /></div>
+            <div className="text-base font-bold"><TeamLabel team={match.awayTeam} /></div>
           </div>
           <div className="text-2xl font-mono tabular-nums text-stone-900">
             {finished

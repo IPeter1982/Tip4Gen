@@ -1,9 +1,10 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useEffect } from 'react'
-import { useForm } from 'react-hook-form'
+import { Controller, useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { useLongTips, useNationalTeams, useSubmitLongTips } from '../api/hooks'
 import { ApiError } from '../api/errors'
+import { TeamSelect } from '../components/TeamSelect'
 import { formatBudapest } from '../lib/format'
 
 const schema = z
@@ -46,6 +47,7 @@ export function LongTips() {
     handleSubmit,
     setError,
     reset,
+    control,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -123,20 +125,19 @@ export function LongTips() {
               >
                 Győztes csapat
               </label>
-              <select
-                id="winnerTeamId"
-                disabled={locked || teams.isLoading}
-                {...register('winnerTeamId')}
-                className="w-full border-2 border-stone-900 px-3 py-2 font-mono disabled:bg-stone-100"
-              >
-                <option value="">— válassz csapatot —</option>
-                {teams.data?.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
-                    {t.code ? ` (${t.code})` : ''}
-                  </option>
-                ))}
-              </select>
+              <Controller
+                control={control}
+                name="winnerTeamId"
+                render={({ field }) => (
+                  <TeamSelect
+                    id="winnerTeamId"
+                    teams={teams.data ?? []}
+                    value={field.value || null}
+                    onChange={(id) => field.onChange(id ?? '')}
+                    disabled={locked || teams.isLoading}
+                  />
+                )}
+              />
               {longTips.data.winnerSubmittedAt && (
                 <p className="text-xs font-mono text-stone-500">
                   utolsó módosítás: {formatBudapest(longTips.data.winnerSubmittedAt)}

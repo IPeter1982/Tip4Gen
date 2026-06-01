@@ -3,6 +3,7 @@ import { Link } from 'react-router'
 import { useMatches } from '../api/hooks'
 import { isAuthConfigured } from '../auth/authConfig'
 import type { MatchListItem } from '../api/types'
+import { TeamLabel } from './TeamLabel'
 
 export function LiveMatchBanner() {
   const { isAuthenticated } = useAuth0()
@@ -41,9 +42,9 @@ function LiveRow({ match }: { match: MatchListItem }) {
         to={`/matches/${match.id}/tip`}
         className="hover:underline whitespace-nowrap"
       >
-        <span className="font-bold">{match.homeTeam.name}</span>
+        <span className="font-bold"><TeamLabel team={match.homeTeam} /></span>
         <span className="mx-2 tabular-nums">{score}</span>
-        <span className="font-bold">{match.awayTeam.name}</span>
+        <span className="font-bold"><TeamLabel team={match.awayTeam} /></span>
       </Link>
     </li>
   )

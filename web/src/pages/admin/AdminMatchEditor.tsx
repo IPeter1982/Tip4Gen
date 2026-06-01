@@ -11,6 +11,7 @@ import {
   useSetMatchResult,
 } from '../../api/hooks'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
+import { TeamLabel } from '../../components/TeamLabel'
 import { STAGE_LABEL_HU, STATUS_LABEL_HU, formatBudapest } from '../../lib/format'
 
 const resultSchema = z.object({
@@ -62,8 +63,10 @@ export function AdminMatchEditor() {
               {' · '}
               <span className="text-stone-700">{STATUS_LABEL_HU[match.status] ?? match.status}</span>
             </p>
-            <h1 className="text-2xl font-black uppercase tracking-tight mt-2">
-              {match.homeTeam.name} <span className="text-stone-400">vs</span> {match.awayTeam.name}
+            <h1 className="text-2xl font-black uppercase tracking-tight mt-2 flex items-center gap-2 flex-wrap">
+              <TeamLabel team={match.homeTeam} size="md" />
+              <span className="text-stone-400">vs</span>
+              <TeamLabel team={match.awayTeam} size="md" />
             </h1>
             <p className="text-xs font-mono text-stone-500 mt-2">
               {formatBudapest(match.kickoffUtc)} CET

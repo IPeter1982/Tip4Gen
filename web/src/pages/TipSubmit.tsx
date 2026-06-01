@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { useMatch, useMatchTips, useSubmitTip } from '../api/hooks'
 import { ApiError } from '../api/errors'
 import type { MatchListItem, MatchTip } from '../api/types'
+import { TeamLabel } from '../components/TeamLabel'
 import {
   STAGE_LABEL_HU,
   formatBudapest,
@@ -212,8 +213,10 @@ function TipForm({
           {STAGE_LABEL_HU[match.stage] ?? match.stage}
           {match.groupCode ? ` ${match.groupCode}` : ''}
         </p>
-        <h1 className="text-2xl font-black uppercase tracking-tight mt-2">
-          {match.homeTeam.name} <span className="text-stone-400">vs</span> {match.awayTeam.name}
+        <h1 className="text-2xl font-black uppercase tracking-tight mt-2 flex items-center gap-2 flex-wrap">
+          <TeamLabel team={match.homeTeam} size="md" />
+          <span className="text-stone-400">vs</span>
+          <TeamLabel team={match.awayTeam} size="md" />
         </h1>
         <p className="text-xs font-mono text-stone-500 mt-2">
           {formatBudapest(match.kickoffUtc)} CET
@@ -229,14 +232,14 @@ function TipForm({
       <section className="border-2 border-stone-900 bg-white p-5 space-y-5">
         <div className="flex items-end justify-between gap-4">
           <ScoreInput
-            label={match.homeTeam.name}
+            label={<TeamLabel team={match.homeTeam} />}
             disabled={formDisabled}
             error={errors.homeGoals?.message}
             {...register('homeGoals', { valueAsNumber: true })}
           />
           <span className="text-3xl font-black pb-3">:</span>
           <ScoreInput
-            label={match.awayTeam.name}
+            label={<TeamLabel team={match.awayTeam} />}
             disabled={formDisabled}
             error={errors.awayGoals?.message}
             {...register('awayGoals', { valueAsNumber: true })}
@@ -284,7 +287,7 @@ function TipForm({
 }
 
 type ScoreInputProps = React.InputHTMLAttributes<HTMLInputElement> & {
-  label: string
+  label: React.ReactNode
   error?: string
 }
 

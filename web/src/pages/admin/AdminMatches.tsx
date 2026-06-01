@@ -3,6 +3,7 @@ import { Link } from 'react-router'
 import { useMatches } from '../../api/hooks'
 import type { MatchListItem, MatchStatus } from '../../api/types'
 import { STAGE_LABEL_HU, STATUS_LABEL_HU, formatBudapest } from '../../lib/format'
+import { TeamLabel } from '../../components/TeamLabel'
 
 type Phase = 'upcoming' | 'past' | 'all'
 
@@ -97,7 +98,7 @@ export function AdminMatches() {
                     {m.groupCode ? ` ${m.groupCode}` : ''}
                   </td>
                   <td className="px-3 py-2">
-                    {m.homeTeam.name} <span className="text-stone-400">vs</span> {m.awayTeam.name}
+                    <TeamLabel team={m.homeTeam} /> <span className="text-stone-400">vs</span> <TeamLabel team={m.awayTeam} />
                   </td>
                   <td className="px-3 py-2 tabular-nums">
                     {m.homeGoals != null && m.awayGoals != null

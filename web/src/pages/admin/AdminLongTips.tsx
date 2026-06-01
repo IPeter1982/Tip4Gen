@@ -6,6 +6,7 @@ import {
   useSetLongTipOutcomes,
 } from '../../api/hooks'
 import { ApiError } from '../../api/errors'
+import { TeamSelect } from '../../components/TeamSelect'
 
 function errorMessage(e: unknown): string {
   if (e instanceof ApiError) return e.message
@@ -81,18 +82,12 @@ export function AdminLongTips() {
             <label className="block text-xs font-mono uppercase tracking-[0.15em] text-stone-500 mb-1">
               Győztes csapat
             </label>
-            <select
-              value={winnerTeamId}
-              onChange={(e) => setWinnerTeamId(e.target.value)}
-              className="w-full border-2 border-stone-900 px-3 py-2 font-mono text-sm bg-white"
-            >
-              <option value="">— nincs megadva —</option>
-              {teams.data.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-            </select>
+            <TeamSelect
+              teams={teams.data}
+              value={winnerTeamId || null}
+              onChange={(id) => setWinnerTeamId(id ?? '')}
+              placeholder="— nincs megadva —"
+            />
           </div>
 
           <div>
