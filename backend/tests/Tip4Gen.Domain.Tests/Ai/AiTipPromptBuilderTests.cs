@@ -19,6 +19,28 @@ public class AiTipPromptBuilderTests
     }
 
     [Fact]
+    public void System_prompt_lists_every_scoring_category()
+    {
+        var p = AiTipPromptBuilder.Build("A", "B", Stage.Group, AiMode.Balanced);
+
+        Assert.Contains("10 points", p.System);
+        Assert.Contains("5 points", p.System);
+        Assert.Contains("3 points", p.System);
+        Assert.Contains("1 point", p.System);
+        Assert.Contains("0 points", p.System);
+    }
+
+    [Fact]
+    public void System_prompt_names_wc_2026_host_nations()
+    {
+        var p = AiTipPromptBuilder.Build("A", "B", Stage.Group, AiMode.Balanced);
+
+        Assert.Contains("USA", p.System);
+        Assert.Contains("Mexico", p.System);
+        Assert.Contains("Canada", p.System);
+    }
+
+    [Fact]
     public void User_prompt_includes_both_teams_and_stage()
     {
         var p = AiTipPromptBuilder.Build("Magyarország", "Németország", Stage.QF, AiMode.Conservative);

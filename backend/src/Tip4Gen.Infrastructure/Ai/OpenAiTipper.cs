@@ -46,6 +46,13 @@ public class OpenAiTipper(
         }
 
         var prompt = AiTipPromptBuilder.Build(homeTeamName, awayTeamName, stage, mode);
+        var temperature = mode switch
+        {
+            AiMode.Conservative => 0.25,
+            AiMode.Balanced => 0.55,
+            AiMode.Bold => 0.85,
+            _ => opts.Temperature,
+        };
         var requestBody = new
         {
             model = opts.Model,
@@ -55,7 +62,7 @@ public class OpenAiTipper(
                 new { role = "user", content = prompt.User },
             },
             response_format = new { type = "json_object" },
-            temperature = opts.Temperature,
+            temperature,
         };
 
         try

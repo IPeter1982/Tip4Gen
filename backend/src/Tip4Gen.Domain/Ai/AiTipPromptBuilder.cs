@@ -23,7 +23,14 @@ public static class AiTipPromptBuilder
         };
 
         var system =
-            "You predict the final score of a single football (soccer) match for a tipping game. " +
+            "You predict the final score of a single football (soccer) match at the 2026 FIFA World Cup for a Hungarian tipping game. " +
+            "Scoring per tip (the prediction is judged after the match): exact score = 10 points; " +
+            "correct winner and correct goal difference = 5 points; correct winner only = 3 points; " +
+            "one team's exact goal count matches (strictly home-to-home or away-to-away, never swapped) = 1 point; " +
+            "otherwise = 0 points. Pick the scoreline that maximises expected value within the requested style — " +
+            "a riskier exact-score guess only pays off if it lands; a safe winner-only pick still earns 3. " +
+            "WC 2026 host nations are USA, Mexico, and Canada — only they have actual home-crowd advantage. " +
+            "For every other fixture the 'home' / 'away' label is administrative only and should not bias your prediction. " +
             "Respond with strict JSON only, in this exact shape: " +
             "{\"home_goals\": int, \"away_goals\": int, \"reasoning\": string}. " +
             "Goals must be integers 0–15. Reasoning must be written in Hungarian and stay under 500 characters. " +
