@@ -29,7 +29,7 @@ export function TeamFlag({ code, size = 'sm', className }: TeamFlagProps) {
       height={s.h}
       loading="lazy"
       onError={() => setFailed(true)}
-      className={`inline-block shrink-0 rounded-sm border border-stone-300 object-cover ${s.cls} ${className ?? ''}`}
+      className={`inline-block shrink-0 rounded-sm ring-1 ring-border-subtle dark:ring-white/15 object-cover ${s.cls} ${className ?? ''}`}
     />
   )
 }

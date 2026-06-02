@@ -114,9 +114,19 @@ web/                        Vite + React 19 + TS frontend
                             TeamFlag (flagcdn.com <img>, hides on null/error),
                             TeamLabel (flag + name flex wrapper),
                             TeamSelect (@headlessui/react Listbox so flags
-                            render inside <option> rows too)
-  src/main.tsx              <AuthProvider><QueryClientProvider><BrowserRouter>…
-  src/index.css             Single line: @import "tailwindcss"
+                            render inside <option> rows too),
+                            ThemeToggle (Sun/Moon button rendered in Topbar)
+  src/theme/                ThemeProvider — class-based dark/light context
+                            (`prefers-color-scheme` fallback + localStorage
+                            persistence under `tip4gen.theme`), useTheme hook
+  src/main.tsx              <ThemeProvider><AuthProvider><QueryClientProvider>…
+  src/index.css             @import "tailwindcss" + @theme tokens (light) +
+                            .dark overrides (navy/emerald stadium palette) +
+                            @custom-variant dark + glow-accent / live-dot
+                            utilities. No JS Tailwind config.
+  index.html                Inline <head> script reads localStorage +
+                            prefers-color-scheme and sets .dark before React
+                            mounts (no first-paint flash). Don't remove it.
   vite.config.ts            port 5173, strictPort, dev proxy /api → :5050
   .env.local                VITE_AUTH0_* (gitignored)
 ```
@@ -147,7 +157,9 @@ dotnet ef database update --project backend/src/Tip4Gen.Infrastructure --startup
 
 ## Stack conventions
 
-- **Tailwind v4** via `@tailwindcss/vite` plugin. **No PostCSS, no `tailwind.config.js`** — single `@import "tailwindcss"` in `index.css`. Configure via `@theme` in CSS, not JS.
+- **Tailwind v4** via `@tailwindcss/vite` plugin. **No PostCSS, no `tailwind.config.js`** — `@import "tailwindcss"` plus an `@theme` block in `index.css`. Configure via `@theme` in CSS, not JS. Colors are exposed as **semantic tokens** (`bg-surface`, `bg-elevated`, `bg-sunken`, `text-fg-default`/`-muted`/`-subtle`, `bg-accent`/`-soft`/`-strong`, `text-on-accent`, `text-danger`/`-success`/`-warning`, `bg-live`/`-soft`, `border-border-subtle`/`-strong`, `ring-ring-focus`). Don't use raw palette classes (`bg-stone-*`, `bg-emerald-500`, etc.) outside `index.css` — they bypass dark-mode token swaps.
+- **Dark mode** is class-based (`<html class="dark">`) via `@custom-variant dark (&:where(.dark, .dark *));` in `index.css`. Light and dark share the same utility class names — only the CSS variables swap — so 99% of components have no `dark:` prefix. `ThemeProvider` (`src/theme/`) drives the toggle; the inline `<head>` script in `index.html` sets the class pre-hydration to avoid FOUC. Real `dark:` usage is reserved for *shape* differences (e.g., `TeamFlag` rings white flags more visibly on navy).
+- **Icons** are `lucide-react`, imported directly per icon (no shim component) — Vite tree-shakes. Default sizes: `16` inline labels, `20` buttons, `28+` heroes. Color via `text-*` classes (lucide inherits `currentColor`).
 - **React Router v7** — unified package `react-router` (not `react-router-dom`).
 - **TanStack Query v5** + **react-hook-form** + **Zod** for data fetching and forms. `useApi` returns typed `get/put/post/del` helpers and parses ProblemDetails into `ApiError` (with `reason` extension).
 - **@headlessui/react** powers `TeamSelect` (only consumer so far). Use it when a native `<select>` is too limiting (e.g. needs images in option rows) — don't reach for it for plain text dropdowns.
@@ -293,6 +305,19 @@ Single admin (the project owner). Gated by Auth0 `sub` claim matching the `Auth0
 - **`DataUrlParser` is shared.** Both `MeController.SetAvatar` and `AiAvatarAdminController.Set` call `Tip4Gen.Api.Avatars.DataUrlParser.TryParse`. Pre-decode length cap is `User.MaxAvatarBytes * 4/3 + 256` — cheap O(1) guard before allocating a `byte[]` from a hostile body. If you tweak the limit, update both.
 - **Topbar shows local display name, not Auth0's.** `Topbar.tsx` prefers `me.data?.displayName` over `user?.name` from the Auth0 SDK, falling back only while `me` is loading. The avatar URL requires `me.data.id`, so the rendering already depends on `useMe()` resolving.
 
+## Theme + dark-mode gotchas
+
+- **Tailwind v4 dark syntax differs from v3.** v3's `darkMode: 'class'` JS setting **does nothing** in v4. The correct incantation is `@custom-variant dark (&:where(.dark, .dark *));` — `@variant dark` (no `custom`) silently no-ops. `:where()` keeps specificity at 0 so utilities aren't bumped over your overrides.
+- **Token-only colors.** Every color in the SPA goes through `--color-*` variables declared in `@theme` and overridden under `.dark`. Adding a new color = add a new token in both blocks, not a one-off `bg-purple-500`. If you reintroduce raw palette classes, dark mode silently regresses for those elements. Allowed exceptions today: `text-amber-400 / text-zinc-300 / text-orange-700` for podium gold/silver/bronze in `Leaderboard.tsx` (medal colors are universal across themes) — comment any future exception inline so the next person doesn't "fix" it.
+- **No first-paint flash.** The inline `<script>` in `web/index.html` `<head>` reads `localStorage['tip4gen.theme']` + `prefers-color-scheme` and toggles `.dark` *before* React hydrates. Don't move it into a module, don't remove it — without it the page renders light then snaps to dark on every cold load.
+- **`ThemeProvider` must be outermost** in `main.tsx` so the class is set before any consumer (Auth0 redirect screens, error boundaries) renders. Order in `main.tsx`: `<ThemeProvider><AuthProvider><QueryClientProvider><BrowserRouter><App/></...>`.
+- **Avatar HSL letter circles** use `hsl(${hue}, 65%, 50%)` — a single value that's legible in both themes. The border switched from `border-2 border-stone-900` to `ring-1 ring-white/10` so a dark-mode container doesn't swallow the edge. Don't reintroduce a black border.
+- **`<TeamFlag>` is the one place `dark:` shows up.** Flagcdn SVGs include white-backgrounded flags (JP, England) that blend into navy. The component uses `ring-1 ring-border-subtle dark:ring-white/15` — a *shape* difference, not a color swap, which is why a semantic token can't fix it.
+- **Admin pages intentionally stay brutalist.** Token-swap only — keep `border-2` widths and the dense mono labels. The visual register tells the admin "you're in the tools area" without a banner. If you redesign an admin page, don't accidentally soften its borders to plain `border`.
+- **Headless UI Listbox** in `TeamSelect` uses `data-[focus]:bg-accent-soft data-[focus]:text-accent-strong`. `data-[focus]` is the v2 hook (already in code) — keep it; just retarget colors via tokens. Don't touch the `anchor="bottom start"` or focus management.
+- **`glow-accent` + `live-dot`** are custom utilities declared in `index.css` via `@utility`. `glow-accent` paints a 1px accent ring + soft 24px glow (used on live match cards, first-place podium, current-user leaderboard row). `live-dot` is a 1.4s opacity pulse (used on the Radio icon in `LiveMatchBanner`). Add new theme-aware utilities the same way — don't inline `box-shadow` with hard-coded rgba.
+- **TipSubmit joker** is a `<button type="button">` with `aria-pressed`, NOT a checkbox. The Star pill toggles `setValue('joker', !joker, { shouldDirty: true })` on click, and an `<input type="hidden">` carries the value through RHF. If you reintroduce a `<input type="checkbox">` you'll lose the pill styling — and the form will submit the wrong shape unless you re-add the register call.
+
 ## National-team flag gotchas
 
 - **api-football's `code` is NOT FIFA.** Their WC seed uses their own 3-letter abbreviations — `Iran=IRA` (not IRN), `Netherlands=NET` (not NED), `Spain=SPA` (not ESP), `Japan=JAP` (not JPN), `Saudi Arabia=SAU` (not KSA), `Serbia=SER` (not SRB), `Switzerland=SWI` (not SUI), `Cameroon=CAM` (not CMR), `Costa Rica=COS` (not CRC), `Morocco=MOR` (not MAR). `web/src/lib/teamFlag.ts` ships both the verified api-football codes AND the FIFA aliases so a future provider swap doesn't silently break. If you're staring at a missing flag, dump `teams_national.code` first — don't trust your memory of the FIFA spec.
@@ -309,6 +334,9 @@ Single admin (the project owner). Gated by Auth0 `sub` claim matching the `Auth0
 ## Things not to do
 
 - Don't introduce PostCSS or a `tailwind.config.js` — Tailwind v4 doesn't need them.
+- Don't use raw palette classes (`bg-stone-*`, `bg-emerald-500`, `text-red-700`, etc.) outside `index.css`. Use the semantic tokens (`bg-elevated`, `bg-accent`, `text-danger`, …) so dark mode swaps for free.
+- Don't reintroduce `dark:` prefixes anywhere except `TeamFlag`. The variable-swap approach is the whole point — sprinkled `dark:` classes will diverge and rot.
+- Don't remove the inline theme script from `web/index.html` `<head>` — it's what prevents the first-paint light flash on dark loads.
 - Don't add EF Core or ASP.NET references to `Tip4Gen.Domain`.
 - Don't put credentials in `appsettings.json` or commit `web/.env.local` — use `dotnet user-secrets` and `.env.local` (both gitignored).
 - Don't fabricate dates from training data — today's date comes from the system context. WC 2026 starts **2026-06-11**.

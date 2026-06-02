@@ -66,31 +66,31 @@ export function AdminAiAvatar() {
   return (
     <div className="max-w-2xl mx-auto px-6 py-10 space-y-6">
       <header className="space-y-2">
-        <p className="text-xs font-mono uppercase tracking-[0.2em] text-orange-600">Admin</p>
+        <p className="text-xs font-mono uppercase tracking-[0.2em] text-accent">Admin</p>
         <h1 className="text-3xl font-black uppercase tracking-tight">AI tippelő profilkép</h1>
-        <p className="font-mono text-sm text-stone-600">
+        <p className="font-mono text-sm text-fg-muted">
           Egy közös kép minden AI csapattaghoz. Az adminisztrátor által feltöltött kép automatikusan
           megjelenik minden olyan helyen, ahol AI tippelő van — csapat oldal, ranglista.
         </p>
-        <Link to="/admin" className="inline-block text-xs font-mono uppercase tracking-[0.15em] text-stone-500 hover:text-stone-900">
+        <Link to="/admin" className="inline-block text-xs font-mono uppercase tracking-[0.15em] text-fg-subtle hover:text-accent">
           ← Admin főoldal
         </Link>
       </header>
 
-      <section className="border-2 border-stone-900 bg-white p-5 space-y-4">
+      <section className="border-2 border-border-strong bg-elevated p-5 space-y-4">
         <div className="flex items-center gap-5">
           {preview ? (
             <img
               src={preview}
               alt=""
               style={{ width: 128, height: 128 }}
-              className="rounded-full border-2 border-orange-600 object-cover bg-white shrink-0"
+              className="rounded-full border-2 border-accent object-cover bg-elevated shrink-0"
             />
           ) : (
             <Avatar userId={null} displayName="AI" version={null} isAi size={128} />
           )}
           <div className="flex-1 min-w-0 space-y-2">
-            <p className="text-xs font-mono uppercase tracking-[0.15em] text-stone-500">
+            <p className="text-xs font-mono uppercase tracking-[0.15em] text-fg-subtle">
               Jelenlegi állapot
             </p>
             <p className="font-mono text-sm">
@@ -111,7 +111,7 @@ export function AdminAiAvatar() {
                   type="button"
                   onClick={onSave}
                   disabled={busy}
-                  className="border-2 border-stone-900 bg-stone-900 text-white px-3 py-1.5 text-xs font-mono uppercase tracking-[0.15em] hover:bg-orange-600 hover:border-orange-600 disabled:opacity-40"
+                  className="border-2 border-accent bg-accent text-on-accent px-3 py-1.5 text-xs font-mono uppercase tracking-[0.15em] hover:bg-accent-strong hover:border-accent disabled:opacity-40"
                 >
                   {setAvatar.isPending ? 'mentés…' : 'Mentés'}
                 </button>
@@ -119,7 +119,7 @@ export function AdminAiAvatar() {
                   type="button"
                   onClick={() => { setPreview(null); setError(null) }}
                   disabled={busy}
-                  className="border-2 border-stone-300 px-3 py-1.5 text-xs font-mono uppercase tracking-[0.15em] text-stone-700 hover:border-stone-900 hover:text-stone-900 disabled:opacity-40"
+                  className="border-2 border-border-subtle px-3 py-1.5 text-xs font-mono uppercase tracking-[0.15em] text-fg-default hover:border-accent hover:text-accent disabled:opacity-40"
                 >
                   Mégse
                 </button>
@@ -130,7 +130,7 @@ export function AdminAiAvatar() {
                   type="button"
                   onClick={pickFile}
                   disabled={busy}
-                  className="border-2 border-stone-300 px-3 py-1.5 text-xs font-mono uppercase tracking-[0.15em] text-stone-700 hover:border-stone-900 hover:text-stone-900 disabled:opacity-40"
+                  className="border-2 border-border-subtle px-3 py-1.5 text-xs font-mono uppercase tracking-[0.15em] text-fg-default hover:border-accent hover:text-accent disabled:opacity-40"
                 >
                   Kép feltöltése
                 </button>
@@ -139,7 +139,7 @@ export function AdminAiAvatar() {
                     type="button"
                     onClick={onDelete}
                     disabled={busy}
-                    className="border-2 border-stone-300 px-3 py-1.5 text-xs font-mono uppercase tracking-[0.15em] text-red-700 hover:border-red-700 disabled:opacity-40"
+                    className="border-2 border-border-subtle px-3 py-1.5 text-xs font-mono uppercase tracking-[0.15em] text-danger hover:border-danger disabled:opacity-40"
                   >
                     {deleteAvatar.isPending ? 'törlés…' : 'Törlés'}
                   </button>
@@ -149,12 +149,12 @@ export function AdminAiAvatar() {
           </div>
         </div>
         {error && (
-          <p className="border-2 border-red-700 bg-red-50 p-3 font-mono text-xs text-red-800">
+          <p className="border-2 border-danger bg-danger/10 p-3 font-mono text-xs text-danger">
             ⚠ {error}
           </p>
         )}
         {success && (
-          <p className="border-2 border-emerald-700 bg-emerald-50 p-3 font-mono text-xs text-emerald-800">
+          <p className="border-2 border-success bg-success/10 p-3 font-mono text-xs text-success">
             {success}
           </p>
         )}

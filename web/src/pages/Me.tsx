@@ -32,21 +32,21 @@ export function Me() {
   return (
     <div className="max-w-xl mx-auto px-6 py-10 space-y-6">
       <header>
-        <p className="text-xs font-mono uppercase tracking-[0.2em] text-orange-600">Profil</p>
+        <p className="text-xs font-mono uppercase tracking-[0.2em] text-accent">Profil</p>
         <h1 className="text-4xl font-black uppercase tracking-tight mt-2 break-words">
           {me.data?.displayName ?? '…'}
         </h1>
       </header>
 
-      {me.isLoading && <p className="font-mono text-stone-500">betöltés…</p>}
+      {me.isLoading && <p className="font-mono text-fg-subtle">betöltés…</p>}
       {me.error && (
-        <p className="border-2 border-red-700 bg-red-50 p-4 font-mono text-sm text-red-800">
+        <p className="border border-danger bg-danger/10 p-4 font-mono text-sm text-danger">
           ⚠ {me.error instanceof Error ? me.error.message : String(me.error)}
         </p>
       )}
 
       {me.data && (
-        <section className="border-2 border-stone-900 bg-white p-5 space-y-4">
+        <section className="border border-border-strong bg-elevated p-5 space-y-4">
           <AvatarSection
             userId={me.data.id}
             displayName={me.data.displayName}
@@ -58,7 +58,7 @@ export function Me() {
             <Row
               label="Szerepkör"
               value={
-                <span className="bg-orange-100 text-orange-800 px-2 py-0.5 text-xs uppercase tracking-[0.15em]">
+                <span className="bg-accent-soft text-accent-strong px-2 py-0.5 text-xs uppercase tracking-[0.15em]">
                   Admin
                 </span>
               }
@@ -79,8 +79,8 @@ export function Me() {
 
       <PreferencesPanel />
 
-      <section className="border-2 border-stone-300 bg-white p-5 space-y-3">
-        <p className="text-xs font-mono uppercase tracking-[0.15em] text-stone-500">Gyors hivatkozások</p>
+      <section className="border border-border-subtle bg-elevated p-5 space-y-3">
+        <p className="text-xs font-mono uppercase tracking-[0.15em] text-fg-subtle">Gyors hivatkozások</p>
         <div className="flex flex-wrap gap-2">
           <QuickLink to="/matches" label="Mérkőzések" />
           <QuickLink to="/long-tips" label="Hosszú tipp" />
@@ -92,7 +92,7 @@ export function Me() {
       <button
         type="button"
         onClick={() => logout({ logoutParams: { returnTo: window.location.origin } })}
-        className="w-full border-2 border-stone-900 bg-white text-stone-900 py-3 text-sm font-mono uppercase tracking-[0.2em] hover:bg-stone-900 hover:text-white"
+        className="w-full border border-border-strong bg-elevated text-fg-default py-3 text-sm font-mono uppercase tracking-[0.2em] hover:bg-accent hover:text-on-accent hover:border-accent"
       >
         Kilépés
       </button>
@@ -108,11 +108,11 @@ function PreferencesPanel() {
   const disabled = prefs.isLoading || setPrefs.isPending || !hasEmail
 
   return (
-    <section className="border-2 border-stone-300 bg-white p-5 space-y-3">
-      <p className="text-xs font-mono uppercase tracking-[0.15em] text-stone-500">Értesítések</p>
+    <section className="border border-border-subtle bg-elevated p-5 space-y-3">
+      <p className="text-xs font-mono uppercase tracking-[0.15em] text-fg-subtle">Értesítések</p>
 
       {prefs.error && (
-        <p className="border-2 border-red-700 bg-red-50 p-3 font-mono text-xs text-red-800">
+        <p className="border border-danger bg-danger/10 p-3 font-mono text-xs text-danger">
           ⚠ {prefs.error instanceof Error ? prefs.error.message : String(prefs.error)}
         </p>
       )}
@@ -123,23 +123,23 @@ function PreferencesPanel() {
           checked={enabled}
           disabled={disabled}
           onChange={(e) => setPrefs.mutate(e.target.checked)}
-          className="size-5 mt-0.5 border-2 border-stone-900 cursor-pointer disabled:cursor-not-allowed"
+          className="size-5 mt-0.5 border border-border-strong cursor-pointer disabled:cursor-not-allowed"
         />
         <span className="flex-1 space-y-1">
           <span className="block text-sm font-mono">Tipp-emlékeztetők emailben</span>
-          <span className="block font-mono text-xs text-stone-500">
+          <span className="block font-mono text-xs text-fg-subtle">
             ~24 órával és ~2 órával a meccs előtt szólunk, ha még nem tippeltél.
           </span>
         </span>
       </label>
 
       {!hasEmail && (
-        <p className="text-xs font-mono text-stone-500">
+        <p className="text-xs font-mono text-fg-subtle">
           Az Auth0 fiókod nem tartalmaz email címet, ezért nem tudunk emlékeztetőt küldeni.
         </p>
       )}
       {setPrefs.error && (
-        <p className="text-xs font-mono text-red-700">
+        <p className="text-xs font-mono text-danger">
           Nem sikerült menteni: {setPrefs.error instanceof Error ? setPrefs.error.message : String(setPrefs.error)}
         </p>
       )}
@@ -201,19 +201,19 @@ function AvatarSection({
   const hasAvatar = !!avatarVersion
 
   return (
-    <div className="flex items-center gap-4 border-b border-stone-200 pb-4">
+    <div className="flex items-center gap-4 border-b border-border-subtle pb-4">
       {preview ? (
         <img
           src={preview}
           alt=""
           style={{ width: 96, height: 96 }}
-          className="rounded-full border-2 border-orange-600 object-cover bg-white shrink-0"
+          className="rounded-full border border-accent object-cover bg-elevated shrink-0"
         />
       ) : (
         <Avatar userId={userId} displayName={displayName} version={avatarVersion} size={96} />
       )}
       <div className="flex-1 min-w-0 space-y-2">
-        <p className="text-xs font-mono uppercase tracking-[0.15em] text-stone-500">Profilkép</p>
+        <p className="text-xs font-mono uppercase tracking-[0.15em] text-fg-subtle">Profilkép</p>
         <input
           ref={inputRef}
           type="file"
@@ -227,7 +227,7 @@ function AvatarSection({
               type="button"
               onClick={onSave}
               disabled={busy}
-              className="border-2 border-stone-900 bg-stone-900 text-white px-3 py-1.5 text-xs font-mono uppercase tracking-[0.15em] hover:bg-orange-600 hover:border-orange-600 disabled:opacity-40"
+              className="border border-accent bg-accent text-on-accent px-3 py-1.5 text-xs font-mono uppercase tracking-[0.15em] hover:bg-accent-strong hover:border-accent disabled:opacity-40"
             >
               {setAvatar.isPending ? 'mentés…' : 'Mentés'}
             </button>
@@ -235,7 +235,7 @@ function AvatarSection({
               type="button"
               onClick={() => { setPreview(null); setError(null) }}
               disabled={busy}
-              className="border-2 border-stone-300 px-3 py-1.5 text-xs font-mono uppercase tracking-[0.15em] text-stone-700 hover:border-stone-900 hover:text-stone-900 disabled:opacity-40"
+              className="border border-border-subtle px-3 py-1.5 text-xs font-mono uppercase tracking-[0.15em] text-fg-default hover:border-accent hover:text-accent disabled:opacity-40"
             >
               Mégse
             </button>
@@ -246,7 +246,7 @@ function AvatarSection({
               type="button"
               onClick={pickFile}
               disabled={busy}
-              className="border-2 border-stone-300 px-3 py-1.5 text-xs font-mono uppercase tracking-[0.15em] text-stone-700 hover:border-stone-900 hover:text-stone-900 disabled:opacity-40"
+              className="border border-border-subtle px-3 py-1.5 text-xs font-mono uppercase tracking-[0.15em] text-fg-default hover:border-accent hover:text-accent disabled:opacity-40"
             >
               Kép feltöltése
             </button>
@@ -255,14 +255,14 @@ function AvatarSection({
                 type="button"
                 onClick={onDelete}
                 disabled={busy}
-                className="border-2 border-stone-300 px-3 py-1.5 text-xs font-mono uppercase tracking-[0.15em] text-red-700 hover:border-red-700 disabled:opacity-40"
+                className="border border-border-subtle px-3 py-1.5 text-xs font-mono uppercase tracking-[0.15em] text-danger hover:border-danger disabled:opacity-40"
               >
                 {deleteAvatar.isPending ? 'törlés…' : 'Törlés'}
               </button>
             )}
           </div>
         )}
-        {error && <p className="text-xs font-mono text-red-700">{error}</p>}
+        {error && <p className="text-xs font-mono text-danger">{error}</p>}
       </div>
     </div>
   )
@@ -318,7 +318,7 @@ function DisplayNameRow({ displayName }: { displayName: string }) {
                 reset({ displayName })
                 setEditing(true)
               }}
-              className="border-2 border-stone-300 px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.15em] text-stone-700 hover:border-stone-900 hover:text-stone-900 shrink-0"
+              className="border border-border-subtle px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.15em] text-fg-default hover:border-accent hover:text-accent shrink-0"
             >
               Átnevez
             </button>
@@ -329,10 +329,10 @@ function DisplayNameRow({ displayName }: { displayName: string }) {
   }
 
   return (
-    <div className="border-b border-stone-200 pb-3 last:border-b-0 last:pb-0 space-y-2">
+    <div className="border-b border-border-subtle pb-3 last:border-b-0 last:pb-0 space-y-2">
       <label
         htmlFor="displayName"
-        className="block text-xs font-mono uppercase tracking-[0.15em] text-stone-500"
+        className="block text-xs font-mono uppercase tracking-[0.15em] text-fg-subtle"
       >
         Megjelenített név
       </label>
@@ -343,24 +343,24 @@ function DisplayNameRow({ displayName }: { displayName: string }) {
           maxLength={120}
           autoFocus
           {...register('displayName')}
-          className="w-full border-2 border-stone-900 px-3 py-2 font-mono text-sm"
+          className="w-full border border-border-strong px-3 py-2 font-mono text-sm"
         />
         {errors.displayName && (
-          <p className="text-xs font-mono text-red-700">{errors.displayName.message}</p>
+          <p className="text-xs font-mono text-danger">{errors.displayName.message}</p>
         )}
         <div className="flex justify-end gap-2">
           <button
             type="button"
             onClick={cancel}
             disabled={isSubmitting || rename.isPending}
-            className="border-2 border-stone-300 px-3 py-1.5 text-xs font-mono uppercase tracking-[0.15em] text-stone-700 hover:border-stone-900 hover:text-stone-900 disabled:opacity-40"
+            className="border border-border-subtle px-3 py-1.5 text-xs font-mono uppercase tracking-[0.15em] text-fg-default hover:border-accent hover:text-accent disabled:opacity-40"
           >
             Mégse
           </button>
           <button
             type="submit"
             disabled={isSubmitting || rename.isPending}
-            className="border-2 border-stone-900 bg-stone-900 text-white px-3 py-1.5 text-xs font-mono uppercase tracking-[0.15em] hover:bg-orange-600 hover:border-orange-600 disabled:opacity-40"
+            className="border border-accent bg-accent text-on-accent px-3 py-1.5 text-xs font-mono uppercase tracking-[0.15em] hover:bg-accent-strong hover:border-accent disabled:opacity-40"
           >
             {rename.isPending || isSubmitting ? 'mentés…' : 'Mentés'}
           </button>
@@ -372,11 +372,11 @@ function DisplayNameRow({ displayName }: { displayName: string }) {
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="flex items-baseline justify-between gap-3 border-b border-stone-200 pb-2 last:border-b-0 last:pb-0">
-      <span className="text-xs font-mono uppercase tracking-[0.15em] text-stone-500 shrink-0">
+    <div className="flex items-baseline justify-between gap-3 border-b border-border-subtle pb-2 last:border-b-0 last:pb-0">
+      <span className="text-xs font-mono uppercase tracking-[0.15em] text-fg-subtle shrink-0">
         {label}
       </span>
-      <span className="font-mono text-sm text-stone-900 text-right break-words min-w-0">
+      <span className="font-mono text-sm text-fg-default text-right break-words min-w-0">
         {value}
       </span>
     </div>
@@ -387,7 +387,7 @@ function QuickLink({ to, label }: { to: string; label: string }) {
   return (
     <Link
       to={to}
-      className="border-2 border-stone-300 px-3 py-1.5 text-xs font-mono uppercase tracking-[0.15em] text-stone-700 hover:border-stone-900 hover:text-stone-900"
+      className="border border-border-subtle px-3 py-1.5 text-xs font-mono uppercase tracking-[0.15em] text-fg-default hover:border-accent hover:text-accent"
     >
       {label}
     </Link>

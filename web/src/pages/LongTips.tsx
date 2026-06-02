@@ -86,7 +86,7 @@ export function LongTips() {
   return (
     <div className="max-w-xl mx-auto px-6 py-10 space-y-6">
       <header>
-        <p className="text-xs font-mono uppercase tracking-[0.2em] text-orange-600">
+        <p className="text-xs font-mono uppercase tracking-[0.2em] text-accent">
           Hosszú távú tippek
         </p>
         <h1 className="text-4xl font-black uppercase tracking-tight mt-2">
@@ -94,9 +94,9 @@ export function LongTips() {
         </h1>
       </header>
 
-      {longTips.isLoading && <p className="font-mono text-stone-500">betöltés…</p>}
+      {longTips.isLoading && <p className="font-mono text-fg-subtle">betöltés…</p>}
       {longTips.error && (
-        <p className="border-2 border-red-700 bg-red-50 p-4 font-mono text-sm text-red-800">
+        <p className="border border-danger bg-danger/10 p-4 font-mono text-sm text-danger">
           ⚠ {longTips.error instanceof Error ? longTips.error.message : String(longTips.error)}
         </p>
       )}
@@ -104,24 +104,24 @@ export function LongTips() {
       {longTips.data && (
         <>
           <section
-            className={`border-2 p-4 font-mono text-xs uppercase tracking-[0.15em] ${
+            className={`border p-4 font-mono text-xs uppercase tracking-[0.15em] ${
               locked
-                ? 'border-stone-900 bg-stone-900 text-white'
-                : 'border-stone-300 bg-white text-stone-600'
+                ? 'border-accent bg-accent text-on-accent'
+                : 'border-border-subtle bg-elevated text-fg-muted'
             }`}
           >
             zár:{' '}
-            <span className={locked ? 'text-orange-300' : 'text-stone-900'}>
+            <span className={locked ? 'text-accent-soft' : 'text-fg-default'}>
               {formatBudapest(longTips.data.lockUtc)}
             </span>
             {locked && <span className="ml-3">· LEZÁRVA</span>}
           </section>
 
           <form onSubmit={handleSubmit(onValid)} className="space-y-5">
-            <section className="border-2 border-stone-900 bg-white p-5 space-y-3">
+            <section className="border border-border-strong bg-elevated p-5 space-y-3">
               <label
                 htmlFor="winnerTeamId"
-                className="block text-xs font-mono uppercase tracking-[0.15em] text-stone-500"
+                className="block text-xs font-mono uppercase tracking-[0.15em] text-fg-subtle"
               >
                 Győztes csapat
               </label>
@@ -139,16 +139,16 @@ export function LongTips() {
                 )}
               />
               {longTips.data.winnerSubmittedAt && (
-                <p className="text-xs font-mono text-stone-500">
+                <p className="text-xs font-mono text-fg-subtle">
                   utolsó módosítás: {formatBudapest(longTips.data.winnerSubmittedAt)}
                 </p>
               )}
             </section>
 
-            <section className="border-2 border-stone-900 bg-white p-5 space-y-3">
+            <section className="border border-border-strong bg-elevated p-5 space-y-3">
               <label
                 htmlFor="topScorerName"
-                className="block text-xs font-mono uppercase tracking-[0.15em] text-stone-500"
+                className="block text-xs font-mono uppercase tracking-[0.15em] text-fg-subtle"
               >
                 Gólkirály neve
               </label>
@@ -159,26 +159,26 @@ export function LongTips() {
                 maxLength={120}
                 placeholder="pl. Kylian Mbappe"
                 {...register('topScorerName')}
-                className="w-full border-2 border-stone-900 px-3 py-2 font-mono disabled:bg-stone-100"
+                className="w-full border border-border-strong px-3 py-2 font-mono disabled:bg-sunken"
               />
               {errors.topScorerName && (
-                <p className="text-xs font-mono text-red-700">{errors.topScorerName.message}</p>
+                <p className="text-xs font-mono text-danger">{errors.topScorerName.message}</p>
               )}
               {longTips.data.topScorerSubmittedAt && (
-                <p className="text-xs font-mono text-stone-500">
+                <p className="text-xs font-mono text-fg-subtle">
                   utolsó módosítás: {formatBudapest(longTips.data.topScorerSubmittedAt)}
                 </p>
               )}
             </section>
 
             {errors.root && (
-              <p className="text-xs font-mono text-red-700">{errors.root.message}</p>
+              <p className="text-xs font-mono text-danger">{errors.root.message}</p>
             )}
 
             <button
               type="submit"
               disabled={locked || isSubmitting || submit.isPending}
-              className="w-full border-2 border-stone-900 bg-stone-900 text-white py-3 text-sm font-mono uppercase tracking-[0.2em] hover:bg-orange-600 hover:border-orange-600 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="w-full border border-accent bg-accent text-on-accent py-3 text-sm font-mono uppercase tracking-[0.2em] hover:bg-accent-strong hover:border-accent disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {submit.isPending || isSubmitting ? 'küldés…' : 'Mentés'}
             </button>

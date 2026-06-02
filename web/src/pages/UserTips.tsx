@@ -21,12 +21,12 @@ function stageLabel(item: UserTipHistoryItem): string {
 
 function statusChip(status: UserTipHistoryItem['status']): { label: string; cls: string } {
   if (status === 'Finished' || status === 'Awarded') {
-    return { label: 'lejátszott', cls: 'bg-stone-200 text-stone-700' }
+    return { label: 'lejátszott', cls: 'bg-sunken text-fg-default' }
   }
   if (status === 'Cancelled' || status === 'Abandoned') {
-    return { label: STATUS_LABEL_HU[status], cls: 'bg-red-100 text-red-800' }
+    return { label: STATUS_LABEL_HU[status], cls: 'bg-danger/15 text-danger' }
   }
-  return { label: STATUS_LABEL_HU[status] ?? status, cls: 'bg-stone-200 text-stone-700' }
+  return { label: STATUS_LABEL_HU[status] ?? status, cls: 'bg-sunken text-fg-default' }
 }
 
 export function UserTips() {
@@ -49,24 +49,24 @@ export function UserTips() {
       <div>
         <Link
           to="/leaderboard?tab=users"
-          className="text-xs font-mono uppercase tracking-[0.2em] text-stone-500 hover:text-stone-900"
+          className="text-xs font-mono uppercase tracking-[0.2em] text-fg-subtle hover:text-accent"
         >
           ← Ranglista
         </Link>
       </div>
 
       {error && (
-        <p className="border-2 border-red-700 bg-red-50 p-4 font-mono text-sm text-red-800">
+        <p className="border border-danger bg-danger/10 p-4 font-mono text-sm text-danger">
           ⚠ {error instanceof Error ? error.message : String(error)}
         </p>
       )}
 
-      {isLoading && <p className="font-mono text-stone-500">betöltés…</p>}
+      {isLoading && <p className="font-mono text-fg-subtle">betöltés…</p>}
 
       {data && <UserHeader data={data} />}
 
       {data && grouped.length === 0 && (
-        <p className="border-2 border-stone-300 bg-white p-6 text-center font-mono text-stone-500">
+        <p className="border border-border-subtle bg-elevated p-6 text-center font-mono text-fg-subtle">
           Még nincs lezárt tipp.
         </p>
       )}
@@ -74,7 +74,7 @@ export function UserTips() {
       <div className="space-y-6">
         {grouped.map(([date, items]) => (
           <section key={date} className="space-y-2">
-            <h2 className="text-xs font-mono uppercase tracking-[0.2em] text-stone-500">{date}</h2>
+            <h2 className="text-xs font-mono uppercase tracking-[0.2em] text-fg-subtle">{date}</h2>
             <ul className="space-y-2">
               {items.map((it) => (
                 <MatchTipRow key={it.matchId} item={it} />
@@ -98,14 +98,14 @@ function UserHeader({ data }: { data: UserTipHistoryResponse }) {
           size={56}
         />
         <div className="min-w-0">
-          <p className="text-xs font-mono uppercase tracking-[0.2em] text-orange-600">Ranglista · Tippek</p>
+          <p className="text-xs font-mono uppercase tracking-[0.2em] text-accent">Ranglista · Tippek</p>
           <h1 className="text-3xl sm:text-4xl font-black uppercase tracking-tight mt-1 truncate">
             {data.displayName}
           </h1>
         </div>
       </div>
       <div className="text-right">
-        <p className="text-xs font-mono uppercase tracking-[0.2em] text-stone-500">Összpont</p>
+        <p className="text-xs font-mono uppercase tracking-[0.2em] text-fg-subtle">Összpont</p>
         <p className="text-4xl font-black font-mono tabular-nums">{data.totalPoints}</p>
       </div>
     </header>
@@ -119,9 +119,9 @@ function MatchTipRow({ item }: { item: UserTipHistoryItem }) {
   const { tip } = item
 
   return (
-    <li className="border-2 border-stone-900 bg-white">
-      <Link to={`/matches/${item.matchId}/tip`} className="block p-4 hover:bg-stone-50">
-        <div className="flex items-center gap-3 text-xs font-mono uppercase tracking-[0.15em] text-stone-500">
+    <li className="border border-border-strong bg-elevated">
+      <Link to={`/matches/${item.matchId}/tip`} className="block p-4 hover:bg-sunken">
+        <div className="flex items-center gap-3 text-xs font-mono uppercase tracking-[0.15em] text-fg-subtle">
           <span>{stageLabel(item)}</span>
           <span>·</span>
           <span>{kickoff}</span>
@@ -133,19 +133,19 @@ function MatchTipRow({ item }: { item: UserTipHistoryItem }) {
             <div className="text-base font-bold"><TeamLabel team={item.homeTeam} /></div>
             <div className="text-base font-bold"><TeamLabel team={item.awayTeam} /></div>
           </div>
-          <div className="text-2xl font-mono tabular-nums text-stone-900 shrink-0">
+          <div className="text-2xl font-mono tabular-nums text-fg-default shrink-0">
             {hasResult ? `${item.homeGoals} : ${item.awayGoals}` : '— : —'}
           </div>
         </div>
 
-        <div className="mt-3 flex items-center justify-between gap-3 text-xs font-mono text-stone-500">
+        <div className="mt-3 flex items-center justify-between gap-3 text-xs font-mono text-fg-subtle">
           <span>
             tipp:{' '}
-            <span className="text-stone-900">
+            <span className="text-fg-default">
               {tip.homeGoals}–{tip.awayGoals}
             </span>
             {tip.joker && (
-              <span className="ml-2 bg-orange-100 text-orange-800 px-1.5 py-0.5">JOKER</span>
+              <span className="ml-2 bg-accent-soft text-accent-strong px-1.5 py-0.5">JOKER</span>
             )}
           </span>
           <TipPoints item={item} />
@@ -158,13 +158,13 @@ function MatchTipRow({ item }: { item: UserTipHistoryItem }) {
 function TipPoints({ item }: { item: UserTipHistoryItem }) {
   const score = item.tip.score
   if (score === null) {
-    return <span className="text-stone-400">—</span>
+    return <span className="text-fg-subtle">—</span>
   }
   if (score.finalPoints === 0) {
     return (
       <span className="text-right">
-        <span className="text-stone-500 font-bold">0 pt</span>
-        <span className="block text-[10px] text-stone-400">
+        <span className="text-fg-subtle font-bold">0 pt</span>
+        <span className="block text-[10px] text-fg-subtle">
           {CATEGORY_LABEL_HU[score.category] ?? score.category}
         </span>
       </span>
@@ -172,8 +172,8 @@ function TipPoints({ item }: { item: UserTipHistoryItem }) {
   }
   return (
     <span className="text-right">
-      <span className="text-green-700 font-bold tabular-nums">+{score.finalPoints} pt</span>
-      <span className="block text-[10px] text-stone-500">
+      <span className="text-success font-bold tabular-nums">+{score.finalPoints} pt</span>
+      <span className="block text-[10px] text-fg-subtle">
         {CATEGORY_LABEL_HU[score.category] ?? score.category} · ×{score.multiplier}
         {score.jokerApplied && ' · ×2 (joker)'}
       </span>

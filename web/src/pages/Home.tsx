@@ -1,76 +1,174 @@
 import { useAuth0 } from '@auth0/auth0-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState, type ComponentType } from 'react'
 import { Link } from 'react-router'
+import {
+  ArrowRight,
+  CheckCircle2,
+  ChevronRight,
+  LockKeyhole,
+  LogIn,
+  Shield,
+  Target,
+  Trophy,
+  Users,
+  type LucideProps,
+} from 'lucide-react'
 import { useLongTips, useMatches, useMyTeam } from '../api/hooks'
 import { isAuthConfigured } from '../auth/authConfig'
-import { formatBudapest, formatCountdown } from '../lib/format'
+import { formatBudapest } from '../lib/format'
 
 export function Home() {
   const { isAuthenticated, isLoading } = useAuth0()
 
   return (
-    <div className="max-w-2xl mx-auto px-6 py-10 space-y-8">
-      <header className="space-y-2">
-        <p className="text-xs font-mono uppercase tracking-[0.2em] text-orange-600">
-          Foci VB · Tippjáték
-        </p>
-        <h1 className="text-5xl sm:text-6xl font-black uppercase tracking-tight">Tip4Gen</h1>
-        <p className="font-mono text-sm text-stone-600">
-          2026-os labdarúgó-világbajnokság · barátok közötti tippjáték
-        </p>
-      </header>
+    <div className="min-h-[calc(100vh-4rem)] bg-gradient-to-b from-accent/5 via-surface to-surface dark:from-[#0b1438] dark:via-surface dark:to-surface">
+      <div className="max-w-4xl mx-auto px-6 py-12 space-y-10">
+        <Hero />
 
-      {!isAuthConfigured && (
-        <section className="border-2 border-orange-600 bg-orange-50 p-5 font-mono text-sm text-orange-900">
-          Auth0 nincs beállítva — másold a <code>web/.env.local.example</code> fájlt
-          <code> web/.env.local</code>-ra, töltsd ki a <code>VITE_AUTH0_*</code> értékeket, és
-          indítsd újra a dev szervert.
-        </section>
-      )}
+        {!isAuthConfigured && (
+          <section className="rounded-2xl border border-warning/40 bg-warning/10 p-5 font-mono text-sm text-warning">
+            Auth0 nincs beállítva — másold a <code>web/.env.local.example</code> fájlt
+            <code> web/.env.local</code>-ra, töltsd ki a <code>VITE_AUTH0_*</code> értékeket, és
+            indítsd újra a dev szervert.
+          </section>
+        )}
 
-      {isAuthConfigured && isLoading && (
-        <p className="font-mono text-stone-500">betöltés…</p>
-      )}
+        {isAuthConfigured && isLoading && (
+          <p className="font-mono text-fg-subtle text-center">betöltés…</p>
+        )}
 
-      {isAuthConfigured && !isLoading && !isAuthenticated && <GuestPanel />}
-      {isAuthConfigured && !isLoading && isAuthenticated && <OnboardingPanel />}
+        {isAuthConfigured && !isLoading && !isAuthenticated && <GuestPanel />}
+        {isAuthConfigured && !isLoading && isAuthenticated && <OnboardingPanel />}
+      </div>
     </div>
   )
+}
+
+function Hero() {
+  const longTips = useLongTips()
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000)
+    return () => clearInterval(id)
+  }, [])
+
+  const kickoff = longTips.data?.lockUtc
+  const locked = longTips.data?.locked ?? false
+  const countdown = useMemo(() => splitCountdown(kickoff, now), [kickoff, now])
+
+  return (
+    <header className="text-center space-y-6 pt-4">
+      <div className="inline-flex items-center gap-2 text-xs font-mono uppercase tracking-[0.25em] text-accent">
+        <Trophy size={14} />
+        Foci VB 2026 · Tippjáték
+      </div>
+      <h1 className="text-5xl sm:text-7xl font-bold tracking-tight text-fg-default">Tip4Gen</h1>
+      <p className="font-mono text-sm text-fg-muted max-w-xl mx-auto">
+        2026-os labdarúgó-világbajnokság · barátok közötti tippjáték
+      </p>
+
+      {kickoff && countdown && (
+        <div className="space-y-2">
+          <p className="text-[11px] font-mono uppercase tracking-[0.25em] text-fg-subtle">
+            {locked ? 'A torna elkezdődött' : 'Kezdésig hátra'}
+          </p>
+          {locked ? (
+            <p className="inline-flex items-center gap-2 text-xl font-bold text-accent">
+              <span className="inline-block h-2 w-2 rounded-full bg-live live-dot" />
+              ÉL
+            </p>
+          ) : (
+            <div className="inline-flex gap-2 sm:gap-3">
+              <TimeBlock value={countdown.days} unit="nap" />
+              <TimeBlock value={countdown.hours} unit="óra" />
+              <TimeBlock value={countdown.minutes} unit="perc" />
+              <TimeBlock value={countdown.seconds} unit="mp" />
+            </div>
+          )}
+          <p className="text-[11px] font-mono uppercase tracking-[0.15em] text-fg-subtle">
+            nyitány: {formatBudapest(kickoff)}
+          </p>
+        </div>
+      )}
+    </header>
+  )
+}
+
+function TimeBlock({ value, unit }: { value: number; unit: string }) {
+  return (
+    <div className="rounded-xl border border-accent/30 bg-elevated/70 backdrop-blur px-3 sm:px-5 py-3 min-w-[64px] sm:min-w-[80px]">
+      <p className="text-2xl sm:text-4xl font-mono font-bold tabular-nums text-fg-default leading-none">
+        {value.toString().padStart(2, '0')}
+      </p>
+      <p className="mt-1 text-[10px] font-mono uppercase tracking-[0.2em] text-fg-subtle">{unit}</p>
+    </div>
+  )
+}
+
+function splitCountdown(target: string | undefined, now: Date) {
+  if (!target) return null
+  const diff = new Date(target).getTime() - now.getTime()
+  if (diff <= 0) return { days: 0, hours: 0, minutes: 0, seconds: 0 }
+  const days = Math.floor(diff / 86400000)
+  const hours = Math.floor((diff % 86400000) / 3600000)
+  const minutes = Math.floor((diff % 3600000) / 60000)
+  const seconds = Math.floor((diff % 60000) / 1000)
+  return { days, hours, minutes, seconds }
 }
 
 function GuestPanel() {
   const { loginWithRedirect } = useAuth0()
   return (
     <div className="space-y-6">
-      <section className="border-2 border-stone-900 bg-white p-6 space-y-4">
-        <h2 className="text-2xl font-black uppercase tracking-tight">Hogyan működik</h2>
-        <ol className="space-y-2 font-mono text-sm text-stone-700">
-          <li>
-            <span className="text-orange-600 font-bold">1.</span> Tippelj minden meccsre — 0–15
-            gól, csoportkörben joker (max 3×, dupla pont).
-          </li>
-          <li>
-            <span className="text-orange-600 font-bold">2.</span> Hosszú távú tipp: torna győztese
-            + gólkirály — a nyitómérkőzésig zárul.
-          </li>
-          <li>
-            <span className="text-orange-600 font-bold">3.</span> Alakíts 4 fős csapatot
-            (opcionális AI tag) — a torna kezdetekor zárul.
-          </li>
-          <li>
-            <span className="text-orange-600 font-bold">4.</span> Egyéni és csapat ranglista a
-            torna alatt és után.
-          </li>
-        </ol>
-      </section>
+      <div className="grid gap-4 md:grid-cols-2">
+        <RuleCard
+          icon={Target}
+          title="Tippelj minden meccsre"
+          body="0–15 gól. Csoportkörben joker (max 3×, dupla pont)."
+        />
+        <RuleCard
+          icon={Trophy}
+          title="Hosszú tipp"
+          body="Torna győztese + gólkirály — a nyitómérkőzésig zárul."
+        />
+        <RuleCard
+          icon={Users}
+          title="4 fős csapat"
+          body="Csapat opcionális AI taggal. A torna kezdetekor zárul."
+        />
+        <RuleCard
+          icon={Shield}
+          title="Ranglista"
+          body="Egyéni és csapat ranglista a torna alatt és után."
+        />
+      </div>
       <button
         type="button"
         onClick={() => loginWithRedirect()}
-        className="w-full border-2 border-stone-900 bg-stone-900 text-white py-4 text-sm font-mono uppercase tracking-[0.2em] hover:bg-orange-600 hover:border-orange-600"
+        className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-accent text-on-accent py-4 text-sm font-mono uppercase tracking-[0.2em] font-bold transition hover:bg-accent-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring-focus"
       >
+        <LogIn size={16} />
         Belépés / Regisztráció
       </button>
     </div>
+  )
+}
+
+function RuleCard({
+  icon: Icon,
+  title,
+  body,
+}: {
+  icon: ComponentType<LucideProps>
+  title: string
+  body: string
+}) {
+  return (
+    <article className="rounded-2xl border border-border-subtle bg-elevated p-5 space-y-2 transition hover:-translate-y-0.5 hover:border-accent">
+      <Icon size={22} className="text-accent" />
+      <h3 className="text-sm font-bold text-fg-default">{title}</h3>
+      <p className="font-mono text-xs text-fg-muted leading-relaxed">{body}</p>
+    </article>
   )
 }
 
@@ -78,12 +176,6 @@ function OnboardingPanel() {
   const longTips = useLongTips()
   const myTeam = useMyTeam()
   const allMatches = useMatches('all')
-
-  const [now, setNow] = useState(() => new Date())
-  useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 1000)
-    return () => clearInterval(id)
-  }, [])
 
   const hasTeam = !!myTeam.data
   const hasAnyLongTip =
@@ -93,34 +185,14 @@ function OnboardingPanel() {
 
   return (
     <div className="space-y-6">
-      {longTips.data && (
-        <section className="border-2 border-stone-900 bg-stone-900 text-white p-5">
-          <p className="text-xs font-mono uppercase tracking-[0.15em] text-orange-300">
-            {longTipsLocked ? 'A torna elkezdődött' : 'A torna kezdetéig'}
-          </p>
-          <p className="mt-2 text-3xl font-black tabular-nums">
-            {longTipsLocked ? 'él' : formatCountdown(longTips.data.lockUtc, now)}
-          </p>
-          <p className="mt-2 text-xs font-mono uppercase tracking-[0.15em] text-stone-300">
-            nyitány: {formatBudapest(longTips.data.lockUtc)}
-          </p>
-        </section>
-      )}
+      <h2 className="text-xs font-mono uppercase tracking-[0.2em] text-fg-subtle text-center">
+        Indítólista
+      </h2>
 
-      <section className="space-y-3">
-        <h2 className="text-xs font-mono uppercase tracking-[0.2em] text-stone-500">
-          Indítólista
-        </h2>
-
+      <div className="grid gap-4 md:grid-cols-2">
         <Step
           n={1}
-          title="Belépés"
-          description="Google-fiókkal léptél be — kész."
-          done
-        />
-
-        <Step
-          n={2}
+          icon={Users}
           title="Csapat"
           description={
             hasTeam
@@ -134,7 +206,8 @@ function OnboardingPanel() {
         />
 
         <Step
-          n={3}
+          n={2}
+          icon={Trophy}
           title="Hosszú tipp"
           description={
             hasAnyLongTip
@@ -148,12 +221,13 @@ function OnboardingPanel() {
           done={hasAnyLongTip}
           locked={longTipsLocked && !hasAnyLongTip}
           loading={longTips.isLoading}
-          actionLabel={hasAnyLongTip ? 'Megnéz / módosít' : 'Hosszú tipp megadása'}
+          actionLabel={hasAnyLongTip ? 'Megnéz / módosít' : 'Hosszú tipp'}
           actionHref="/long-tips"
         />
 
         <Step
-          n={4}
+          n={3}
+          icon={Target}
           title="Első tipp"
           description={
             hasAnyTip
@@ -165,10 +239,19 @@ function OnboardingPanel() {
           actionLabel={hasAnyTip ? 'Mérkőzések' : 'Első tipp'}
           actionHref="/matches"
         />
-      </section>
 
-      <section className="border-2 border-stone-300 bg-white p-5">
-        <p className="text-xs font-mono uppercase tracking-[0.15em] text-stone-500 mb-3">
+        <Step
+          n={4}
+          icon={Shield}
+          title="Ranglista"
+          description="Egyéni és csapat ranglista — nézd meg, hogy állsz."
+          actionLabel="Ranglista"
+          actionHref="/leaderboard"
+        />
+      </div>
+
+      <section className="rounded-2xl border border-border-subtle bg-elevated p-5">
+        <p className="text-xs font-mono uppercase tracking-[0.15em] text-fg-subtle mb-3">
           Gyors hivatkozások
         </p>
         <div className="flex flex-wrap gap-2">
@@ -184,6 +267,7 @@ function OnboardingPanel() {
 
 function Step({
   n,
+  icon: Icon,
   title,
   description,
   done = false,
@@ -193,6 +277,7 @@ function Step({
   actionHref,
 }: {
   n: number
+  icon: ComponentType<LucideProps>
   title: string
   description: string
   done?: boolean
@@ -201,46 +286,56 @@ function Step({
   actionLabel?: string
   actionHref?: string
 }) {
-  const borderCls = done ? 'border-green-700' : locked ? 'border-stone-400' : 'border-stone-900'
-  const bgCls = done ? 'bg-green-50' : locked ? 'bg-stone-50' : 'bg-white'
+  const borderCls = done
+    ? 'border-accent'
+    : locked
+      ? 'border-border-subtle opacity-70'
+      : 'border-border-subtle hover:border-accent'
+
   return (
-    <article className={`border-2 ${borderCls} ${bgCls} p-4 flex items-start gap-4`}>
-      <span
-        className={`shrink-0 w-9 h-9 border-2 ${
-          done
-            ? 'border-green-700 bg-green-700 text-white'
-            : locked
-              ? 'border-stone-400 bg-stone-100 text-stone-400'
-              : 'border-stone-900 bg-white text-stone-900'
-        } font-black flex items-center justify-center text-sm`}
-        aria-hidden="true"
-      >
-        {done ? '✓' : locked ? '–' : n}
-      </span>
-      <div className="flex-1 min-w-0 space-y-1">
-        <h3 className="text-sm font-mono uppercase tracking-[0.15em] font-bold">
-          {title}
-          {done && (
-            <span className="ml-2 text-[10px] tracking-[0.15em] text-green-700">kész</span>
-          )}
-          {locked && (
-            <span className="ml-2 text-[10px] tracking-[0.15em] text-stone-500">lezárva</span>
-          )}
-        </h3>
-        <p className="font-mono text-xs text-stone-600">
-          {loading ? 'betöltés…' : description}
-        </p>
+    <article
+      className={`rounded-2xl border bg-elevated p-5 space-y-3 transition ${borderCls}`}
+    >
+      <div className="flex items-start gap-3">
+        <span
+          className={`shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold ${
+            done
+              ? 'bg-accent text-on-accent'
+              : locked
+                ? 'bg-sunken text-fg-subtle'
+                : 'bg-sunken text-fg-default'
+          }`}
+          aria-hidden="true"
+        >
+          {done ? <CheckCircle2 size={18} /> : locked ? <LockKeyhole size={16} /> : n}
+        </span>
+        <div className="flex-1 min-w-0">
+          <h3 className="text-sm font-bold text-fg-default inline-flex items-center gap-2">
+            <Icon size={16} className="text-accent" />
+            {title}
+            {done && (
+              <span className="text-[10px] font-mono uppercase tracking-[0.15em] text-accent">kész</span>
+            )}
+            {locked && (
+              <span className="text-[10px] font-mono uppercase tracking-[0.15em] text-fg-subtle">lezárva</span>
+            )}
+          </h3>
+          <p className="mt-1 font-mono text-xs text-fg-muted leading-relaxed">
+            {loading ? 'betöltés…' : description}
+          </p>
+        </div>
       </div>
       {actionLabel && actionHref && !locked && (
         <Link
           to={actionHref}
-          className={`shrink-0 border-2 px-3 py-1.5 text-xs font-mono uppercase tracking-[0.15em] ${
+          className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-mono uppercase tracking-[0.15em] transition ${
             done
-              ? 'border-stone-300 text-stone-600 bg-white hover:border-stone-900 hover:text-stone-900'
-              : 'border-stone-900 bg-stone-900 text-white hover:bg-orange-600 hover:border-orange-600'
+              ? 'border border-border-strong text-fg-muted hover:text-accent hover:border-accent'
+              : 'bg-accent text-on-accent hover:bg-accent-strong'
           }`}
         >
           {actionLabel}
+          <ArrowRight size={12} />
         </Link>
       )}
     </article>
@@ -251,9 +346,10 @@ function QuickLink({ to, label }: { to: string; label: string }) {
   return (
     <Link
       to={to}
-      className="border-2 border-stone-300 px-3 py-1.5 text-xs font-mono uppercase tracking-[0.15em] text-stone-700 hover:border-stone-900 hover:text-stone-900"
+      className="inline-flex items-center gap-1 rounded-lg border border-border-strong px-3 py-1.5 text-xs font-mono uppercase tracking-[0.15em] text-fg-muted transition hover:text-accent hover:border-accent"
     >
       {label}
+      <ChevronRight size={12} />
     </Link>
   )
 }

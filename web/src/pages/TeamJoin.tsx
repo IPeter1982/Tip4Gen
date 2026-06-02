@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
+import { AlertTriangle, ArrowLeft, CheckCircle2, Loader2 } from 'lucide-react'
 import { ApiError } from '../api/errors'
 import { useJoinTeam } from '../api/hooks'
 
@@ -51,46 +52,49 @@ export function TeamJoin() {
         setStatus('error')
         setMessage(e instanceof Error ? e.message : String(e))
       })
-    // We intentionally fire-and-forget once per token; join is a one-shot redemption.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token])
 
   return (
     <div className="max-w-xl mx-auto px-6 py-10 space-y-6">
       <header>
-        <p className="text-xs font-mono uppercase tracking-[0.2em] text-orange-600">
+        <p className="text-xs font-mono uppercase tracking-[0.2em] text-accent">
           Csapatcsatlakozás
         </p>
-        <h1 className="text-4xl font-black uppercase tracking-tight mt-2">Meghívó</h1>
+        <h1 className="text-4xl font-bold tracking-tight mt-2 text-fg-default">Meghívó</h1>
       </header>
 
       {status === 'pending' && (
-        <p className="border-2 border-stone-900 bg-white p-4 font-mono text-sm text-stone-700">
+        <p className="inline-flex items-center gap-2 rounded-xl border border-border-subtle bg-elevated p-4 font-mono text-sm text-fg-muted">
+          <Loader2 size={16} className="animate-spin text-accent" />
           Meghívó beváltása…
         </p>
       )}
 
       {status === 'success' && (
-        <p className="border-2 border-green-700 bg-green-50 p-4 font-mono text-sm text-green-800">
-          ✓ Sikeres csatlakozás! Átirányítás a csapat oldalra…
+        <p className="inline-flex items-center gap-2 rounded-xl border border-success/40 bg-success/10 p-4 font-mono text-sm text-success">
+          <CheckCircle2 size={16} />
+          Sikeres csatlakozás! Átirányítás a csapat oldalra…
         </p>
       )}
 
       {(status === 'error' || status === 'notfound') && (
         <>
-          <p className="border-2 border-red-700 bg-red-50 p-4 font-mono text-sm text-red-800">
-            ⚠ {message}
+          <p className="inline-flex items-center gap-2 rounded-xl border border-danger/40 bg-danger/10 p-4 font-mono text-sm text-danger">
+            <AlertTriangle size={16} />
+            {message}
           </p>
           <div className="flex gap-3">
             <Link
               to="/team"
-              className="border-2 border-stone-900 bg-stone-900 text-white px-4 py-2 text-xs font-mono uppercase tracking-[0.15em] hover:bg-orange-600 hover:border-orange-600"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-xs font-mono uppercase tracking-[0.15em] text-on-accent transition hover:bg-accent-strong"
             >
+              <ArrowLeft size={14} />
               Vissza a csapathoz
             </Link>
             <Link
               to="/"
-              className="border-2 border-stone-900 bg-white text-stone-900 px-4 py-2 text-xs font-mono uppercase tracking-[0.15em] hover:bg-stone-900 hover:text-white"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border-strong px-4 py-2 text-xs font-mono uppercase tracking-[0.15em] text-fg-muted transition hover:text-accent hover:border-accent"
             >
               Főoldal
             </Link>

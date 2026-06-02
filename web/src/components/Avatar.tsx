@@ -26,7 +26,7 @@ export function Avatar({ userId, displayName, version, isAi, size = 32, classNam
         src={`/api/ai-avatar?v=${aiVersion}`}
         alt=""
         style={dim}
-        className={`rounded-full border-2 border-stone-900 object-cover bg-white shrink-0 ${className}`}
+        className={`rounded-full ring-1 ring-border-strong object-cover bg-elevated shrink-0 ${className}`}
       />
     )
   }
@@ -37,15 +37,15 @@ export function Avatar({ userId, displayName, version, isAi, size = 32, classNam
         src={`/api/users/${userId}/avatar?v=${version}`}
         alt=""
         style={dim}
-        className={`rounded-full border-2 border-stone-900 object-cover bg-white shrink-0 ${className}`}
+        className={`rounded-full ring-1 ring-border-strong object-cover bg-elevated shrink-0 ${className}`}
       />
     )
   }
   return (
     <span
       aria-hidden
-      style={{ ...dim, backgroundColor: `hsl(${hue}, 60%, 45%)`, fontSize: Math.round(size * 0.42) }}
-      className={`inline-flex items-center justify-center rounded-full border-2 border-stone-900 text-white font-bold leading-none shrink-0 ${className}`}
+      style={{ ...dim, backgroundColor: `hsl(${hue}, 65%, 50%)`, fontSize: Math.round(size * 0.42) }}
+      className={`inline-flex items-center justify-center rounded-full ring-1 ring-white/10 text-white font-bold leading-none shrink-0 ${className}`}
     >
       {initial}
     </span>

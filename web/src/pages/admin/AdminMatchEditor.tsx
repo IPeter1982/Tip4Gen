@@ -42,33 +42,33 @@ export function AdminMatchEditor() {
     <div className="max-w-2xl mx-auto px-6 py-10 space-y-6">
       <Link
         to="/admin"
-        className="text-xs font-mono uppercase tracking-[0.15em] text-stone-500 hover:text-stone-900"
+        className="text-xs font-mono uppercase tracking-[0.15em] text-fg-subtle hover:text-accent"
       >
         ← vissza
       </Link>
 
-      {isLoading && <p className="font-mono text-stone-500">betöltés…</p>}
+      {isLoading && <p className="font-mono text-fg-subtle">betöltés…</p>}
       {error && (
-        <p className="border-2 border-red-700 bg-red-50 p-4 font-mono text-sm text-red-800">
+        <p className="border-2 border-danger bg-danger/10 p-4 font-mono text-sm text-danger">
           ⚠ {errorMessage(error)}
         </p>
       )}
 
       {match && (
         <>
-          <header className="border-2 border-stone-900 bg-white p-5">
-            <p className="text-xs font-mono uppercase tracking-[0.15em] text-stone-500">
+          <header className="border-2 border-border-strong bg-elevated p-5">
+            <p className="text-xs font-mono uppercase tracking-[0.15em] text-fg-subtle">
               {STAGE_LABEL_HU[match.stage] ?? match.stage}
               {match.groupCode ? ` ${match.groupCode}` : ''}
               {' · '}
-              <span className="text-stone-700">{STATUS_LABEL_HU[match.status] ?? match.status}</span>
+              <span className="text-fg-default">{STATUS_LABEL_HU[match.status] ?? match.status}</span>
             </p>
             <h1 className="text-2xl font-black uppercase tracking-tight mt-2 flex items-center gap-2 flex-wrap">
               <TeamLabel team={match.homeTeam} size="md" />
-              <span className="text-stone-400">vs</span>
+              <span className="text-fg-subtle">vs</span>
               <TeamLabel team={match.awayTeam} size="md" />
             </h1>
-            <p className="text-xs font-mono text-stone-500 mt-2">
+            <p className="text-xs font-mono text-fg-subtle mt-2">
               {formatBudapest(match.kickoffUtc)} CET
             </p>
             {match.homeGoals != null && match.awayGoals != null && (
@@ -131,12 +131,12 @@ function ResultPanel({
   }
 
   return (
-    <section className="border-2 border-stone-900 bg-white p-5 space-y-4">
-      <h2 className="text-xs font-mono uppercase tracking-[0.2em] text-stone-500">Eredmény</h2>
+    <section className="border-2 border-border-strong bg-elevated p-5 space-y-4">
+      <h2 className="text-xs font-mono uppercase tracking-[0.2em] text-fg-subtle">Eredmény</h2>
       <form onSubmit={handleSubmit(onValid)} className="space-y-4">
         <div className="flex items-end gap-3">
           <div className="flex-1">
-            <label className="block text-xs font-mono uppercase tracking-[0.15em] text-stone-500 mb-1">
+            <label className="block text-xs font-mono uppercase tracking-[0.15em] text-fg-subtle mb-1">
               Hazai
             </label>
             <input
@@ -144,13 +144,13 @@ function ResultPanel({
               min={0}
               max={15}
               {...register('homeGoals', { valueAsNumber: true })}
-              className="w-full border-2 border-stone-900 px-3 py-2 text-2xl font-mono tabular-nums"
+              className="w-full border-2 border-border-strong px-3 py-2 text-2xl font-mono tabular-nums"
             />
-            {errors.homeGoals && <p className="text-xs text-red-700 mt-1">{errors.homeGoals.message}</p>}
+            {errors.homeGoals && <p className="text-xs text-danger mt-1">{errors.homeGoals.message}</p>}
           </div>
           <span className="text-3xl font-black pb-3">:</span>
           <div className="flex-1">
-            <label className="block text-xs font-mono uppercase tracking-[0.15em] text-stone-500 mb-1">
+            <label className="block text-xs font-mono uppercase tracking-[0.15em] text-fg-subtle mb-1">
               Vendég
             </label>
             <input
@@ -158,14 +158,14 @@ function ResultPanel({
               min={0}
               max={15}
               {...register('awayGoals', { valueAsNumber: true })}
-              className="w-full border-2 border-stone-900 px-3 py-2 text-2xl font-mono tabular-nums"
+              className="w-full border-2 border-border-strong px-3 py-2 text-2xl font-mono tabular-nums"
             />
-            {errors.awayGoals && <p className="text-xs text-red-700 mt-1">{errors.awayGoals.message}</p>}
+            {errors.awayGoals && <p className="text-xs text-danger mt-1">{errors.awayGoals.message}</p>}
           </div>
         </div>
 
         <fieldset className="space-y-1">
-          <legend className="text-xs font-mono uppercase tracking-[0.15em] text-stone-500 mb-1">
+          <legend className="text-xs font-mono uppercase tracking-[0.15em] text-fg-subtle mb-1">
             Eredmény típusa
           </legend>
           <label className="flex items-center gap-2 font-mono text-sm">
@@ -179,24 +179,24 @@ function ResultPanel({
         </fieldset>
 
         <div>
-          <label className="block text-xs font-mono uppercase tracking-[0.15em] text-stone-500 mb-1">
+          <label className="block text-xs font-mono uppercase tracking-[0.15em] text-fg-subtle mb-1">
             Megjegyzés (audit log)
           </label>
           <input
             type="text"
             maxLength={500}
             {...register('reason')}
-            className="w-full border-2 border-stone-900 px-3 py-2 font-mono text-sm"
+            className="w-full border-2 border-border-strong px-3 py-2 font-mono text-sm"
           />
         </div>
 
-        {errors.root && <p className="text-xs font-mono text-red-700">{errors.root.message}</p>}
-        {success && <p className="text-xs font-mono text-green-700">{success}</p>}
+        {errors.root && <p className="text-xs font-mono text-danger">{errors.root.message}</p>}
+        {success && <p className="text-xs font-mono text-success">{success}</p>}
 
         <button
           type="submit"
           disabled={isSubmitting || setResult.isPending}
-          className="w-full border-2 border-stone-900 bg-stone-900 text-white py-3 text-sm font-mono uppercase tracking-[0.2em] hover:bg-orange-600 hover:border-orange-600 disabled:opacity-40"
+          className="w-full border-2 border-accent bg-accent text-on-accent py-3 text-sm font-mono uppercase tracking-[0.2em] hover:bg-accent-strong hover:border-accent disabled:opacity-40"
         >
           {isSubmitting || setResult.isPending ? 'mentés…' : 'Eredmény mentése'}
         </button>
@@ -239,37 +239,37 @@ function PostponePanel({ matchId, currentKickoffUtc }: { matchId: string; curren
   }
 
   return (
-    <section className="border-2 border-stone-900 bg-white p-5 space-y-4">
-      <h2 className="text-xs font-mono uppercase tracking-[0.2em] text-stone-500">Halasztás</h2>
+    <section className="border-2 border-border-strong bg-elevated p-5 space-y-4">
+      <h2 className="text-xs font-mono uppercase tracking-[0.2em] text-fg-subtle">Halasztás</h2>
       <form onSubmit={handleSubmit((v) => setPending(v))} className="space-y-3">
         <div>
-          <label className="block text-xs font-mono uppercase tracking-[0.15em] text-stone-500 mb-1">
+          <label className="block text-xs font-mono uppercase tracking-[0.15em] text-fg-subtle mb-1">
             Új kezdés (Budapest)
           </label>
           <input
             type="datetime-local"
             {...register('newKickoffLocal')}
-            className="w-full border-2 border-stone-900 px-3 py-2 font-mono text-sm"
+            className="w-full border-2 border-border-strong px-3 py-2 font-mono text-sm"
           />
-          {errors.newKickoffLocal && <p className="text-xs text-red-700 mt-1">{errors.newKickoffLocal.message}</p>}
+          {errors.newKickoffLocal && <p className="text-xs text-danger mt-1">{errors.newKickoffLocal.message}</p>}
         </div>
         <div>
-          <label className="block text-xs font-mono uppercase tracking-[0.15em] text-stone-500 mb-1">
+          <label className="block text-xs font-mono uppercase tracking-[0.15em] text-fg-subtle mb-1">
             Megjegyzés (audit log)
           </label>
           <input
             type="text"
             maxLength={500}
             {...register('reason')}
-            className="w-full border-2 border-stone-900 px-3 py-2 font-mono text-sm"
+            className="w-full border-2 border-border-strong px-3 py-2 font-mono text-sm"
           />
         </div>
-        {submitError && <p className="text-xs font-mono text-red-700">{submitError}</p>}
-        {success && <p className="text-xs font-mono text-green-700">{success}</p>}
+        {submitError && <p className="text-xs font-mono text-danger">{submitError}</p>}
+        {success && <p className="text-xs font-mono text-success">{success}</p>}
         <button
           type="submit"
           disabled={postpone.isPending}
-          className="w-full border-2 border-stone-900 bg-white py-3 text-sm font-mono uppercase tracking-[0.2em] hover:bg-stone-100 disabled:opacity-40"
+          className="w-full border-2 border-border-strong bg-elevated py-3 text-sm font-mono uppercase tracking-[0.2em] hover:bg-sunken disabled:opacity-40"
         >
           {postpone.isPending ? 'halasztás…' : 'Halasztás'}
         </button>
@@ -317,14 +317,14 @@ function CancelPanel({ matchId, disabled }: { matchId: string; disabled: boolean
   }
 
   return (
-    <section className="border-2 border-stone-900 bg-white p-5 space-y-3">
-      <h2 className="text-xs font-mono uppercase tracking-[0.2em] text-stone-500">Lemondás</h2>
-      <p className="text-xs font-mono text-stone-700">
+    <section className="border-2 border-border-strong bg-elevated p-5 space-y-3">
+      <h2 className="text-xs font-mono uppercase tracking-[0.2em] text-fg-subtle">Lemondás</h2>
+      <p className="text-xs font-mono text-fg-default">
         A pontok törlődnek, a meccsen feltett jokerek visszakerülnek a felhasználók kvótájába. A tipp-sorok
         megmaradnak (történeti céllal).
       </p>
       <div>
-        <label className="block text-xs font-mono uppercase tracking-[0.15em] text-stone-500 mb-1">
+        <label className="block text-xs font-mono uppercase tracking-[0.15em] text-fg-subtle mb-1">
           Megjegyzés (audit log)
         </label>
         <input
@@ -332,16 +332,16 @@ function CancelPanel({ matchId, disabled }: { matchId: string; disabled: boolean
           maxLength={500}
           value={reason}
           onChange={(e) => setReason(e.target.value)}
-          className="w-full border-2 border-stone-900 px-3 py-2 font-mono text-sm"
+          className="w-full border-2 border-border-strong px-3 py-2 font-mono text-sm"
         />
       </div>
-      {submitError && <p className="text-xs font-mono text-red-700">{submitError}</p>}
-      {success && <p className="text-xs font-mono text-green-700">{success}</p>}
+      {submitError && <p className="text-xs font-mono text-danger">{submitError}</p>}
+      {success && <p className="text-xs font-mono text-success">{success}</p>}
       <button
         type="button"
         onClick={() => setOpen(true)}
         disabled={disabled || cancel.isPending}
-        className="w-full border-2 border-red-700 bg-white text-red-700 py-3 text-sm font-mono uppercase tracking-[0.2em] hover:bg-red-700 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed"
+        className="w-full border-2 border-danger bg-elevated text-danger py-3 text-sm font-mono uppercase tracking-[0.2em] hover:bg-danger hover:text-on-accent disabled:opacity-40 disabled:cursor-not-allowed"
       >
         {disabled ? 'Már lemondva' : cancel.isPending ? 'lemondás…' : 'Mérkőzés lemondása'}
       </button>

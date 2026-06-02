@@ -55,31 +55,31 @@ export function AdminLongTips() {
     <div className="max-w-xl mx-auto px-6 py-10 space-y-6">
       <Link
         to="/admin"
-        className="text-xs font-mono uppercase tracking-[0.15em] text-stone-500 hover:text-stone-900"
+        className="text-xs font-mono uppercase tracking-[0.15em] text-fg-subtle hover:text-accent"
       >
         ← vissza
       </Link>
 
       <header>
-        <p className="text-xs font-mono uppercase tracking-[0.2em] text-orange-600">Admin</p>
+        <p className="text-xs font-mono uppercase tracking-[0.2em] text-accent">Admin</p>
         <h1 className="text-4xl font-black uppercase tracking-tight mt-2">Hosszú tippek</h1>
-        <p className="text-sm font-mono text-stone-600 mt-2">
+        <p className="text-sm font-mono text-fg-muted mt-2">
           Add meg a torna győztesét és a gólkirályt. Ez vezérli a §9 holtverseny-szabályokat
           az egyéni ranglistán.
         </p>
       </header>
 
-      {(outcomes.isLoading || teams.isLoading) && <p className="font-mono text-stone-500">betöltés…</p>}
+      {(outcomes.isLoading || teams.isLoading) && <p className="font-mono text-fg-subtle">betöltés…</p>}
       {outcomes.error && (
-        <p className="border-2 border-red-700 bg-red-50 p-4 font-mono text-sm text-red-800">
+        <p className="border-2 border-danger bg-danger/10 p-4 font-mono text-sm text-danger">
           ⚠ {errorMessage(outcomes.error)}
         </p>
       )}
 
       {teams.data && (
-        <form onSubmit={onSubmit} className="border-2 border-stone-900 bg-white p-5 space-y-4">
+        <form onSubmit={onSubmit} className="border-2 border-border-strong bg-elevated p-5 space-y-4">
           <div>
-            <label className="block text-xs font-mono uppercase tracking-[0.15em] text-stone-500 mb-1">
+            <label className="block text-xs font-mono uppercase tracking-[0.15em] text-fg-subtle mb-1">
               Győztes csapat
             </label>
             <TeamSelect
@@ -91,7 +91,7 @@ export function AdminLongTips() {
           </div>
 
           <div>
-            <label className="block text-xs font-mono uppercase tracking-[0.15em] text-stone-500 mb-1">
+            <label className="block text-xs font-mono uppercase tracking-[0.15em] text-fg-subtle mb-1">
               Gólkirály neve
             </label>
             <input
@@ -100,15 +100,15 @@ export function AdminLongTips() {
               value={topScorerName}
               onChange={(e) => setTopScorerName(e.target.value)}
               placeholder="pl. Lionel Messi"
-              className="w-full border-2 border-stone-900 px-3 py-2 font-mono text-sm"
+              className="w-full border-2 border-border-strong px-3 py-2 font-mono text-sm"
             />
-            <p className="text-xs font-mono text-stone-500 mt-1">
+            <p className="text-xs font-mono text-fg-subtle mt-1">
               Pontos egyezés szükséges (kis/nagybetű nem számít). Max 120 karakter.
             </p>
           </div>
 
           <div>
-            <label className="block text-xs font-mono uppercase tracking-[0.15em] text-stone-500 mb-1">
+            <label className="block text-xs font-mono uppercase tracking-[0.15em] text-fg-subtle mb-1">
               Megjegyzés (audit log)
             </label>
             <input
@@ -116,17 +116,17 @@ export function AdminLongTips() {
               maxLength={500}
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              className="w-full border-2 border-stone-900 px-3 py-2 font-mono text-sm"
+              className="w-full border-2 border-border-strong px-3 py-2 font-mono text-sm"
             />
           </div>
 
-          {submitError && <p className="text-xs font-mono text-red-700">{submitError}</p>}
-          {success && <p className="text-xs font-mono text-green-700">{success}</p>}
+          {submitError && <p className="text-xs font-mono text-danger">{submitError}</p>}
+          {success && <p className="text-xs font-mono text-success">{success}</p>}
 
           <button
             type="submit"
             disabled={setOutcomes.isPending}
-            className="w-full border-2 border-stone-900 bg-stone-900 text-white py-3 text-sm font-mono uppercase tracking-[0.2em] hover:bg-orange-600 hover:border-orange-600 disabled:opacity-40"
+            className="w-full border-2 border-accent bg-accent text-on-accent py-3 text-sm font-mono uppercase tracking-[0.2em] hover:bg-accent-strong hover:border-accent disabled:opacity-40"
           >
             {setOutcomes.isPending ? 'mentés…' : 'Mentés'}
           </button>

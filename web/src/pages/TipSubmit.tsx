@@ -3,6 +3,19 @@ import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { Link, useNavigate, useParams } from 'react-router'
 import { z } from 'zod'
+import {
+  AlertTriangle,
+  ArrowLeft,
+  CheckCircle2,
+  Clock,
+  Send,
+  Sparkles,
+  Star,
+  Target,
+  Timer,
+  Trophy,
+  XCircle,
+} from 'lucide-react'
 import { useMatch, useMatchTips, useSubmitTip } from '../api/hooks'
 import { ApiError } from '../api/errors'
 import type { MatchListItem, MatchTip, UserTipScore } from '../api/types'
@@ -59,18 +72,20 @@ export function TipSubmit() {
   const submit = useSubmitTip()
 
   return (
-    <div className="max-w-xl mx-auto px-6 py-10 space-y-6">
+    <div className="max-w-2xl mx-auto px-6 py-10 space-y-6">
       <Link
         to="/matches"
-        className="text-xs font-mono uppercase tracking-[0.15em] text-stone-500 hover:text-stone-900"
+        className="inline-flex items-center gap-1.5 text-xs font-mono uppercase tracking-[0.15em] text-fg-subtle hover:text-accent transition"
       >
-        ← vissza
+        <ArrowLeft size={14} />
+        vissza
       </Link>
 
-      {isLoading && <p className="font-mono text-stone-500">betöltés…</p>}
+      {isLoading && <p className="font-mono text-fg-subtle">betöltés…</p>}
       {error && (
-        <p className="border-2 border-red-700 bg-red-50 p-4 font-mono text-sm text-red-800">
-          ⚠ {error instanceof Error ? error.message : String(error)}
+        <p className="rounded-xl border border-danger/40 bg-danger/10 p-4 font-mono text-sm text-danger flex items-center gap-2">
+          <AlertTriangle size={16} />
+          {error instanceof Error ? error.message : String(error)}
         </p>
       )}
 
@@ -80,12 +95,8 @@ export function TipSubmit() {
             match={match}
             submitting={submit.isPending}
             onSubmit={async (values) => {
-              try {
-                await submit.mutateAsync({ matchId: match.id, ...values })
-                navigate('/matches')
-              } catch (e) {
-                throw e
-              }
+              await submit.mutateAsync({ matchId: match.id, ...values })
+              navigate('/matches')
             }}
           />
           <AllTipsPanel matchId={match.id} />
@@ -101,51 +112,54 @@ function AllTipsPanel({ matchId }: { matchId: string }) {
   if (isLoading || !data) return null
   if (!data.deadlinePassed) {
     return (
-      <p className="text-xs font-mono uppercase tracking-[0.15em] text-stone-500">
+      <p className="text-xs font-mono uppercase tracking-[0.15em] text-fg-subtle">
         A többiek tippjei a határidő után láthatóak.
       </p>
     )
   }
   if (data.tipCount === 0) {
     return (
-      <p className="text-xs font-mono uppercase tracking-[0.15em] text-stone-500">
+      <p className="text-xs font-mono uppercase tracking-[0.15em] text-fg-subtle">
         Nem érkezett tipp erre a meccsre.
       </p>
     )
   }
 
   return (
-    <section className="border-2 border-stone-900 bg-white p-5 space-y-3">
-      <h2 className="text-xs font-mono uppercase tracking-[0.2em] text-stone-500">
+    <section className="rounded-2xl border border-border-subtle bg-elevated p-5 space-y-3">
+      <h2 className="text-xs font-mono uppercase tracking-[0.2em] text-fg-subtle inline-flex items-center gap-1.5">
+        <Target size={12} className="text-accent" />
         Mindenki tippje
       </h2>
-      <ul className="divide-y-2 divide-stone-200">
+      <ul className="divide-y divide-border-subtle">
         {data.tips.map((tip) => (
-          <li key={tipKey(tip)} className="py-2 space-y-1">
-            <div className="flex items-center gap-3 font-mono text-sm">
-              <span className="flex-1 truncate">{tip.displayName}</span>
+          <li key={tipKey(tip)} className="py-3 space-y-1.5">
+            <div className="flex items-center gap-2 flex-wrap font-mono text-sm">
+              <span className="flex-1 truncate text-fg-default">{tip.displayName}</span>
               {tip.isAi && (
-                <span className="bg-stone-900 text-white px-2 py-0.5 text-xs uppercase tracking-[0.15em]">
+                <span className="inline-flex items-center gap-1 bg-sunken text-fg-muted px-2 py-0.5 text-[10px] uppercase tracking-[0.15em] rounded">
+                  <Sparkles size={10} />
                   AI
                 </span>
               )}
               {tip.isAiFallback && (
-                <span className="border-2 border-stone-400 text-stone-600 px-2 py-0.5 text-xs uppercase tracking-[0.15em]">
+                <span className="px-2 py-0.5 text-[10px] uppercase tracking-[0.15em] rounded border border-border-strong text-fg-muted">
                   Fallback
                 </span>
               )}
               {tip.joker && (
-                <span className="border-2 border-orange-600 text-orange-700 px-2 py-0.5 text-xs uppercase tracking-[0.15em]">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] uppercase tracking-[0.15em] rounded bg-accent-soft text-accent-strong">
+                  <Star size={10} className="fill-current" />
                   Joker
                 </span>
               )}
-              <span className="tabular-nums font-semibold">
+              <span className="tabular-nums font-bold text-fg-default px-2 py-0.5 rounded bg-sunken">
                 {tip.homeGoals}:{tip.awayGoals}
               </span>
             </div>
             {tip.score && <TipPointsLine score={tip.score} />}
             {tip.reasoning && (
-              <p className="text-xs italic text-stone-600 pl-1">{tip.reasoning}</p>
+              <p className="text-xs italic text-fg-subtle pl-1">{tip.reasoning}</p>
             )}
           </li>
         ))}
@@ -163,16 +177,21 @@ function TipPointsLine({ score }: { score: UserTipScore }) {
   const label = CATEGORY_LABEL_HU[score.category] ?? score.category
   return (
     <p className="text-xs font-mono pl-1 flex items-center gap-2 flex-wrap">
+      {isZero ? (
+        <XCircle size={14} className="text-fg-subtle" />
+      ) : (
+        <CheckCircle2 size={14} className="text-success" />
+      )}
       <span
         className={
           isZero
-            ? 'text-stone-500'
-            : 'text-green-700 font-bold tabular-nums'
+            ? 'text-fg-subtle'
+            : 'text-success font-bold tabular-nums'
         }
       >
         {isZero ? '0 pt' : `+${score.finalPoints} pt`}
       </span>
-      <span className="text-stone-500">
+      <span className="text-fg-subtle">
         {label} · ×{score.multiplier}
         {score.jokerApplied && ' · ×2 (joker)'}
       </span>
@@ -203,6 +222,8 @@ function TipForm({
     register,
     handleSubmit,
     setError,
+    setValue,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -212,6 +233,8 @@ function TipForm({
       joker: match.myTip?.joker ?? false,
     },
   })
+
+  const joker = watch('joker')
 
   const onValid = async (values: FormValues) => {
     try {
@@ -232,73 +255,94 @@ function TipForm({
 
   return (
     <form onSubmit={handleSubmit(onValid)} className="space-y-5">
-      <header className="border-2 border-stone-900 bg-white p-5">
-        <p className="text-xs font-mono uppercase tracking-[0.15em] text-stone-500">
-          {STAGE_LABEL_HU[match.stage] ?? match.stage}
-          {match.groupCode ? ` ${match.groupCode}` : ''}
-        </p>
-        <h1 className="text-2xl font-black uppercase tracking-tight mt-2 flex items-center gap-2 flex-wrap">
-          <TeamLabel team={match.homeTeam} size="md" />
-          <span className="text-stone-400">vs</span>
-          <TeamLabel team={match.awayTeam} size="md" />
-        </h1>
-        <p className="text-xs font-mono text-stone-500 mt-2">
-          {formatBudapest(match.kickoffUtc)} CET
-        </p>
-        <p className="text-xs font-mono text-stone-500 mt-1">
-          határidő:{' '}
-          <span className={deadlinePassed ? 'text-red-700' : 'text-stone-900'}>
-            {deadlinePassed ? 'lejárt' : formatCountdown(match.deadlineUtc, now)}
+      {/* Hero scoreboard card */}
+      <section className="rounded-3xl border border-border-strong bg-elevated p-6 sm:p-8 space-y-6 shadow-xl">
+        <header className="flex items-start justify-between gap-3 flex-wrap text-xs font-mono uppercase tracking-[0.15em] text-fg-subtle">
+          <span className="inline-flex items-center gap-1.5 text-accent">
+            <Trophy size={12} />
+            {STAGE_LABEL_HU[match.stage] ?? match.stage}
+            {match.groupCode ? ` ${match.groupCode}` : ''}
           </span>
-        </p>
-      </header>
+          <span className="inline-flex items-center gap-1.5">
+            <Clock size={12} />
+            {formatBudapest(match.kickoffUtc)} CET
+          </span>
+        </header>
 
-      <section className="border-2 border-stone-900 bg-white p-5 space-y-5">
-        <div className="flex items-end justify-between gap-4">
-          <ScoreInput
-            label={<TeamLabel team={match.homeTeam} />}
-            disabled={formDisabled}
-            error={errors.homeGoals?.message}
-            {...register('homeGoals', { valueAsNumber: true })}
-          />
-          <span className="text-3xl font-black pb-3">:</span>
-          <ScoreInput
-            label={<TeamLabel team={match.awayTeam} />}
-            disabled={formDisabled}
-            error={errors.awayGoals?.message}
-            {...register('awayGoals', { valueAsNumber: true })}
-          />
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 sm:gap-4">
+          <div className="text-right text-sm sm:text-base font-bold text-fg-default truncate">
+            <TeamLabel team={match.homeTeam} size="md" />
+          </div>
+          <div className="flex items-center gap-2 sm:gap-3">
+            <ScoreInput
+              ariaLabel={`${match.homeTeam.name} gólok`}
+              disabled={formDisabled}
+              {...register('homeGoals', { valueAsNumber: true })}
+            />
+            <span className="text-3xl sm:text-5xl font-bold text-fg-subtle">:</span>
+            <ScoreInput
+              ariaLabel={`${match.awayTeam.name} gólok`}
+              disabled={formDisabled}
+              {...register('awayGoals', { valueAsNumber: true })}
+            />
+          </div>
+          <div className="text-left text-sm sm:text-base font-bold text-fg-default truncate">
+            <TeamLabel team={match.awayTeam} size="md" />
+          </div>
         </div>
 
-        <label className="flex items-center gap-3 cursor-pointer">
-          <input
-            type="checkbox"
-            disabled={formDisabled || knockout}
-            {...register('joker')}
-            className="size-5 border-2 border-stone-900"
-          />
-          <span className="text-sm font-mono uppercase tracking-[0.15em]">
-            Joker
-            {knockout && (
-              <span className="ml-2 text-stone-400 normal-case">
-                (csak csoportmérkőzésen)
-              </span>
-            )}
+        {(errors.homeGoals || errors.awayGoals) && (
+          <p className="text-center text-xs font-mono text-danger">
+            {errors.homeGoals?.message ?? errors.awayGoals?.message}
+          </p>
+        )}
+
+        <div className="flex items-center justify-center text-xs font-mono text-fg-subtle">
+          <Timer size={14} className="mr-1.5" />
+          határidő:&nbsp;
+          <span className={deadlinePassed ? 'text-danger' : 'text-fg-default tabular-nums'}>
+            {deadlinePassed ? 'lejárt' : formatCountdown(match.deadlineUtc, now)}
           </span>
-        </label>
+        </div>
+
+        {/* Joker as pill button */}
+        <div className="flex justify-center">
+          <input type="hidden" {...register('joker')} />
+          <button
+            type="button"
+            disabled={formDisabled || knockout}
+            onClick={() => setValue('joker', !joker, { shouldDirty: true })}
+            aria-pressed={joker}
+            className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-mono uppercase tracking-[0.15em] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring-focus disabled:opacity-40 disabled:cursor-not-allowed ${
+              joker
+                ? 'bg-accent-soft text-accent-strong border-accent shadow-[0_0_18px_-4px_var(--color-accent-glow)]'
+                : 'bg-elevated border-border-strong text-fg-muted hover:border-accent hover:text-accent'
+            }`}
+            title={knockout ? 'Joker csak csoportmérkőzésen' : joker ? 'Joker aktiválva' : 'Joker bekapcsolása'}
+          >
+            <Star size={14} className={joker ? 'fill-current' : ''} />
+            Joker {joker ? 'aktív' : ''}
+          </button>
+        </div>
+        {knockout && (
+          <p className="text-center text-[11px] font-mono text-fg-subtle -mt-2">
+            Joker csak csoportmérkőzésen használható.
+          </p>
+        )}
         {errors.joker && (
-          <p className="text-xs font-mono text-red-700">{errors.joker.message}</p>
+          <p className="text-center text-xs font-mono text-danger">{errors.joker.message}</p>
         )}
 
         {errors.root && (
-          <p className="text-xs font-mono text-red-700">{errors.root.message}</p>
+          <p className="text-center text-xs font-mono text-danger">{errors.root.message}</p>
         )}
 
         <button
           type="submit"
           disabled={formDisabled || isSubmitting || submitting}
-          className="w-full border-2 border-stone-900 bg-stone-900 text-white py-3 text-sm font-mono uppercase tracking-[0.2em] hover:bg-orange-600 hover:border-orange-600 disabled:opacity-40 disabled:cursor-not-allowed"
+          className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-accent text-on-accent py-3 text-sm font-mono uppercase tracking-[0.2em] font-bold transition hover:bg-accent-strong disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring-focus"
         >
+          <Send size={16} />
           {submitting || isSubmitting
             ? 'küldés…'
             : match.myTip
@@ -311,26 +355,20 @@ function TipForm({
 }
 
 type ScoreInputProps = React.InputHTMLAttributes<HTMLInputElement> & {
-  label: React.ReactNode
-  error?: string
+  ariaLabel: string
 }
 
-const ScoreInput = function ScoreInput({ label, error, ...inputProps }: ScoreInputProps) {
+function ScoreInput({ ariaLabel, ...inputProps }: ScoreInputProps) {
   return (
-    <div className="flex-1">
-      <label className="block text-xs font-mono uppercase tracking-[0.15em] text-stone-500 mb-1">
-        {label}
-      </label>
-      <input
-        type="number"
-        min={0}
-        max={15}
-        step={1}
-        inputMode="numeric"
-        {...inputProps}
-        className="w-full border-2 border-stone-900 px-3 py-2 text-2xl font-mono tabular-nums focus:outline-none focus:bg-orange-50 disabled:bg-stone-100"
-      />
-      {error && <p className="text-xs font-mono text-red-700 mt-1">{error}</p>}
-    </div>
+    <input
+      type="number"
+      min={0}
+      max={15}
+      step={1}
+      inputMode="numeric"
+      aria-label={ariaLabel}
+      {...inputProps}
+      className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-sunken text-center text-4xl sm:text-5xl font-mono font-bold tabular-nums text-fg-default focus:outline-none focus:ring-4 focus:ring-ring-focus focus:bg-elevated disabled:opacity-60 transition"
+    />
   )
 }

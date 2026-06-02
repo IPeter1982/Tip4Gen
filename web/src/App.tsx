@@ -21,7 +21,7 @@ import { AdminMatches } from './pages/admin/AdminMatches'
 
 export default function App() {
   return (
-    <div className="min-h-svh bg-stone-100 text-stone-900">
+    <div className="min-h-svh bg-surface text-fg-default">
       <Topbar />
       <LiveMatchBanner />
       <Routes>

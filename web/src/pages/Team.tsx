@@ -75,15 +75,15 @@ export function Team() {
   return (
     <div className="max-w-2xl mx-auto px-6 py-10 space-y-6">
       <header>
-        <p className="text-xs font-mono uppercase tracking-[0.2em] text-orange-600">Csapat</p>
+        <p className="text-xs font-mono uppercase tracking-[0.2em] text-accent">Csapat</p>
         <h1 className="text-4xl font-black uppercase tracking-tight mt-2">
           Csapat-beállítások
         </h1>
       </header>
 
-      {myTeam.isLoading && <p className="font-mono text-stone-500">betöltés…</p>}
+      {myTeam.isLoading && <p className="font-mono text-fg-subtle">betöltés…</p>}
       {myTeam.error && (
-        <p className="border-2 border-red-700 bg-red-50 p-4 font-mono text-sm text-red-800">
+        <p className="border border-danger bg-danger/10 p-4 font-mono text-sm text-danger">
           ⚠ {errorMessage(myTeam.error)}
         </p>
       )}
@@ -128,17 +128,17 @@ function CreateTeamPanel() {
   const locked = longTips.data?.locked ?? false
 
   return (
-    <section className="border-2 border-stone-900 bg-white p-6 space-y-5">
+    <section className="border border-border-strong bg-elevated p-6 space-y-5">
       <div className="space-y-2">
         <h2 className="text-2xl font-black uppercase tracking-tight">Új csapat</h2>
-        <p className="font-mono text-sm text-stone-600">
+        <p className="font-mono text-sm text-fg-muted">
           Hozz létre egy csapatot, hívj meg 3 barátot, és opcionálisan adj hozzá egy AI tagot.
           Max. 4 fő/csapat. A csapatok a torna kezdetekor lezárulnak.
         </p>
         {longTips.data && (
-          <p className="text-xs font-mono uppercase tracking-[0.15em] text-stone-500">
-            zár: <span className="text-stone-900">{formatBudapest(longTips.data.lockUtc)}</span>
-            {locked && <span className="ml-2 text-red-700">· LEZÁRVA</span>}
+          <p className="text-xs font-mono uppercase tracking-[0.15em] text-fg-subtle">
+            zár: <span className="text-fg-default">{formatBudapest(longTips.data.lockUtc)}</span>
+            {locked && <span className="ml-2 text-danger">· LEZÁRVA</span>}
           </p>
         )}
       </div>
@@ -147,7 +147,7 @@ function CreateTeamPanel() {
         <div className="space-y-2">
           <label
             htmlFor="name"
-            className="block text-xs font-mono uppercase tracking-[0.15em] text-stone-500"
+            className="block text-xs font-mono uppercase tracking-[0.15em] text-fg-subtle"
           >
             Csapatnév
           </label>
@@ -158,21 +158,21 @@ function CreateTeamPanel() {
             disabled={locked}
             placeholder="pl. Pekka Pekkarinen"
             {...register('name')}
-            className="w-full border-2 border-stone-900 px-3 py-2 font-mono disabled:bg-stone-100"
+            className="w-full border border-border-strong px-3 py-2 font-mono disabled:bg-sunken"
           />
           {errors.name && (
-            <p className="text-xs font-mono text-red-700">{errors.name.message}</p>
+            <p className="text-xs font-mono text-danger">{errors.name.message}</p>
           )}
         </div>
 
         {errors.root && (
-          <p className="text-xs font-mono text-red-700">{errors.root.message}</p>
+          <p className="text-xs font-mono text-danger">{errors.root.message}</p>
         )}
 
         <button
           type="submit"
           disabled={locked || isSubmitting || create.isPending}
-          className="w-full border-2 border-stone-900 bg-stone-900 text-white py-3 text-sm font-mono uppercase tracking-[0.2em] hover:bg-orange-600 hover:border-orange-600 disabled:opacity-40 disabled:cursor-not-allowed"
+          className="w-full border border-accent bg-accent text-on-accent py-3 text-sm font-mono uppercase tracking-[0.2em] hover:bg-accent-strong hover:border-accent disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {create.isPending || isSubmitting ? 'küldés…' : 'Csapat létrehozása'}
         </button>
@@ -233,7 +233,7 @@ function LockBanner({
 }) {
   if (status === 'Disqualified') {
     return (
-      <section className="border-2 border-red-700 bg-red-50 p-4 font-mono text-sm text-red-800">
+      <section className="border border-danger bg-danger/10 p-4 font-mono text-sm text-danger">
         ⚠ A csapat <strong>kizárva</strong> – kevesebb mint 4 fő volt a lezáráskor. A csapatpontozás
         nem fog rád/rátok vonatkozni, de az egyéni tippek továbbra is érvényesek.
       </section>
@@ -241,8 +241,8 @@ function LockBanner({
   }
   if (status === 'Locked') {
     return (
-      <section className="border-2 border-stone-900 bg-stone-900 text-white p-4 font-mono text-xs uppercase tracking-[0.15em]">
-        állapot: <span className="text-orange-300">{STATUS_LABEL[status]}</span>
+      <section className="border border-border-strong bg-accent text-on-accent p-4 font-mono text-xs uppercase tracking-[0.15em]">
+        állapot: <span className="text-accent-soft">{STATUS_LABEL[status]}</span>
         <span className="ml-3">· a csapat összetétele végleges</span>
       </section>
     )
@@ -250,10 +250,10 @@ function LockBanner({
   if (!lockUtc) return null
   const countdown = formatCountdown(lockUtc, now)
   return (
-    <section className="border-2 border-stone-900 bg-white p-4 font-mono text-xs uppercase tracking-[0.15em] text-stone-600">
-      csapat zárul: <span className="text-stone-900">{formatBudapest(lockUtc)}</span>
+    <section className="border border-border-strong bg-elevated p-4 font-mono text-xs uppercase tracking-[0.15em] text-fg-muted">
+      csapat zárul: <span className="text-fg-default">{formatBudapest(lockUtc)}</span>
       <span className="ml-3">
-        · hátralévő idő: <span className="text-stone-900">{countdown}</span>
+        · hátralévő idő: <span className="text-fg-default">{countdown}</span>
       </span>
     </section>
   )
@@ -261,7 +261,7 @@ function LockBanner({
 
 function MembersPanel({ team, editable }: { team: TeamView; editable: boolean }) {
   return (
-    <section className="border-2 border-stone-900 bg-white p-5 space-y-3">
+    <section className="border border-border-strong bg-elevated p-5 space-y-3">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
           <TeamAvatar
@@ -272,11 +272,11 @@ function MembersPanel({ team, editable }: { team: TeamView; editable: boolean })
           />
           <h2 className="text-2xl font-black uppercase tracking-tight truncate">{team.name}</h2>
         </div>
-        <span className="text-xs font-mono uppercase tracking-[0.15em] text-stone-500 shrink-0">
+        <span className="text-xs font-mono uppercase tracking-[0.15em] text-fg-subtle shrink-0">
           {STATUS_LABEL[team.status]} · {team.members.length}/4
         </span>
       </div>
-      <ul className="divide-y-2 divide-stone-200">
+      <ul className="divide-y divide-border-subtle">
         {team.members.map((m) => (
           <li key={m.id} className="py-2 flex items-center gap-3 font-mono text-sm">
             <Avatar
@@ -288,20 +288,20 @@ function MembersPanel({ team, editable }: { team: TeamView; editable: boolean })
             />
             <span className="flex-1 truncate">{m.displayName}</span>
             {m.isAi && (
-              <span className="bg-stone-900 text-white px-2 py-0.5 text-xs uppercase tracking-[0.15em]">
+              <span className="bg-accent text-on-accent px-2 py-0.5 text-xs uppercase tracking-[0.15em]">
                 AI
               </span>
             )}
           </li>
         ))}
         {Array.from({ length: 4 - team.members.length }).map((_, i) => (
-          <li key={`empty-${i}`} className="py-2 font-mono text-sm italic text-stone-400">
+          <li key={`empty-${i}`} className="py-2 font-mono text-sm italic text-fg-subtle">
             — üres hely —
           </li>
         ))}
       </ul>
       {!editable && team.status === 'Forming' && (
-        <p className="text-xs font-mono text-stone-500">
+        <p className="text-xs font-mono text-fg-subtle">
           A torna már elkezdődött, a tagság véglegesnek tekinthető.
         </p>
       )}
@@ -340,15 +340,15 @@ function RenamePanel({ team }: { team: TeamView }) {
   }
 
   return (
-    <section className="border-2 border-stone-300 bg-white p-5 space-y-4">
-      <h3 className="text-xs font-mono uppercase tracking-[0.15em] text-stone-500">
+    <section className="border border-border-subtle bg-elevated p-5 space-y-4">
+      <h3 className="text-xs font-mono uppercase tracking-[0.15em] text-fg-subtle">
         Név és profilkép
       </h3>
       <form onSubmit={handleSubmit(onValid)} className="flex gap-2 items-start">
         <div className="flex-1 space-y-1">
           <label
             htmlFor={`team-name-${team.id}`}
-            className="block text-xs font-mono uppercase tracking-[0.15em] text-stone-500"
+            className="block text-xs font-mono uppercase tracking-[0.15em] text-fg-subtle"
           >
             Csapatnév
           </label>
@@ -357,19 +357,19 @@ function RenamePanel({ team }: { team: TeamView }) {
             type="text"
             maxLength={80}
             {...register('name')}
-            className="w-full border-2 border-stone-900 px-3 py-2 font-mono"
+            className="w-full border border-border-strong px-3 py-2 font-mono"
           />
           {errors.name && (
-            <p className="text-xs font-mono text-red-700">{errors.name.message}</p>
+            <p className="text-xs font-mono text-danger">{errors.name.message}</p>
           )}
           {errors.root && (
-            <p className="text-xs font-mono text-red-700">{errors.root.message}</p>
+            <p className="text-xs font-mono text-danger">{errors.root.message}</p>
           )}
         </div>
         <button
           type="submit"
           disabled={!isDirty || isSubmitting || patch.isPending}
-          className="self-end border-2 border-stone-900 bg-stone-900 text-white px-4 py-2 text-xs font-mono uppercase tracking-[0.15em] hover:bg-orange-600 hover:border-orange-600 disabled:opacity-40 disabled:cursor-not-allowed"
+          className="self-end border border-accent bg-accent text-on-accent px-4 py-2 text-xs font-mono uppercase tracking-[0.15em] hover:bg-accent-strong hover:border-accent disabled:opacity-40 disabled:cursor-not-allowed"
         >
           mentés
         </button>
@@ -421,8 +421,8 @@ function TeamAvatarPanel({ team }: { team: TeamView }) {
   }
 
   return (
-    <div className="space-y-2 border-t-2 border-stone-200 pt-4">
-      <span className="block text-xs font-mono uppercase tracking-[0.15em] text-stone-500">
+    <div className="space-y-2 border-t border-border-subtle pt-4">
+      <span className="block text-xs font-mono uppercase tracking-[0.15em] text-fg-subtle">
         Profilkép
       </span>
       <div className="flex items-center gap-4">
@@ -431,7 +431,7 @@ function TeamAvatarPanel({ team }: { team: TeamView }) {
             src={preview}
             alt=""
             style={{ width: 80, height: 80 }}
-            className="rounded-full border-2 border-orange-600 object-cover bg-white shrink-0"
+            className="rounded-full border border-accent object-cover bg-elevated shrink-0"
           />
         ) : (
           <TeamAvatar
@@ -455,7 +455,7 @@ function TeamAvatarPanel({ team }: { team: TeamView }) {
                 type="button"
                 onClick={onSave}
                 disabled={busy}
-                className="border-2 border-stone-900 bg-stone-900 text-white px-3 py-1.5 text-xs font-mono uppercase tracking-[0.15em] hover:bg-orange-600 hover:border-orange-600 disabled:opacity-40"
+                className="border border-accent bg-accent text-on-accent px-3 py-1.5 text-xs font-mono uppercase tracking-[0.15em] hover:bg-accent-strong hover:border-accent disabled:opacity-40"
               >
                 {setAvatar.isPending ? 'mentés…' : 'mentés'}
               </button>
@@ -463,7 +463,7 @@ function TeamAvatarPanel({ team }: { team: TeamView }) {
                 type="button"
                 onClick={() => { setPreview(null); setErr(null) }}
                 disabled={busy}
-                className="border-2 border-stone-300 px-3 py-1.5 text-xs font-mono uppercase tracking-[0.15em] text-stone-700 hover:border-stone-900 hover:text-stone-900 disabled:opacity-40"
+                className="border border-border-subtle px-3 py-1.5 text-xs font-mono uppercase tracking-[0.15em] text-fg-default hover:border-accent hover:text-accent disabled:opacity-40"
               >
                 mégse
               </button>
@@ -474,7 +474,7 @@ function TeamAvatarPanel({ team }: { team: TeamView }) {
                 type="button"
                 onClick={() => inputRef.current?.click()}
                 disabled={busy}
-                className="border-2 border-stone-300 px-3 py-1.5 text-xs font-mono uppercase tracking-[0.15em] text-stone-700 hover:border-stone-900 hover:text-stone-900 disabled:opacity-40"
+                className="border border-border-subtle px-3 py-1.5 text-xs font-mono uppercase tracking-[0.15em] text-fg-default hover:border-accent hover:text-accent disabled:opacity-40"
               >
                 kép feltöltése
               </button>
@@ -483,7 +483,7 @@ function TeamAvatarPanel({ team }: { team: TeamView }) {
                   type="button"
                   onClick={onDelete}
                   disabled={busy}
-                  className="border-2 border-stone-300 px-3 py-1.5 text-xs font-mono uppercase tracking-[0.15em] text-red-700 hover:border-red-700 disabled:opacity-40"
+                  className="border border-border-subtle px-3 py-1.5 text-xs font-mono uppercase tracking-[0.15em] text-danger hover:border-danger disabled:opacity-40"
                 >
                   {deleteAvatar.isPending ? 'törlés…' : 'törlés'}
                 </button>
@@ -492,7 +492,7 @@ function TeamAvatarPanel({ team }: { team: TeamView }) {
           )}
         </div>
       </div>
-      {err && <p className="text-xs font-mono text-red-700">{err}</p>}
+      {err && <p className="text-xs font-mono text-danger">{err}</p>}
     </div>
   )
 }
@@ -534,16 +534,16 @@ function AddAiPanel({ teamId }: { teamId: string }) {
   }
 
   return (
-    <section className="border-2 border-stone-300 bg-white p-5 space-y-3">
-      <h3 className="text-xs font-mono uppercase tracking-[0.15em] text-stone-500">
+    <section className="border border-border-subtle bg-elevated p-5 space-y-3">
+      <h3 className="text-xs font-mono uppercase tracking-[0.15em] text-fg-subtle">
         AI tag hozzáadása
       </h3>
-      <p className="font-mono text-xs text-stone-500">
+      <p className="font-mono text-xs text-fg-subtle">
         Egy csapatonként legfeljebb egy AI tag. Az AI a megadott stílussal tippel.
       </p>
       <form onSubmit={handleSubmit(onValid)} className="space-y-3">
         <div className="space-y-1">
-          <label htmlFor="aiName" className="block text-xs font-mono uppercase tracking-[0.15em] text-stone-500">
+          <label htmlFor="aiName" className="block text-xs font-mono uppercase tracking-[0.15em] text-fg-subtle">
             AI neve
           </label>
           <input
@@ -552,20 +552,20 @@ function AddAiPanel({ teamId }: { teamId: string }) {
             maxLength={80}
             placeholder="pl. RoboKovács"
             {...register('displayName')}
-            className="w-full border-2 border-stone-900 px-3 py-2 font-mono"
+            className="w-full border border-border-strong px-3 py-2 font-mono"
           />
           {errors.displayName && (
-            <p className="text-xs font-mono text-red-700">{errors.displayName.message}</p>
+            <p className="text-xs font-mono text-danger">{errors.displayName.message}</p>
           )}
         </div>
         <div className="space-y-1">
-          <label htmlFor="aiMode" className="block text-xs font-mono uppercase tracking-[0.15em] text-stone-500">
+          <label htmlFor="aiMode" className="block text-xs font-mono uppercase tracking-[0.15em] text-fg-subtle">
             Stílus
           </label>
           <select
             id="aiMode"
             {...register('mode')}
-            className="w-full border-2 border-stone-900 px-3 py-2 font-mono"
+            className="w-full border border-border-strong px-3 py-2 font-mono"
           >
             {(['Conservative', 'Balanced', 'Bold'] as const).map((m) => (
               <option key={m} value={m}>
@@ -575,12 +575,12 @@ function AddAiPanel({ teamId }: { teamId: string }) {
           </select>
         </div>
         {errors.root && (
-          <p className="text-xs font-mono text-red-700">{errors.root.message}</p>
+          <p className="text-xs font-mono text-danger">{errors.root.message}</p>
         )}
         <button
           type="submit"
           disabled={isSubmitting || add.isPending}
-          className="w-full border-2 border-stone-900 bg-stone-900 text-white py-2 text-xs font-mono uppercase tracking-[0.2em] hover:bg-orange-600 hover:border-orange-600 disabled:opacity-40 disabled:cursor-not-allowed"
+          className="w-full border border-accent bg-accent text-on-accent py-2 text-xs font-mono uppercase tracking-[0.2em] hover:bg-accent-strong hover:border-accent disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {add.isPending || isSubmitting ? 'küldés…' : 'AI hozzáadása'}
         </button>
@@ -611,8 +611,8 @@ function AiModePanel({ team, editable }: { team: TeamView; editable: boolean }) 
   if (!aiMember) return null
 
   return (
-    <section className="border-2 border-stone-300 bg-white p-5 space-y-3">
-      <h3 className="text-xs font-mono uppercase tracking-[0.15em] text-stone-500">
+    <section className="border border-border-subtle bg-elevated p-5 space-y-3">
+      <h3 className="text-xs font-mono uppercase tracking-[0.15em] text-fg-subtle">
         AI stílus ({aiMember.displayName})
       </h3>
       <div className="flex gap-2 flex-wrap">
@@ -622,23 +622,23 @@ function AiModePanel({ team, editable }: { team: TeamView; editable: boolean }) 
             type="button"
             disabled={!editable}
             onClick={() => setMode(m)}
-            className={`border-2 px-3 py-1 text-xs font-mono uppercase tracking-[0.15em] disabled:opacity-50 disabled:cursor-not-allowed ${
+            className={`border px-3 py-1 text-xs font-mono uppercase tracking-[0.15em] disabled:opacity-50 disabled:cursor-not-allowed ${
               mode === m
-                ? 'border-stone-900 bg-stone-900 text-white'
-                : 'border-stone-300 text-stone-600 hover:border-stone-900'
+                ? 'border-accent bg-accent text-on-accent'
+                : 'border-border-subtle text-fg-muted hover:border-accent'
             }`}
           >
             {AI_MODE_LABEL[m]}
           </button>
         ))}
       </div>
-      {err && <p className="text-xs font-mono text-red-700">{err}</p>}
+      {err && <p className="text-xs font-mono text-danger">{err}</p>}
       {editable && (
         <button
           type="button"
           onClick={onSave}
           disabled={mode === team.aiMode || patch.isPending}
-          className="border-2 border-stone-900 bg-stone-900 text-white px-4 py-2 text-xs font-mono uppercase tracking-[0.15em] hover:bg-orange-600 hover:border-orange-600 disabled:opacity-40 disabled:cursor-not-allowed"
+          className="border border-accent bg-accent text-on-accent px-4 py-2 text-xs font-mono uppercase tracking-[0.15em] hover:bg-accent-strong hover:border-accent disabled:opacity-40 disabled:cursor-not-allowed"
         >
           stílus mentése
         </button>
@@ -679,20 +679,20 @@ function InvitePanel({ teamId }: { teamId: string }) {
   }
 
   return (
-    <section className="border-2 border-stone-300 bg-white p-5 space-y-3">
-      <h3 className="text-xs font-mono uppercase tracking-[0.15em] text-stone-500">Meghívás</h3>
-      <p className="font-mono text-xs text-stone-500">
+    <section className="border border-border-subtle bg-elevated p-5 space-y-3">
+      <h3 className="text-xs font-mono uppercase tracking-[0.15em] text-fg-subtle">Meghívás</h3>
+      <p className="font-mono text-xs text-fg-subtle">
         Egy meghívó-link 7 napig érvényes és egyetlen felhasználó tudja felhasználni.
       </p>
       <button
         type="button"
         onClick={onGenerate}
         disabled={createInvite.isPending}
-        className="border-2 border-stone-900 bg-white text-stone-900 px-4 py-2 text-xs font-mono uppercase tracking-[0.15em] hover:bg-stone-900 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed"
+        className="border border-border-strong bg-elevated text-fg-default px-4 py-2 text-xs font-mono uppercase tracking-[0.15em] hover:bg-accent hover:text-on-accent hover:border-accent disabled:opacity-40 disabled:cursor-not-allowed"
       >
         {createInvite.isPending ? 'generálás…' : 'új meghívó-link'}
       </button>
-      {err && <p className="text-xs font-mono text-red-700">{err}</p>}
+      {err && <p className="text-xs font-mono text-danger">{err}</p>}
       {link && (
         <div className="space-y-2">
           <input
@@ -700,18 +700,18 @@ function InvitePanel({ teamId }: { teamId: string }) {
             readOnly
             value={link}
             onFocus={(e) => e.currentTarget.select()}
-            className="w-full border-2 border-stone-900 px-3 py-2 font-mono text-xs bg-stone-50"
+            className="w-full border border-border-strong px-3 py-2 font-mono text-xs bg-sunken"
           />
           <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={onCopy}
-              className="border-2 border-stone-900 bg-stone-900 text-white px-3 py-1 text-xs font-mono uppercase tracking-[0.15em] hover:bg-orange-600 hover:border-orange-600"
+              className="border border-accent bg-accent text-on-accent px-3 py-1 text-xs font-mono uppercase tracking-[0.15em] hover:bg-accent-strong hover:border-accent"
             >
               {copied ? 'másolva ✓' : 'másolás'}
             </button>
             {expires && (
-              <span className="text-xs font-mono text-stone-500">
+              <span className="text-xs font-mono text-fg-subtle">
                 lejár: {formatBudapest(expires)}
               </span>
             )}
@@ -739,11 +739,11 @@ function LeavePanel({ teamId, humanCount }: { teamId: string; humanCount: number
   }
 
   return (
-    <section className="border-2 border-red-700 bg-red-50 p-5 space-y-3">
-      <h3 className="text-xs font-mono uppercase tracking-[0.15em] text-red-800">
+    <section className="border border-danger bg-danger/10 p-5 space-y-3">
+      <h3 className="text-xs font-mono uppercase tracking-[0.15em] text-danger">
         Csapat elhagyása
       </h3>
-      <p className="font-mono text-xs text-red-800">
+      <p className="font-mono text-xs text-danger">
         {lastHuman
           ? 'Te vagy az egyetlen ember a csapatban — kilépéskor a csapat (és az AI tag) is törlődik.'
           : 'A többi tag a csapatban marad. A megüresedő helyre új tagot lehet meghívni.'}
@@ -752,7 +752,7 @@ function LeavePanel({ teamId, humanCount }: { teamId: string; humanCount: number
         <button
           type="button"
           onClick={() => setConfirming(true)}
-          className="border-2 border-red-700 bg-white text-red-700 px-4 py-2 text-xs font-mono uppercase tracking-[0.15em] hover:bg-red-700 hover:text-white"
+          className="border border-danger bg-elevated text-danger px-4 py-2 text-xs font-mono uppercase tracking-[0.15em] hover:bg-danger hover:text-on-accent"
         >
           kilépek a csapatból
         </button>
@@ -763,20 +763,20 @@ function LeavePanel({ teamId, humanCount }: { teamId: string; humanCount: number
             type="button"
             onClick={onLeave}
             disabled={leave.isPending}
-            className="border-2 border-red-700 bg-red-700 text-white px-4 py-2 text-xs font-mono uppercase tracking-[0.15em] hover:bg-red-800 disabled:opacity-40"
+            className="border border-danger bg-danger text-on-accent px-4 py-2 text-xs font-mono uppercase tracking-[0.15em] hover:opacity-90 disabled:opacity-40"
           >
             {leave.isPending ? 'küldés…' : 'igen, kilépek'}
           </button>
           <button
             type="button"
             onClick={() => setConfirming(false)}
-            className="border-2 border-stone-900 bg-white text-stone-900 px-4 py-2 text-xs font-mono uppercase tracking-[0.15em] hover:bg-stone-900 hover:text-white"
+            className="border border-border-strong bg-elevated text-fg-default px-4 py-2 text-xs font-mono uppercase tracking-[0.15em] hover:bg-accent hover:text-on-accent hover:border-accent"
           >
             mégse
           </button>
         </div>
       )}
-      {err && <p className="text-xs font-mono text-red-700">{err}</p>}
+      {err && <p className="text-xs font-mono text-danger">{err}</p>}
     </section>
   )
 }
