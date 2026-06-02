@@ -25,7 +25,7 @@ type FormValues = z.infer<typeof schema>
 function reasonMessage(reason: string): string {
   switch (reason) {
     case 'Locked':
-      return 'A hosszú távú tippek lezárultak (kezdő mérkőzés rajt).'
+      return 'A végső győztes tippek lezárultak (kezdő mérkőzés rajt).'
     case 'NothingProvided':
       return 'Adj meg legalább egy tippet (győztes vagy gólkirály).'
     case 'PlayerNameTooLong':
@@ -87,7 +87,7 @@ export function LongTips() {
     <div className="max-w-xl mx-auto px-6 py-10 space-y-6">
       <header>
         <p className="text-xs font-mono uppercase tracking-[0.2em] text-accent">
-          Hosszú távú tippek
+          Végső győztes
         </p>
         <h1 className="text-4xl font-black uppercase tracking-tight mt-2">
           Győztes &amp; Gólkirály

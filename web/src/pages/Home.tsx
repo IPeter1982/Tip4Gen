@@ -128,7 +128,7 @@ function GuestPanel() {
         />
         <RuleCard
           icon={Trophy}
-          title="Hosszú tipp"
+          title="Végső győztes"
           body="Torna győztese + gólkirály — a nyitómérkőzésig zárul."
         />
         <RuleCard
@@ -208,12 +208,12 @@ function OnboardingPanel() {
         <Step
           n={2}
           icon={Trophy}
-          title="Hosszú tipp"
+          title="Végső győztes"
           description={
             hasAnyLongTip
               ? longTipsLocked
-                ? 'A hosszú tippek véglegesek — nézd meg a ranglistán.'
-                : 'A hosszú tippeid mentve — a nyitányig módosíthatóak.'
+                ? 'A tippjeid véglegesek — nézd meg a ranglistán.'
+                : 'A tippjeid mentve — a nyitányig módosíthatóak.'
               : longTipsLocked
                 ? 'Lezárult — a torna már elkezdődött.'
                 : 'Tippeld meg a torna győztesét és a gólkirályt — a nyitányig.'
@@ -221,7 +221,7 @@ function OnboardingPanel() {
           done={hasAnyLongTip}
           locked={longTipsLocked && !hasAnyLongTip}
           loading={longTips.isLoading}
-          actionLabel={hasAnyLongTip ? 'Megnéz / módosít' : 'Hosszú tipp'}
+          actionLabel={hasAnyLongTip ? 'Megnéz / módosít' : 'Végső győztes'}
           actionHref="/long-tips"
         />
 
@@ -258,7 +258,7 @@ function OnboardingPanel() {
           <QuickLink to="/matches" label="Mérkőzések" />
           <QuickLink to="/leaderboard" label="Ranglista" />
           <QuickLink to="/team" label="Csapat" />
-          <QuickLink to="/long-tips" label="Hosszú tipp" />
+          <QuickLink to="/long-tips" label="Végső győztes" />
         </div>
       </section>
     </div>

@@ -62,7 +62,7 @@ export function AdminLongTips() {
 
       <header>
         <p className="text-xs font-mono uppercase tracking-[0.2em] text-accent">Admin</p>
-        <h1 className="text-4xl font-black uppercase tracking-tight mt-2">Hosszú tippek</h1>
+        <h1 className="text-4xl font-black uppercase tracking-tight mt-2">Végső győztes</h1>
         <p className="text-sm font-mono text-fg-muted mt-2">
           Add meg a torna győztesét és a gólkirályt. Ez vezérli a §9 holtverseny-szabályokat
           az egyéni ranglistán.

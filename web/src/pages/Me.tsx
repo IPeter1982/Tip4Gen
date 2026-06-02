@@ -83,7 +83,7 @@ export function Me() {
         <p className="text-xs font-mono uppercase tracking-[0.15em] text-fg-subtle">Gyors hivatkozások</p>
         <div className="flex flex-wrap gap-2">
           <QuickLink to="/matches" label="Mérkőzések" />
-          <QuickLink to="/long-tips" label="Hosszú tipp" />
+          <QuickLink to="/long-tips" label="Végső győztes" />
           <QuickLink to="/team" label="Csapat" />
           <QuickLink to="/leaderboard" label="Ranglista" />
         </div>

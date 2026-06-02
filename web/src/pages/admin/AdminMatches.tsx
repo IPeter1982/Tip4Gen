@@ -59,7 +59,7 @@ export function AdminMatches() {
           to="/admin/long-tips"
           className="border-2 border-border-strong bg-elevated px-3 py-1 text-xs font-mono uppercase tracking-[0.15em] hover:bg-sunken"
         >
-          Hosszú tippek
+          Végső győztes
         </Link>
         <Link
           to="/admin/ai-avatar"

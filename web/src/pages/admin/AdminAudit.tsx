@@ -9,7 +9,7 @@ const ACTION_LABEL: Record<AdminAuditAction, string> = {
   MatchCancel: 'Mérkőzés lemondása',
   MatchPostpone: 'Halasztás',
   MatchRescore: 'Újraértékelés',
-  LongTipOutcomesSet: 'Hosszú tipp eredmény',
+  LongTipOutcomesSet: 'Végső győztes eredmény',
 }
 
 const PAGE_SIZE = 50

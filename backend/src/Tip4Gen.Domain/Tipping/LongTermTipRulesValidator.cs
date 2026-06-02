@@ -31,7 +31,7 @@ public static class LongTermTipRulesValidator
         {
             return LongTermTipValidationResult.Fail(
                 LongTermTipRejectionReason.Locked,
-                "Hosszú távú tippek lezárultak (a torna első mérkőzésénél).");
+                "Végső győztes tippek lezárultak (a torna első mérkőzésénél).");
         }
 
         var providingWinner = winnerTeamId.HasValue;
