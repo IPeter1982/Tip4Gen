@@ -169,7 +169,7 @@ See CLAUDE.md "Prod hosting (Railway)" for the architecture diagram and env-var 
 
 | Service | Purpose | Candidates / Notes |
 |---|---|---|
-| Football data API | Fixtures, match status, final results | **API-Football** (RapidAPI), **Football-Data.org**, **SportMonks**. Test accuracy & latency before launch — it directly affects tip closing and auto-scoring. **Have a manual admin fallback** to enter results if the API lags. |
+| Football data API | Fixtures, match status, final results | **worldcup26.ir** is what we ship (free anonymous JSON, real WC 2026 schedule, no quota). Original shortlist was **API-Football** (used through Phase 2 against WC 2022 data), **Football-Data.org**, **SportMonks**. The manual admin fallback (Phase 8 endpoints) is the contingency if worldcup26.ir — a one-maintainer project — goes offline. |
 | AI provider | The AI team member's predictions | Claude or GPT. Called ~1–2h before kickoff with form / FIFA ranking / injuries; returns JSON `{ home_goals, away_goals, reasoning }` based on the configured "adventurousness" level. Cost is minimal per match. |
 | Email | Notifications (deadline reminders, results) | **Resend**. |
 | Web push (optional, v2) | Push reminders | **OneSignal** / **Knock**. |

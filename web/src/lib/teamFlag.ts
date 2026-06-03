@@ -1,16 +1,16 @@
 // Team code → ISO 3166-1 alpha-2 (lowercase) for flagcdn.com.
 //
-// api-football uses its own 3-letter abbreviations (not FIFA codes!) — e.g.
-// Iran=IRA, Netherlands=NET, Spain=SPA, Japan=JAP, Switzerland=SWI. We list
-// both api-football's actual codes (verified against the WC 2022 seed) AND
-// the FIFA-standard codes as aliases so a future data swap doesn't break.
-// Unknown codes return null and the caller renders no flag.
+// worldcup26.ir (current provider, since 2026-06-03) returns real FIFA codes
+// — IRN/NED/ESP/JPN/SUI/KSA/MAR/etc. The older api-football abbreviations
+// (IRA/NET/SPA/JAP/SWI/SAU/MOR) are still listed below as harmless aliases
+// in case we ever swap upstream again. Unknown codes return null and the
+// caller renders no flag.
 //
 // UK subdivisions (ENG/WAL/SCO/NIR) map to flagcdn's gb-eng/gb-wls/gb-sct/
 // gb-nir subdivision SVGs so each nation gets its own flag.
 
 const FIFA_TO_ISO2: Record<string, string> = {
-  // --- WC 2022 participants (api-football codes verified from teams_national) ---
+  // --- Codes seen in the api-football WC 2022 seed (kept as aliases) ---
   QAT: 'qa', ECU: 'ec', SEN: 'sn', NET: 'nl',
   ENG: 'gb-eng', IRA: 'ir', USA: 'us', WAL: 'gb-wls',
   ARG: 'ar', SAU: 'sa', MEX: 'mx', POL: 'pl',
@@ -19,7 +19,7 @@ const FIFA_TO_ISO2: Record<string, string> = {
   BEL: 'be', CAN: 'ca', MOR: 'ma', CRO: 'hr',
   BRA: 'br', SER: 'rs', SWI: 'ch', CAM: 'cm',
   POR: 'pt', GHA: 'gh', URU: 'uy', KOR: 'kr',
-  // --- FIFA-standard aliases (in case provider data changes) ---
+  // --- Real FIFA codes (current worldcup26.ir provider) ---
   NED: 'nl', IRN: 'ir', KSA: 'sa', ESP: 'es',
   CRC: 'cr', JPN: 'jp', MAR: 'ma', SRB: 'rs',
   SUI: 'ch', CMR: 'cm',
