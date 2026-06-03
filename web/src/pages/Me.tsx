@@ -70,7 +70,7 @@ export function Me() {
               myTeam.isLoading
                 ? 'betöltés…'
                 : myTeam.data
-                  ? `${myTeam.data.name} (${myTeam.data.members.length}/4 · ${myTeam.data.status})`
+                  ? `${myTeam.data.name} (${myTeam.data.members.length}/3 · ${myTeam.data.status})`
                   : 'nincs'
             }
           />

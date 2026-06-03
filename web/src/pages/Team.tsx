@@ -272,7 +272,7 @@ function MembersPanel({ team, editable }: { team: TeamView; editable: boolean })
           <h2 className="text-2xl font-black uppercase tracking-tight truncate">{team.name}</h2>
         </div>
         <span className="text-xs font-mono uppercase tracking-[0.15em] text-fg-subtle shrink-0">
-          {STATUS_LABEL[team.status]} · {team.members.length}/4
+          {STATUS_LABEL[team.status]} · {team.members.length}/3
         </span>
       </div>
       <ul className="divide-y divide-border-subtle">
@@ -293,7 +293,7 @@ function MembersPanel({ team, editable }: { team: TeamView; editable: boolean })
             )}
           </li>
         ))}
-        {Array.from({ length: 4 - team.members.length }).map((_, i) => (
+        {Array.from({ length: 3 - team.members.length }).map((_, i) => (
           <li key={`empty-${i}`} className="py-2 font-mono text-sm italic text-fg-subtle">
             — üres hely —
           </li>
