@@ -4,7 +4,7 @@ namespace Tip4Gen.Domain.Teams;
 
 public class Team
 {
-    public const int MaxMembers = 4;
+    public const int MaxMembers = 3;
     public const int MaxAiMembers = 1;
     public const int MaxNameLength = 80;
     public const int MaxAvatarBytes = User.MaxAvatarBytes;

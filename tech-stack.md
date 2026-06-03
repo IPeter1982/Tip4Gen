@@ -6,7 +6,7 @@ This document describes the chosen technology stack for the World Cup tipping ga
 
 ## Overview
 
-A web-based football (soccer) World Cup tipping game. Users submit score predictions for every match, compete individually and in 4-person teams (optionally including one AI team member), and climb individual and team leaderboards. Tipping closes 1 hour before each kickoff; scoring uses a "best matching category" model with stage multipliers.
+A web-based football (soccer) World Cup tipping game. Users submit score predictions for every match, compete individually and in 3-person teams (optionally including one AI team member), and climb individual and team leaderboards. Tipping closes 1 hour before each kickoff; scoring uses a "best matching category" model with stage multipliers.
 
 The architecture is a **decoupled SPA + API**: a Vite/React single-page app talking to an ASP.NET Core backend over REST and SignalR, backed by PostgreSQL.
 
@@ -79,7 +79,7 @@ This is a behind-login, interactive dashboard, not a public content site — so 
 
 ### Why C#
 
-The scoring logic is the heart of this app and is non-trivial: stage multipliers, "best matching category" selection, joker doubling, team-level "best 3 of 4." C# records, enums, and pattern matching (switch expressions over scoring categories) produce cleaner, safer, more testable code for this kind of business logic. Background work and realtime are first-party (`BackgroundService`, SignalR) rather than third-party add-ons.
+The scoring logic is the heart of this app and is non-trivial: stage multipliers, "best matching category" selection, joker doubling, team-level summation across 3 members. C# records, enums, and pattern matching (switch expressions over scoring categories) produce cleaner, safer, more testable code for this kind of business logic. Background work and realtime are first-party (`BackgroundService`, SignalR) rather than third-party add-ons.
 
 ---
 

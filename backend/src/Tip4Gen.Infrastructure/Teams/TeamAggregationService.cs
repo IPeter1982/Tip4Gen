@@ -9,8 +9,7 @@ public record MemberBreakdownView(
     Guid? UserId,
     string DisplayName,
     bool IsAi,
-    int Points,
-    bool Dropped);
+    int Points);
 
 public record TeamMatchBreakdownView(
     Guid TeamId,
@@ -90,7 +89,6 @@ public class TeamAggregationService(AppDbContext db) : ITeamAggregationService
             return new TeamMatchBreakdownResult.TeamNotLocked(team.Status);
 
         var aggregate = TeamAggregator.ForMatch(inputs);
-        var droppedByMember = aggregate.Members.ToDictionary(a => a.MemberId, a => a.Dropped);
 
         var view = new TeamMatchBreakdownView(
             team.Id,
@@ -103,8 +101,7 @@ public class TeamAggregationService(AppDbContext db) : ITeamAggregationService
                 r.UserId,
                 r.IsAi ? r.AiDisplayName! : (r.HumanName ?? "?"),
                 r.IsAi,
-                pointsByMember[r.Id],
-                droppedByMember[r.Id])).ToList());
+                pointsByMember[r.Id])).ToList());
 
         return new TeamMatchBreakdownResult.Success(view);
     }

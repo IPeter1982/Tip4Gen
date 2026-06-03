@@ -44,18 +44,12 @@ public static class TeamRulesValidator
     }
 
     /// <summary>
-    /// Can the team be mutated *at all* right now? Rule precedence: tournament-start lock
-    /// beats team-status lock so the error message points at the real cause.
+    /// Can the team be mutated *at all* right now? Forming teams are mutable regardless of
+    /// when (joining/creating is allowed even after tournament start, so under-sized teams
+    /// can grow). Locked / Disqualified teams are immutable.
     /// </summary>
-    public static TeamValidationResult ValidateMutable(
-        DateTimeOffset now,
-        DateTimeOffset? tournamentStartUtc,
-        TeamStatus teamStatus)
+    public static TeamValidationResult ValidateMutable(TeamStatus teamStatus)
     {
-        if (tournamentStartUtc is { } start && now >= start)
-            return TeamValidationResult.Fail(
-                TeamRejectionReason.TournamentStarted,
-                "A torna már elkezdődött; a csapat-beállítások véglegesek.");
         if (teamStatus != TeamStatus.Forming)
             return TeamValidationResult.Fail(
                 TeamRejectionReason.TeamLocked,

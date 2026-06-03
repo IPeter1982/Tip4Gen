@@ -123,7 +123,6 @@ export type MemberBreakdownView = {
   displayName: string
   isAi: boolean
   points: number
-  dropped: boolean
 }
 
 export type TeamMatchBreakdownView = {

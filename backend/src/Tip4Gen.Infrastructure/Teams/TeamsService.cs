@@ -101,10 +101,6 @@ public class TeamsService(AppDbContext db, ILogger<TeamsService> logger) : ITeam
         if (alreadyMember)
             return new TeamCreateResult.AlreadyInTeam();
 
-        var mutability = await CheckGlobalMutabilityAsync(ct);
-        if (!mutability.IsValid)
-            return new TeamCreateResult.Rejected(mutability);
-
         var team = new Team(name);
         var member = TeamMember.ForHuman(team.Id, creatorUserId);
         db.Teams.Add(team);
@@ -131,7 +127,7 @@ public class TeamsService(AppDbContext db, ILogger<TeamsService> logger) : ITeam
         var isMember = await db.TeamMembers.AnyAsync(m => m.TeamId == team.Id && m.UserId == actingUserId, ct);
         if (!isMember) return new TeamPatchResult.NotMember();
 
-        var mutability = await CheckMutabilityAsync(team, ct);
+        var mutability = CheckMutability(team);
         if (!mutability.IsValid) return new TeamPatchResult.Rejected(mutability);
 
         if (cmd.Name is not null)
@@ -159,7 +155,7 @@ public class TeamsService(AppDbContext db, ILogger<TeamsService> logger) : ITeam
             .FirstOrDefaultAsync(m => m.TeamId == teamId && m.UserId == actingUserId, ct);
         if (membership is null) return new TeamLeaveResult.NotMember();
 
-        var mutability = await CheckMutabilityAsync(team, ct);
+        var mutability = CheckMutability(team);
         if (!mutability.IsValid) return new TeamLeaveResult.Rejected(mutability);
 
         db.TeamMembers.Remove(membership);
@@ -190,7 +186,7 @@ public class TeamsService(AppDbContext db, ILogger<TeamsService> logger) : ITeam
         var isMember = await db.TeamMembers.AnyAsync(m => m.TeamId == team.Id && m.UserId == actingUserId, ct);
         if (!isMember) return new AddAiMemberResult.NotMember();
 
-        var mutability = await CheckMutabilityAsync(team, ct);
+        var mutability = CheckMutability(team);
         if (!mutability.IsValid) return new AddAiMemberResult.Rejected(mutability);
 
         var nameValidation = TeamRulesValidator.ValidateName(cmd.DisplayName);
@@ -220,7 +216,7 @@ public class TeamsService(AppDbContext db, ILogger<TeamsService> logger) : ITeam
         var isMember = await db.TeamMembers.AnyAsync(m => m.TeamId == team.Id && m.UserId == actingUserId, ct);
         if (!isMember) return new CreateInviteResult.NotMember();
 
-        var mutability = await CheckMutabilityAsync(team, ct);
+        var mutability = CheckMutability(team);
         if (!mutability.IsValid) return new CreateInviteResult.Rejected(mutability);
 
         var token = GenerateToken();
@@ -240,7 +236,7 @@ public class TeamsService(AppDbContext db, ILogger<TeamsService> logger) : ITeam
         var team = await db.Teams.FirstOrDefaultAsync(t => t.Id == invite.TeamId, ct);
         if (team is null) return new JoinResult.InviteNotFound();
 
-        var mutability = await CheckMutabilityAsync(team, ct);
+        var mutability = CheckMutability(team);
         if (!mutability.IsValid) return new JoinResult.Rejected(mutability);
 
         var alreadyMember = await db.TeamMembers.AnyAsync(m => m.UserId == actingUserId, ct);
@@ -263,21 +259,8 @@ public class TeamsService(AppDbContext db, ILogger<TeamsService> logger) : ITeam
         return new JoinResult.Success(await ProjectAsync(team.Id, ct));
     }
 
-    private async Task<TeamValidationResult> CheckMutabilityAsync(Team team, CancellationToken ct)
-    {
-        var tournamentStart = await db.Tournaments
-            .OrderBy(t => t.StartsAtUtc)
-            .Select(t => (DateTimeOffset?)t.StartsAtUtc)
-            .FirstOrDefaultAsync(ct);
-        return TeamRulesValidator.ValidateMutable(DateTimeOffset.UtcNow, tournamentStart, team.Status);
-    }
-
-    private async Task<TeamValidationResult> CheckGlobalMutabilityAsync(CancellationToken ct)
-    {
-        // For creating a new team there's no existing status to gate; only the
-        // tournament-start lock matters. Pass Forming so the status branch is a no-op.
-        return await CheckMutabilityAsync(new Team("placeholder"), ct);
-    }
+    private static TeamValidationResult CheckMutability(Team team) =>
+        TeamRulesValidator.ValidateMutable(team.Status);
 
     private static string GenerateToken()
     {
@@ -321,7 +304,7 @@ public class TeamsService(AppDbContext db, ILogger<TeamsService> logger) : ITeam
         var isMember = await db.TeamMembers.AnyAsync(m => m.TeamId == team.Id && m.UserId == actingUserId, ct);
         if (!isMember) return new TeamPatchResult.NotMember();
 
-        var mutability = await CheckMutabilityAsync(team, ct);
+        var mutability = CheckMutability(team);
         if (!mutability.IsValid) return new TeamPatchResult.Rejected(mutability);
 
         var avatarValidation = TeamRulesValidator.ValidateAvatar(bytes, contentType);
@@ -345,7 +328,7 @@ public class TeamsService(AppDbContext db, ILogger<TeamsService> logger) : ITeam
         var isMember = await db.TeamMembers.AnyAsync(m => m.TeamId == team.Id && m.UserId == actingUserId, ct);
         if (!isMember) return new TeamPatchResult.NotMember();
 
-        var mutability = await CheckMutabilityAsync(team, ct);
+        var mutability = CheckMutability(team);
         if (!mutability.IsValid) return new TeamPatchResult.Rejected(mutability);
 
         team.ClearAvatar();

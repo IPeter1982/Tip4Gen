@@ -602,7 +602,7 @@
       </h1>
     </div>
     <div class="hero-meta">
-      <div><span class="label">Csapat:</span> <span class="value">4 fős</span></div>
+      <div><span class="label">Csapat:</span> <span class="value">3 fős</span></div>
       <div><span class="label">AI tag:</span> <span class="value">max 1</span></div>
       <div><span class="label">Joker:</span> <span class="value">3 db</span></div>
       <div><span class="label">Max / meccs:</span> <span class="value">30 pont</span></div>
@@ -615,7 +615,7 @@
   <div class="intro-grid">
     <div class="intro-label">Bevezetés</div>
     <div class="intro-text">
-      Tippeld meg minden meccs eredményét, állj össze egy <strong>4 fős</strong> csapatba, és vidd diadalra a barátaidat — vagy az algoritmusodat. A kieséses szakaszban már nincs joker, a döntőben minden pont háromszorozódik. Olvasd el a szabályokat, mielőtt feltennéd a kérdést, hogy „de hát miért nem kaptam érte pontot?"
+      Tippeld meg minden meccs eredményét, állj össze egy <strong>3 fős</strong> csapatba, és vidd diadalra a barátaidat — vagy az algoritmusodat. A kieséses szakaszban már nincs joker, a döntőben minden pont háromszorozódik. Olvasd el a szabályokat, mielőtt feltennéd a kérdést, hogy „de hát miért nem kaptam érte pontot?"
     </div>
   </div>
 </section>
@@ -813,17 +813,17 @@
       <div class="section-label">Csapatok</div>
     </div>
     <div class="section-body">
-      <h2>4 fő, ebből 3 számít</h2>
-      <p><strong>Méret:</strong> 4 fős csapatok. Mindenki csak egy csapatban szerepelhet.</p>
+      <h2>3 fő, mindenki tippje számít</h2>
+      <p><strong>Méret:</strong> 3 fős csapatok (3 ember <strong>vagy</strong> 2 ember + 1 AI). Mindenki csak egy csapatban szerepelhet.</p>
 
       <h3>Csapat életciklus</h3>
       <p>A csapatok a torna kezdetéig állnak össze. Bárki létrehozhat csapatot és meghívhat másokat — <strong>nincs kapitány</strong>, minden tag egyenrangú, mindenki saját jogon tippel, és bárki módosíthatja a csapat nevét vagy az AI tag beállítását, amíg a csapat nyitva van.</p>
-      <p>A torna első mérkőzésének sípszavakor minden csapat <strong>véglegesen lezárul</strong>: a tagok nem cserélhetők, új tag nem csatlakozhat, senki nem léphet ki, a csapat nem oszlatható fel, és az AI mód is fixálódik.</p>
-      <p>Az a csapat, amelyik a torna kezdetére <strong>nem ér el 4 főt</strong>, a csapat-ranglistából kiesik — a tagjai csak az egyéni ranglistán versenyeznek tovább.</p>
-      <p>Ha egy tag a torna közben „eltűnik" (nem tippel többé), a csapat 4 fős marad, de az ő pontja 0 lesz minden hátralévő meccsen. A „legjobb 3" szabály miatt ez gyakorlatilag 3 fős csapatot eredményez — ő minden meccsen automatikusan kiesik a számításból.</p>
+      <p>Egy csapat <strong>akkor zárul le véglegesen</strong>, amikor a 3. tag csatlakozik és a torna már elkezdődött (a teljesen feltöltött, már induláskor 3 fős csapatok az első mérkőzés sípszavára lezárulnak). Lezárás után a tagok nem cserélhetők, új tag nem csatlakozhat, senki nem léphet ki, a csapat nem oszlatható fel, és az AI mód is fixálódik.</p>
+      <p>Az a csapat, amelyik a torna kezdetére <strong>nem ér el 3 főt</strong>, nem kerül kizárásra — Forming státuszban marad, és a torna alatt is bármikor csatlakozhat hozzá új tag. A csapat csak akkor jelenik meg a csapat-ranglistán, amikor eléri a 3 főt és lezárul. Új csapatot is létre lehet hozni a torna közben.</p>
+      <p>Ha egy tag a torna közben „eltűnik" (nem tippel többé), a csapat 3 fős marad, de az ő pontja 0 lesz minden hátralévő meccsen — és mivel <strong>minden tag pontja beleszámít</strong>, ez közvetlenül rontja a csapat összpontszámát. Érdemes tehát olyan tagokat választani, akikre számítani lehet (vagy AI taggal pótolni egy emberi helyet).</p>
 
       <h3>AI csapattag</h3>
-      <p>Csapatonként legfeljebb <strong>1 AI tag</strong> lehet a 4-ből. A csapat saját nevet adhat neki, de a felületen mindenhol külön jelölés (ikon vagy „AI" címke) mutatja, hogy ő mesterséges játékos. Az AI minden meccsre automatikusan tippel, beállítható „vállalkozószellem" szinttel:</p>
+      <p>Csapatonként legfeljebb <strong>1 AI tag</strong> lehet a 3-ból. A csapat saját nevet adhat neki, de a felületen mindenhol külön jelölés (ikon vagy „AI" címke) mutatja, hogy ő mesterséges játékos. Az AI minden meccsre automatikusan tippel, beállítható „vállalkozószellem" szinttel:</p>
 
       <div class="ai-modes">
         <div class="ai-mode cons">
@@ -848,21 +848,20 @@
       </div>
 
       <h3>Csapat pontszáma meccsenként</h3>
-      <p>A 4 tag pontjai közül a <strong>legjobb 3</strong> összege számít. A leggyengébb tag eredménye automatikusan kiesik az adott meccsen.</p>
+      <p>A 3 tag pontja egyszerűen <strong>összeadódik</strong> — nincs „leggyengébb kiesik" szabály, minden tippelő hozza a saját eredményét a csapatnak.</p>
 
       <div class="team-diagram">
         <div class="team-row">
           <div class="player"><div class="role">Tag 1</div>András · 7 pt</div>
           <div class="player"><div class="role">Tag 2</div>Bea · 10 pt</div>
           <div class="player ai"><div class="role">AI Tag</div>RoboFoci · 5 pt</div>
-          <div class="player dropped"><div class="role">Tag 4</div>Dani · 0 pt</div>
         </div>
-        <div class="team-caption">Példa egy meccsre · csapat összesen: 22 pont · áthúzva: legrosszabb (kiesik)</div>
+        <div class="team-caption">Példa egy meccsre · csapat összesen: 22 pont (7 + 10 + 5)</div>
       </div>
 
-      <p>Az AI tag így akkor éri meg, ha legalább a középmezőnyben teljesít — különben minden meccsen ő esik ki, és lényegében 3 fős csapatként versenyeztek.</p>
+      <p>Az AI tag így akkor éri meg, ha legalább a középmezőnyben teljesít — a 0 pontja közvetlenül rontja a csapat összpontszámát.</p>
 
-      <p>A végső győztes tippek és jokerek pontjai a csapatszámításban szintén a „legjobb 3" logika szerint kerülnek be: minden tag saját jogon játszhat velük, de egy adott tipp pontja csak akkor kerül a csapat összesébe, ha a tag az adott meccsen vagy a torna végi elszámoláson a top 3-ban van.</p>
+      <p>A végső győztes tippek és jokerek pontjai is mind a 3 tag esetében teljes egészében beleszámítanak a csapat összesébe: minden tag saját jogon játszik velük, a pontjaikat hozzáadjuk a csapat összpontszámához.</p>
     </div>
   </div>
 </section>
@@ -878,7 +877,7 @@
       <h2>Két párhuzamos verseny</h2>
       <ul>
         <li><strong>Egyéni ranglista:</strong> minden játékos összes pontja (meccsek + jokerek + végső győztes tippek).</li>
-        <li><strong>Csapat ranglista:</strong> meccsenként a legjobb 3 tag pontjának összege, plusz a végső győztes tippek és jokerek „legjobb 3" logikája szerint.</li>
+        <li><strong>Csapat ranglista:</strong> meccsenként a 3 tag pontjának összege (mindenki tippje számít), plusz a végső győztes tippek és jokerek pontjai.</li>
       </ul>
     </div>
   </div>

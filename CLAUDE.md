@@ -63,7 +63,7 @@ backend/                    ASP.NET Core 9 solution (planned 10, on 9 for speed)
                             MatchFinalizedScoringHandler (event handler)
     Teams/                  TeamsService (CRUD + invites + join, tagged-union),
                             TeamLockService (Forming → Locked/Disqualified pass),
-                            TeamAggregationService (per-match best-3-of-4 view)
+                            TeamAggregationService (per-match sum-of-3 view)
     Leaderboard/            IndividualLeaderboardService (humans only)
                             + TeamLeaderboardService (humans + AI, dual-key)
     Ai/                     OpenAiOptions, OpenAiTipper (Chat Completions +
@@ -239,7 +239,7 @@ Schema must accommodate both formats: 2022 had 32 teams (no R32 round), 2026 has
 - Half-multiplier results round **away from zero** (`5 × 1.5 = 7.5 → 8`). `MatchScorer` is the single source of truth.
 - Scoring is **idempotent**: `MatchScoringService.ScoreMatchAsync` deletes prior `scored_tips` for the match then re-inserts in one `SaveChanges`. Wired into `MatchFinalized` for auto-scoring and exposed via `POST /api/admin/matches/{id}/rescore` for manual re-runs.
 - `scored_tips.user_id` and `scored_tips.team_member_id` are **denormalized** from `tips`. Exactly one is set per row, matching the source tip; leaderboard queries pick a side without joining through matches.
-- Team aggregation: **best 3 of 4** member scores per match (`TeamAggregator.ForMatch`). Tiebreak on all-equal scores: drop the member with the largest id — deterministic, doesn't affect the total.
+- Team aggregation: **sum of all 3** member scores per match (`TeamAggregator.ForMatch`) — every tipper counts, no dropping, no tiebreak. A non-tipping member's 0 directly hurts the team total.
 - AI fallback: auto **1–1** tip with `is_ai_fallback=true` if AI provider hasn't returned by **T-1h**.
 - Tip deadline: **kickoff − 1h**, enforced server-side in UTC.
 - Long-term tips (winner, top scorer) lock at **tournament-start kickoff**.
@@ -261,7 +261,7 @@ Single admin (the project owner). Gated by Auth0 `sub` claim matching the `Auth0
 - `team_members.user_id` is **nullable**. Human members have a real `users.id`; the AI slot has `user_id IS NULL` + `is_ai = TRUE` + `ai_display_name` set. AI tips key on the team member itself (`tips.team_member_id`), never on a synthetic user — Tip and ScoredTip got nullable `user_id` + `team_member_id` (CHECK exactly-one) in Phase 6 so the personas stay out of the users table.
 - "One team per user" is enforced by `UNIQUE(user_id)` on `team_members`. PostgreSQL treats NULLs as distinct in unique indexes, so multiple AI rows (one per team, each with NULL user_id) don't collide.
 - "Max 1 AI per team" is a **partial unique index**: `UNIQUE(team_id) WHERE is_ai = TRUE`. The full table can have many AI rows; the partial index only sees the AI ones.
-- Mutability gating is two-stage: tournament-start time **first** (so the error message points at the real cause), then team status. Both live in `TeamRulesValidator.ValidateMutable`.
+- Mutability is **status-only**: `TeamRulesValidator.ValidateMutable(status)` returns Ok for `Forming`, rejects `Locked` / `Disqualified`. There is no tournament-start gate — under-sized teams stay Forming after the start so new members can still join (and `TeamsService.CreateAsync` allows new teams mid-tournament). A team auto-locks via `TeamLockJob` once `status==Forming && now>=tournamentStart && memberCount>=Team.MaxMembers` (`TeamLockPolicy.Decide`). `Disqualified` is no longer reached automatically — kept only as a manual/legacy state.
 - `TeamsService.LeaveAsync` cascades: when the last human leaves, the team and any AI member are removed too, so no orphan AI-only teams linger.
 
 ## Tips + ScoredTip schema gotchas (Phase 6)

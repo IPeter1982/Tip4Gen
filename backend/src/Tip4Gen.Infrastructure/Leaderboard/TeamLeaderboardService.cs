@@ -27,10 +27,10 @@ public interface ITeamLeaderboardService
 }
 
 /// <summary>
-/// Team leaderboard, per guide §8: each match's contribution is the best 3 of 4 member
-/// scores; the sum across matches is the team total. Only Locked teams compete in the
-/// team rankings — Disqualified teams' members still appear on the individual board
-/// (per §7) but the team itself is excluded.
+/// Team leaderboard, per guide §8: each match's contribution is the sum of all 3 member
+/// scores (every member counts, no dropping); the sum across matches is the team total.
+/// Only Locked teams compete in the team rankings — Disqualified teams' members still
+/// appear on the individual board (per §7) but the team itself is excluded.
 ///
 /// Tiebreakers: §9 spells out individual tiebreakers (exact count, long-tip correctness,
 /// streak). The guide doesn't define team-level tiebreakers, so we go with the safest
@@ -97,8 +97,8 @@ public class TeamLeaderboardService(AppDbContext db) : ITeamLeaderboardService
             var members = membersByTeam.GetValueOrDefault(team.Id) ?? [];
             if (members.Count != Team.MaxMembers)
             {
-                // A Locked team must have 4 members per TeamLockPolicy. If it doesn't,
-                // skip it from team scoring (the individual board still counts the members).
+                // A Locked team must have Team.MaxMembers members per TeamLockPolicy. If it
+                // doesn't, skip it from team scoring (the individual board still counts them).
                 teamTotals[team.Id] = 0;
                 continue;
             }
@@ -130,10 +130,7 @@ public class TeamLeaderboardService(AppDbContext db) : ITeamLeaderboardService
                 teamTotal += aggregate.TotalPoints;
 
                 foreach (var memberAgg in aggregate.Members)
-                {
-                    if (!memberAgg.Dropped)
-                        totalByMember[memberAgg.MemberId] += memberAgg.Points;
-                }
+                    totalByMember[memberAgg.MemberId] += memberAgg.Points;
             }
 
             teamTotals[team.Id] = teamTotal;

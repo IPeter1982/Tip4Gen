@@ -133,7 +133,7 @@ function GuestPanel() {
         />
         <RuleCard
           icon={Users}
-          title="4 fős csapat"
+          title="3 fős csapat"
           body="Csapat opcionális AI taggal. A torna kezdetekor zárul."
         />
         <RuleCard
@@ -196,8 +196,8 @@ function OnboardingPanel() {
           title="Csapat"
           description={
             hasTeam
-              ? `Csapat: ${myTeam.data!.name} (${myTeam.data!.members.length}/4)`
-              : 'Hozz létre 4 fős csapatot vagy fogadd el egy meghívót — opcionális AI taggal.'
+              ? `Csapat: ${myTeam.data!.name} (${myTeam.data!.members.length}/3)`
+              : 'Hozz létre 3 fős csapatot vagy fogadd el egy meghívót — opcionális AI taggal.'
           }
           done={hasTeam}
           loading={myTeam.isLoading}

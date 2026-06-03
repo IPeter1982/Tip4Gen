@@ -4,10 +4,6 @@ namespace Tip4Gen.Domain.Tests.Teams;
 
 public class TeamRulesValidatorTests
 {
-    private static readonly DateTimeOffset Now = new(2026, 06, 10, 12, 00, 00, TimeSpan.Zero);
-    private static readonly DateTimeOffset FutureStart = Now.AddDays(2);
-    private static readonly DateTimeOffset PastStart = Now.AddDays(-1);
-
     // ===== Name =====
 
     [Fact]
@@ -43,32 +39,16 @@ public class TeamRulesValidatorTests
     // ===== Mutability =====
 
     [Fact]
-    public void ValidateMutable_passes_before_tournament_start_when_forming()
+    public void ValidateMutable_passes_for_forming_team()
     {
-        var r = TeamRulesValidator.ValidateMutable(Now, FutureStart, TeamStatus.Forming);
-        Assert.True(r.IsValid);
-    }
-
-    [Fact]
-    public void ValidateMutable_passes_when_no_tournament_yet()
-    {
-        var r = TeamRulesValidator.ValidateMutable(Now, null, TeamStatus.Forming);
-        Assert.True(r.IsValid);
-    }
-
-    [Fact]
-    public void ValidateMutable_rejects_after_tournament_start_even_when_forming()
-    {
-        // Tournament-start lock wins over team-status check so the error explains itself.
-        var r = TeamRulesValidator.ValidateMutable(Now, PastStart, TeamStatus.Forming);
-        Assert.False(r.IsValid);
-        Assert.Equal(TeamRejectionReason.TournamentStarted, r.Reason);
+        // Forming = mutable regardless of when (joining/creating is allowed after start).
+        Assert.True(TeamRulesValidator.ValidateMutable(TeamStatus.Forming).IsValid);
     }
 
     [Fact]
     public void ValidateMutable_rejects_when_team_locked()
     {
-        var r = TeamRulesValidator.ValidateMutable(Now, FutureStart, TeamStatus.Locked);
+        var r = TeamRulesValidator.ValidateMutable(TeamStatus.Locked);
         Assert.False(r.IsValid);
         Assert.Equal(TeamRejectionReason.TeamLocked, r.Reason);
     }
@@ -76,7 +56,7 @@ public class TeamRulesValidatorTests
     [Fact]
     public void ValidateMutable_rejects_when_team_disqualified()
     {
-        var r = TeamRulesValidator.ValidateMutable(Now, FutureStart, TeamStatus.Disqualified);
+        var r = TeamRulesValidator.ValidateMutable(TeamStatus.Disqualified);
         Assert.False(r.IsValid);
         Assert.Equal(TeamRejectionReason.TeamLocked, r.Reason);
     }
@@ -93,7 +73,7 @@ public class TeamRulesValidatorTests
     [Fact]
     public void ValidateAddMember_rejects_when_team_full()
     {
-        var r = TeamRulesValidator.ValidateAddMember(4, 0, isAi: false);
+        var r = TeamRulesValidator.ValidateAddMember(3, 0, isAi: false);
         Assert.False(r.IsValid);
         Assert.Equal(TeamRejectionReason.TeamFull, r.Reason);
     }
@@ -117,7 +97,7 @@ public class TeamRulesValidatorTests
     public void ValidateAddMember_capacity_check_runs_before_ai_check()
     {
         // Team is already full; trying to add an AI still surfaces TeamFull (the right diagnosis).
-        var r = TeamRulesValidator.ValidateAddMember(4, 0, isAi: true);
+        var r = TeamRulesValidator.ValidateAddMember(3, 0, isAi: true);
         Assert.False(r.IsValid);
         Assert.Equal(TeamRejectionReason.TeamFull, r.Reason);
     }

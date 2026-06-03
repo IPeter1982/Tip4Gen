@@ -12,7 +12,7 @@ function reasonMessage(reason: string): string {
     case 'UserAlreadyInTeam':
       return 'Már tagja vagy egy másik csapatnak.'
     case 'TeamFull':
-      return 'A csapat már elérte a 4 fős maximumot.'
+      return 'A csapat már elérte a 3 fős maximumot.'
     case 'TournamentStarted':
       return 'A torna már elkezdődött; új csapathoz nem lehet csatlakozni.'
     case 'TeamLocked':

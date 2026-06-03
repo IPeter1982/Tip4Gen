@@ -43,7 +43,7 @@ function reasonMessage(reason: string): string {
     case 'TeamLocked':
       return 'A csapat lezárult; ekkor már nem módosítható.'
     case 'TeamFull':
-      return 'A csapat már elérte a 4 fős maximumot.'
+      return 'A csapat már elérte a 3 fős maximumot.'
     case 'AiSlotTaken':
       return 'A csapatban már van AI tag.'
     case 'UserAlreadyInTeam':
@@ -132,8 +132,8 @@ function CreateTeamPanel() {
       <div className="space-y-2">
         <h2 className="text-2xl font-black uppercase tracking-tight">Új csapat</h2>
         <p className="font-mono text-sm text-fg-muted">
-          Hozz létre egy csapatot, hívj meg 3 barátot, és opcionálisan adj hozzá egy AI tagot.
-          Max. 4 fő/csapat. A csapatok a torna kezdetekor lezárulnak.
+          Hozz létre egy csapatot, hívj meg 2 barátot, és opcionálisan adj hozzá egy AI tagot.
+          Max. 3 fő/csapat. A csapatok akkor zárulnak le, amikor megtelnek (a torna kezdete után is csatlakozhatnak új tagok).
         </p>
         {longTips.data && (
           <p className="text-xs font-mono uppercase tracking-[0.15em] text-fg-subtle">
@@ -234,8 +234,7 @@ function LockBanner({
   if (status === 'Disqualified') {
     return (
       <section className="border border-danger bg-danger/10 p-4 font-mono text-sm text-danger">
-        ⚠ A csapat <strong>kizárva</strong> – kevesebb mint 4 fő volt a lezáráskor. A csapatpontozás
-        nem fog rád/rátok vonatkozni, de az egyéni tippek továbbra is érvényesek.
+        ⚠ A csapat <strong>kizárva</strong> a csapat-versenyből. Az egyéni tippek továbbra is érvényesek.
       </section>
     )
   }

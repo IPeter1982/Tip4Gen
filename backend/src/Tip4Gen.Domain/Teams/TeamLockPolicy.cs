@@ -2,19 +2,19 @@ namespace Tip4Gen.Domain.Teams;
 
 public enum TeamLockDecision
 {
-    /// <summary>Too early — tournament hasn't started yet, leave the team Forming.</summary>
+    /// <summary>Leave the team Forming — either tournament hasn't started yet, or
+    /// the roster is still under-sized and may grow.</summary>
     Skip,
 
-    /// <summary>Lock the team — it had a full roster at tournament start.</summary>
+    /// <summary>Lock the team — tournament has started and the roster is full.</summary>
     Lock,
-
-    /// <summary>Disqualify the team — under-sized at tournament start, drops out of team leaderboard.</summary>
-    Disqualify,
 }
 
 /// <summary>
-/// Pure decision rule for the tournament-start team-lock pass. Kept separate from the
-/// service so the timing/threshold logic is testable without a DbContext.
+/// Pure decision rule for the auto-lock pass. A Forming team is locked once the tournament
+/// has started AND the roster has reached <see cref="Team.MaxMembers"/>. Under-sized teams
+/// stay Forming so members can still join (and new teams can be created) after the start —
+/// they just don't appear on the team leaderboard until they're full.
 /// </summary>
 public static class TeamLockPolicy
 {
@@ -24,9 +24,8 @@ public static class TeamLockPolicy
         TeamStatus currentStatus,
         int memberCount)
     {
-        // Only Forming teams are candidates; Locked / Disqualified are already terminal.
         if (currentStatus != TeamStatus.Forming) return TeamLockDecision.Skip;
         if (now < tournamentStartUtc) return TeamLockDecision.Skip;
-        return memberCount >= Team.MaxMembers ? TeamLockDecision.Lock : TeamLockDecision.Disqualify;
+        return memberCount >= Team.MaxMembers ? TeamLockDecision.Lock : TeamLockDecision.Skip;
     }
 }

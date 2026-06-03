@@ -60,11 +60,11 @@ public class TeamLockJob(
         using var scope = scopeFactory.CreateScope();
         var lockService = scope.ServiceProvider.GetRequiredService<ITeamLockService>();
         var summary = await lockService.LockAllAsync(ct);
-        if (summary.Locked > 0 || summary.Disqualified > 0)
+        if (summary.Locked > 0)
         {
             logger.LogInformation(
-                "TeamLockJob tick: locked={Locked}, disqualified={Disqualified}, skipped={Skipped}",
-                summary.Locked, summary.Disqualified, summary.Skipped);
+                "TeamLockJob tick: locked={Locked}, skipped={Skipped}",
+                summary.Locked, summary.Skipped);
         }
     }
 }
