@@ -33,7 +33,7 @@ public interface IFixtureSyncService
 public class FixtureSyncService(
     IFootballDataProvider provider,
     AppDbContext db,
-    IOptions<ApiFootballOptions> opts,
+    IOptions<WorldCup26IrOptions> opts,
     IEnumerable<IMatchFinalizedHandler> matchFinalizedHandlers,
     ILogger<FixtureSyncService> logger) : IFixtureSyncService
 {
@@ -94,7 +94,6 @@ public class FixtureSyncService(
 
         foreach (var pf in providerFixtures)
         {
-            var (stage, groupCode) = StageMapper.FromProviderLabel(pf.RoundLabel);
             var domainStatus = MatchStatusMapper.FromProvider(pf.Status);
             var home = teamsByExternalId[pf.HomeTeamExternalId];
             var away = teamsByExternalId[pf.AwayTeamExternalId];
@@ -114,8 +113,8 @@ public class FixtureSyncService(
                 var newMatch = new Match(
                     tournament.Id,
                     pf.ExternalId,
-                    stage,
-                    groupCode,
+                    pf.Stage,
+                    pf.GroupCode,
                     pf.RoundLabel,
                     home.Id,
                     away.Id,

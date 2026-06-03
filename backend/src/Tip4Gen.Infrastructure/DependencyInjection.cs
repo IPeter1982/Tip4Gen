@@ -37,16 +37,18 @@ public static class DependencyInjection
         // is overridden uniformly. AiTippingService injects TimeProvider.
         services.AddSingleton(TimeProvider.System);
 
-        services.AddOptions<ApiFootballOptions>()
-            .Bind(configuration.GetSection("FootballApi"))
+        services.AddOptions<WorldCup26IrOptions>()
+            .Bind(configuration.GetSection("WorldCup26Ir"))
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
-        services.AddHttpClient<IFootballDataProvider, ApiFootballProvider>((sp, http) =>
+        services.AddSingleton<WorldCup26IrJwtCache>();
+
+        services.AddHttpClient<IFootballDataProvider, WorldCup26IrProvider>((sp, http) =>
             {
-                var opts = sp.GetRequiredService<IOptions<ApiFootballOptions>>().Value;
+                var opts = sp.GetRequiredService<IOptions<WorldCup26IrOptions>>().Value;
                 http.BaseAddress = new Uri(opts.BaseUrl.TrimEnd('/') + "/");
-                http.DefaultRequestHeaders.Add("x-apisports-key", opts.ApiKey);
+                http.Timeout = TimeSpan.FromSeconds(opts.TimeoutSeconds);
             })
             .AddStandardResilienceHandler();
 

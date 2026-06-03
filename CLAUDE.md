@@ -54,7 +54,9 @@ backend/                    ASP.NET Core 9 solution (planned 10, on 9 for speed)
   src/Tip4Gen.Infrastructure  EF Core, external clients
     Persistence/AppDbContext.cs + Migrations/
     DependencyInjection.cs  AddInfrastructure(IConfiguration)
-    Football/               ApiFootballProvider + Options + DTOs
+    Football/               WorldCup26IrProvider + Options + DTOs + JwtCache
+                            (anonymous-first; lazy /auth/register+authenticate
+                            on 401, token cached in memory)
     Tournaments/            FixtureSyncService (idempotent upsert + event dispatch)
     Tipping/                TipsService, LongTermTipsService (tagged-union results),
                             UserTipHistoryService (closed-match drilldown from
@@ -99,8 +101,9 @@ web/                        Vite + React 19 + TS frontend
   src/lib/format.ts         Budapest TZ formatters + countdown + HU labels
   src/lib/imageResize.ts    Canvas square-crop → 128×128 JPEG q=0.85 → data URL
                             (shared by /me upload and /admin/ai-avatar)
-  src/lib/teamFlag.ts       api-football 3-letter code → ISO 3166-1 alpha-2
-                            (verified WC 2022 codes + FIFA-standard aliases;
+  src/lib/teamFlag.ts       3-letter code → ISO 3166-1 alpha-2 (worldcup26.ir
+                            uses real FIFA codes so most aliases are now dead
+                            weight, kept as a buffer in case the upstream swaps;
                             ENG/WAL/SCO/NIR → gb-eng/gb-wls/gb-sct/gb-nir)
   src/components/Topbar.tsx
   src/pages/                Home, Me, Matches, TipSubmit, LongTips, Team, TeamJoin,
@@ -185,7 +188,7 @@ All dev credentials live in `dotnet user-secrets` for `backend/src/Tip4Gen.Api` 
 
 - `ConnectionStrings:AppDb` — local Postgres 18 (`tip4gen_dev` DB, `tip4gen` role)
 - `Auth0:Domain` / `Auth0:Audience` / `Auth0:AdminSub` — tenant `dev-yifcd0c5p4s0wcj5.eu.auth0.com`, audience `https://api.tip4gen.local`
-- `FootballApi:Provider` / `ApiKey` / `BaseUrl` / `LeagueId` / `Season` — api-football Free plan, league=1, season=2022 (see Data caveat below)
+- `WorldCup26Ir:BaseUrl` / `LeagueId` / `Season` — worldcup26.ir (free, anonymous). Defaults baked into `WorldCup26IrOptions` so you don't need to set anything for local dev. `WorldCup26Ir:AuthEmail` / `:AuthPassword` are optional — the provider runs anonymous and only attempts a JWT register+login if the upstream ever returns 401.
 - `OpenAi:ApiKey` — OpenAI project-scoped key (`sk-proj-…`). Optional: when unset, `OpenAiTipper` returns `AiTipResult.Disabled` and the schedule policy still writes the 1–1 fallback at T-1h. `OpenAi:Model` (default `gpt-4o-mini`), `OpenAi:Temperature` (0.7), `OpenAi:TimeoutSeconds` (15) are bindable from the same section.
 
 Frontend env in `web/.env.local` (also gitignored): `VITE_AUTH0_DOMAIN`, `VITE_AUTH0_CLIENT_ID`, `VITE_AUTH0_AUDIENCE`.
@@ -206,7 +209,7 @@ SPA service (nginx)  ──/api private──►  API service (.NET)  ──priv
 - `ASPNETCORE_ENVIRONMENT=Production`
 - `DATABASE_URL` (auto-injected from the Postgres plugin reference)
 - `Auth0__Domain`, `Auth0__Audience`, `Auth0__AdminSub`
-- `FootballApi__Provider`, `__ApiKey`, `__BaseUrl`, `__LeagueId`, `__Season`
+- `WorldCup26Ir__BaseUrl` (optional, defaults to `https://worldcup26.ir`), `WorldCup26Ir__AuthEmail` / `__AuthPassword` (optional — only used if the upstream ever 401s)
 - `OpenAi__ApiKey` (optional — when unset, the tipper short-circuits and the 1–1 fallback still writes at T-1h)
 - `Cors__AllowedOrigin` = SPA public URL (defensive belt-and-braces; the reverse-proxy means the browser never CORS-talks to the API)
 
@@ -220,15 +223,19 @@ The API base URL is *not* a `VITE_*` var — same-origin via nginx means `useApi
 
 **Deploy + rollback**: push to `main` triggers per-service builds. Failed releases → "Redeploy" a previous build via the Railway dashboard. Bad migration → revert locally, push, then `railway run dotnet ef migrations remove --project backend/src/Tip4Gen.Infrastructure --startup-project backend/src/Tip4Gen.Api`.
 
-## Data caveat — WC 2026 fixtures
+## Data caveat — WC 2026 fixtures (worldcup26.ir)
 
-api-football's Free plan does NOT include WC 2026 fixture coverage (`coverage.fixtures=false`). We develop against **WC 2022** (`FootballApi:Season=2022`, 64 real matches with results) so the scoring engine can be tested with real data. To launch with real 2026 fixtures we must either upgrade api-football, swap to a different provider, OR rely on admin manual entry (Phase 8) — that fallback is **load-bearing**, not optional.
+We pull fixtures and teams from **worldcup26.ir** — a free, community-run (one maintainer: rezarahiminia) Node/Express + MongoDB API. 104 matches sourced from Wikipedia. Anonymous access works for `GET /get/games` and `GET /get/teams` despite the Swagger UI claiming JWT is required; the provider runs anonymous and only tries `/auth/register` + `/auth/authenticate` lazily on a 401. Rate limit is 500 req/min (effectively infinite for our 5-min poller cadence).
 
-Schema must accommodate both formats: 2022 had 32 teams (no R32 round), 2026 has 48 teams with groups → R32 → R16 → QF → SF → bronze → final.
+**Risks to know:**
 
-**Round labels are matchday-style, not group-letter-style.** api-football's WC fixtures use `Group Stage - 1/2/3` — the group letter (A–L) is *not* in `league.round`. `StageMapper` returns `(Stage.Group, null)` for those, so `matches.group_code` stays null until we enrich it from `/standings`. Deferred follow-up — schema already supports it, the seed/poller code doesn't yet. If you see code that assumes `group_code` is populated, check this first.
+- **Single-maintainer free project.** If it goes offline mid-tournament, admin manual entry (Phase 8 — `/api/admin/matches/{id}/result|cancel|postpone`) is the only fallback.
+- **Timezone is US Eastern, hard-coded.** `local_date` is `MM/dd/yyyy HH:mm` with no explicit TZ; `WorldCup26IrProvider.ParseEasternToUtc` treats it as `America/New_York` (Eastern). Mexico City / Vancouver / LA matches will drift 1–3h if the upstream is not actually Eastern — spot-check the Estadio Azteca opener (`06/11/2026 13:00` → `2026-06-11 17:00 UTC` → 11:00 CDT, matches FIFA's published kickoff) and one West-Coast match before trusting blindly. If wrong: extend the provider with a stadium_id → IANA TZ map.
+- **No Live / Postponed / Cancelled status.** The upstream only exposes `finished: "TRUE"|"FALSE"`. The provider maps TRUE → Finished, FALSE → Scheduled — there is no Live transition. The FixturePoller's "live or imminent" guard still works because it queries our local `MatchStatus` (Scheduled + within window). Cancellations and postponements go through admin.
+- **Knockout placeholders.** Until the bracket fills, `home_team_id` / `away_team_id` are `"0"`. The provider drops those rows; the poller picks them up once real team IDs land.
+- **Group code is populated from day one.** `WorldCupGame.group` carries the A–L letter directly for `type=="group"`. The historical "matches.group_code stays null" gotcha is gone.
 
-**Quota discipline.** api-football Free plan is 100 req/day. The seed endpoint costs 2 (one /fixtures + one /teams). The poller costs 1 per tick (only /fixtures), and only when there's a Live or imminent match — at default cadence it stays well under cap. Don't add a new poller without doing the same active-window check.
+**StageMapper** now exposes a single `FromWorldCupType(string)` for inputs `"group" | "r32" | "r16" | "qf" | "sf" | "third" | "final"`. The old api-football `Group Stage - N` parser is gone.
 
 ## Scoring rules — quick reference (full detail in guide §3–§9)
 
@@ -291,7 +298,7 @@ Single admin (the project owner). Gated by Auth0 `sub` claim matching the `Auth0
 - `OpenAiTipper` short-circuits to `AiTipResult.Disabled` when `OpenAi:ApiKey` is empty. Don't add `[Required]` to `OpenAiOptions.ApiKey` — the disabled path is intentional so the scaffold runs without a key, and the schedule policy still writes the 1–1 fallback at T-1h.
 - `AiTipSchedulePolicy.Decide` is the only place the T-2h/T-90m/T-1h windows are encoded. Tests in `Domain.Tests/Ai/AiTipSchedulePolicyTests.cs` cover every boundary; if you tweak a window, update both.
 - `AiTippingService` writes one `ai_tip_attempts` row per IAiTipper call (success or failure). The schedule policy reads that count to decide retry vs. skip — without persistent counting, a process restart in the [T-2h, T-1h] window would re-burn quota.
-- The OpenAI prompt currently passes team names as-is. Hungarian team names like "Magyarország" can confuse the model into hallucinating a wrong opponent — production data from api-football uses English names so this doesn't bite. If you ever localize team names in the DB, pass both English + Hungarian into `AiTipPromptBuilder.Build`.
+- The OpenAI prompt currently passes team names as-is. Hungarian team names like "Magyarország" can confuse the model into hallucinating a wrong opponent — production data from worldcup26.ir uses English names so this doesn't bite. If you ever localize team names in the DB, pass both English + Hungarian into `AiTipPromptBuilder.Build`.
 - `OperationCanceledException` catch in `OpenAiTipper.GenerateAsync` uses `when (!ct.IsCancellationRequested)` to distinguish HttpClient timeout (our own deadline → return `Timeout`) from caller-cancel (let it propagate). Don't simplify that guard.
 
 ## Avatar gotchas
@@ -320,7 +327,7 @@ Single admin (the project owner). Gated by Auth0 `sub` claim matching the `Auth0
 
 ## National-team flag gotchas
 
-- **api-football's `code` is NOT FIFA.** Their WC seed uses their own 3-letter abbreviations — `Iran=IRA` (not IRN), `Netherlands=NET` (not NED), `Spain=SPA` (not ESP), `Japan=JAP` (not JPN), `Saudi Arabia=SAU` (not KSA), `Serbia=SER` (not SRB), `Switzerland=SWI` (not SUI), `Cameroon=CAM` (not CMR), `Costa Rica=COS` (not CRC), `Morocco=MOR` (not MAR). `web/src/lib/teamFlag.ts` ships both the verified api-football codes AND the FIFA aliases so a future provider swap doesn't silently break. If you're staring at a missing flag, dump `teams_national.code` first — don't trust your memory of the FIFA spec.
+- **Team codes are real FIFA now (worldcup26.ir).** The upstream returns honest FIFA 3-letter codes (`IRN`, `NED`, `ESP`, `JPN`, `KSA`, `SUI`, `MAR`, etc.). `web/src/lib/teamFlag.ts` *also* still holds the older api-football aliases (`IRA`, `NET`, `SPA`, `JAP`, `SAU`, `SER`, `SWI`, `CAM`, `COS`, `MOR`) — they're harmless dead-weight under the current provider and act as a buffer in case we ever swap upstream again. If you're staring at a missing flag, dump `teams_national.code` first — don't trust your memory of the FIFA spec.
 - **Flag images are runtime CDN.** `<TeamFlag code={...} />` renders `<img src="https://flagcdn.com/{iso}.svg">` with `onError` → render-nothing fallback. No flag assets in the repo. flagcdn supports UK subdivisions (`gb-eng` / `gb-wls` / `gb-sct` / `gb-nir`) so each home nation gets its own flag — that's why `ENG → gb-eng` in the map, not `gb`.
 - **`<TeamLabel team={...} />` is the default for every team-name render site.** Plain `{team.name}` was replaced everywhere (Matches list, TipSubmit header + score-input labels, LiveMatchBanner, AdminMatches, AdminMatchEditor). If you add a new site that renders a team name, use `<TeamLabel />` — don't reinvent the flex layout.
 - **Native `<select>` can't render images in `<option>`.** Both long-tip dropdowns (LongTips + AdminLongTips) use `<TeamSelect />` (Headless UI Listbox). In `LongTips`, the dropdown is wrapped in RHF `Controller` — that's the integration pattern; mirror it if you ever need a Listbox inside an RHF form. The component maps `value=''` ↔ `null` at the boundary so existing form-state shapes (which use empty-string for "no selection") still work.

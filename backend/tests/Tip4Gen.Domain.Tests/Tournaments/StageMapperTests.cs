@@ -5,78 +5,47 @@ namespace Tip4Gen.Domain.Tests.Tournaments;
 public class StageMapperTests
 {
     [Theory]
-    [InlineData("Group A - 1", "A")]
-    [InlineData("Group B - 2", "B")]
-    [InlineData("Group C - 3", "C")]
-    [InlineData("Group L - 1", "L")]
-    [InlineData("group h - 3", "H")]  // case insensitive
-    [InlineData("  Group D - 2  ", "D")]  // surrounding whitespace
-    public void Group_labels_with_letter_resolve_to_Group_with_extracted_code(string label, string expectedCode)
+    [InlineData("group", Stage.Group)]
+    [InlineData("r32", Stage.R32)]
+    [InlineData("r16", Stage.R16)]
+    [InlineData("qf", Stage.QF)]
+    [InlineData("sf", Stage.SF)]
+    [InlineData("third", Stage.Bronze)]
+    [InlineData("final", Stage.Final)]
+    public void World_cup_type_codes_map_to_correct_stage(string type, Stage expected)
     {
-        var (stage, group) = StageMapper.FromProviderLabel(label);
-        Assert.Equal(Stage.Group, stage);
-        Assert.Equal(expectedCode, group);
+        Assert.Equal(expected, StageMapper.FromWorldCupType(type));
     }
 
     [Theory]
-    [InlineData("Group Stage - 1")]
-    [InlineData("Group Stage - 2")]
-    [InlineData("Group Stage - 3")]
-    [InlineData("group stage - 1")]
-    [InlineData("  Group Stage - 2  ")]
-    public void Matchday_group_labels_resolve_to_Group_with_null_code(string label)
+    [InlineData("GROUP")]
+    [InlineData("R32")]
+    [InlineData("Final")]
+    [InlineData("  group  ")]
+    public void Type_lookup_is_case_insensitive_and_trims_whitespace(string type)
     {
-        // api-football's WC fixtures use "Group Stage - N" — the group letter
-        // has to be enriched from /standings, not parsed from the round label.
-        var (stage, group) = StageMapper.FromProviderLabel(label);
-        Assert.Equal(Stage.Group, stage);
-        Assert.Null(group);
-    }
-
-    [Theory]
-    [InlineData("Round of 32", Stage.R32)]
-    [InlineData("1/16 Finals", Stage.R32)]
-    [InlineData("Round of 16", Stage.R16)]
-    [InlineData("1/8 Finals", Stage.R16)]
-    [InlineData("Quarter-finals", Stage.QF)]
-    [InlineData("quarterfinals", Stage.QF)]
-    [InlineData("Semi-finals", Stage.SF)]
-    [InlineData("3rd Place Final", Stage.Bronze)]
-    [InlineData("Third Place", Stage.Bronze)]
-    [InlineData("Bronze Final", Stage.Bronze)]
-    [InlineData("Final", Stage.Final)]
-    public void Knockout_labels_resolve_to_correct_stage_with_no_group_code(string label, Stage expected)
-    {
-        var (stage, group) = StageMapper.FromProviderLabel(label);
-        Assert.Equal(expected, stage);
-        Assert.Null(group);
-    }
-
-    [Fact]
-    public void Bronze_takes_precedence_over_generic_Final_match()
-    {
-        // "3rd Place Final" contains the word "final" — make sure we return Bronze, not Final.
-        var (stage, _) = StageMapper.FromProviderLabel("3rd Place Final");
-        Assert.Equal(Stage.Bronze, stage);
+        // The worldcup26.ir payload is lowercase in practice; tolerating mixed
+        // case keeps us robust to upstream formatting drift.
+        Assert.True(Enum.IsDefined(StageMapper.FromWorldCupType(type)));
     }
 
     [Theory]
     [InlineData("")]
     [InlineData("   ")]
-    public void Blank_label_throws(string label)
+    public void Blank_type_throws(string type)
     {
-        Assert.Throws<ArgumentException>(() => StageMapper.FromProviderLabel(label));
+        Assert.Throws<ArgumentException>(() => StageMapper.FromWorldCupType(type));
     }
 
     [Fact]
-    public void Null_label_throws()
+    public void Null_type_throws()
     {
-        Assert.Throws<ArgumentException>(() => StageMapper.FromProviderLabel(null!));
+        Assert.Throws<ArgumentException>(() => StageMapper.FromWorldCupType(null!));
     }
 
     [Fact]
-    public void Unrecognized_label_throws()
+    public void Unrecognized_type_throws()
     {
-        Assert.Throws<ArgumentException>(() => StageMapper.FromProviderLabel("Pre-Season Friendly"));
+        Assert.Throws<ArgumentException>(() => StageMapper.FromWorldCupType("playoff"));
     }
 }
