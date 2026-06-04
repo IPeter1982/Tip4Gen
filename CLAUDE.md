@@ -106,7 +106,10 @@ web/                        Vite + React 19 + TS frontend
                             uses real FIFA codes so most aliases are now dead
                             weight, kept as a buffer in case the upstream swaps;
                             ENG/WAL/SCO/NIR → gb-eng/gb-wls/gb-sct/gb-nir)
-  src/components/Topbar.tsx
+  src/lib/navIcons.tsx      NAV_ITEMS (single source of truth for Topbar
+                            links + per-route icons); `requiresAuth` flag
+                            hides links from logged-out users
+  src/components/Topbar.tsx Filters NAV_ITEMS by `requiresAuth` + isAdmin
   src/pages/                Home, Me, Matches, TipSubmit, LongTips, Team, TeamJoin,
                             Leaderboard, UserTips (closed-match history for one player)
   src/pages/admin/          AdminMatches, AdminMatchEditor, AdminAudit,
@@ -313,6 +316,7 @@ Single admin (the project owner). Gated by Auth0 `sub` claim matching the `Auth0
 - **Audit payload never contains the bytes.** `AdminAuditAction.AiAvatarSet` / `AiAvatarDeleted` before/after carry `{version, contentType}` only. Dumping the bytea into `admin_audit.jsonb` would blow up the row and the audit-log UI. Mirror this shape if you add more avatar admin actions.
 - **`DataUrlParser` is shared.** Both `MeController.SetAvatar` and `AiAvatarAdminController.Set` call `Tip4Gen.Api.Avatars.DataUrlParser.TryParse`. Pre-decode length cap is `User.MaxAvatarBytes * 4/3 + 256` — cheap O(1) guard before allocating a `byte[]` from a hostile body. If you tweak the limit, update both.
 - **Topbar shows local display name, not Auth0's.** `Topbar.tsx` prefers `me.data?.displayName` over `user?.name` from the Auth0 SDK, falling back only while `me` is loading. The avatar URL requires `me.data.id`, so the rendering already depends on `useMe()` resolving.
+- **Logged-out nav is filtered, not just route-gated.** `Topbar.tsx` chains two filters over `NAV_ITEMS`: `!i.requiresAuth || isAuthenticated`, then `i.path !== '/admin' || me.data?.isAdmin`. Logged-out users only see `/` (Főoldal) and `/szabalyzat` (Szabályzat) — the other entries vanish from the menu, not just from the routes. When adding a new nav link in `lib/navIcons.tsx`, set `requiresAuth: true` unless the page itself is public (no `RequireAuth` wrapper in `App.tsx`). Loading-state trade-off: during `useAuth0().isLoading` the auth-gated links stay hidden — a logged-in user sees a brief "bevillan" on cold load, which is the intended cost of never leaking the protected menu to logged-out visitors.
 
 ## Theme + dark-mode gotchas
 
