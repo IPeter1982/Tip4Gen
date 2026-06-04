@@ -22,6 +22,7 @@ export function Topbar() {
         </Link>
         <nav className="flex items-center gap-x-4 gap-y-1 flex-wrap text-xs font-mono uppercase tracking-[0.15em] text-fg-muted">
           <NavLink to="/" end className={NAV_LINK_BASE}>Főoldal</NavLink>
+          <NavLink to="/szabalyzat" className={NAV_LINK_BASE}>Szabályzat</NavLink>
           <NavLink to="/matches" className={NAV_LINK_BASE}>Mérkőzések</NavLink>
           <NavLink to="/long-tips" className={NAV_LINK_BASE}>Végső győztes</NavLink>
           <NavLink to="/team" className={NAV_LINK_BASE}>Csapat</NavLink>

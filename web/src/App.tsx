@@ -9,6 +9,7 @@ import { LongTips } from './pages/LongTips'
 import { Matches } from './pages/Matches'
 import { Me } from './pages/Me'
 import { NotFound } from './pages/NotFound'
+import { Szabalyzat } from './pages/Szabalyzat'
 import { Team } from './pages/Team'
 import { TeamJoin } from './pages/TeamJoin'
 import { TipSubmit } from './pages/TipSubmit'
@@ -26,6 +27,7 @@ export default function App() {
       <LiveMatchBanner />
       <Routes>
         <Route path="/" element={<Home />} />
+        <Route path="/szabalyzat" element={<Szabalyzat />} />
         <Route
           path="/matches"
           element={
