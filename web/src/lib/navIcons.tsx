@@ -15,17 +15,18 @@ export type NavItem = {
   end?: boolean
   label: string
   Icon: LucideIcon
+  requiresAuth?: boolean
 }
 
 export const NAV_ITEMS: NavItem[] = [
   { path: '/', end: true, label: 'Főoldal', Icon: House },
   { path: '/szabalyzat', label: 'Szabályzat', Icon: BookOpen },
-  { path: '/matches', label: 'Mérkőzések', Icon: Goal },
-  { path: '/long-tips', label: 'Végső győztes', Icon: Trophy },
-  { path: '/team', label: 'Csapat', Icon: Users },
-  { path: '/leaderboard', label: 'Ranglista', Icon: BarChart3 },
-  { path: '/me', label: 'Profil', Icon: User },
-  { path: '/admin', label: 'Admin', Icon: ShieldCheck },
+  { path: '/matches', label: 'Mérkőzések', Icon: Goal, requiresAuth: true },
+  { path: '/long-tips', label: 'Végső győztes', Icon: Trophy, requiresAuth: true },
+  { path: '/team', label: 'Csapat', Icon: Users, requiresAuth: true },
+  { path: '/leaderboard', label: 'Ranglista', Icon: BarChart3, requiresAuth: true },
+  { path: '/me', label: 'Profil', Icon: User, requiresAuth: true },
+  { path: '/admin', label: 'Admin', Icon: ShieldCheck, requiresAuth: true },
 ]
 
 export const NAV_ICONS: Record<string, LucideIcon> = Object.fromEntries(

@@ -22,8 +22,10 @@ export function Topbar() {
           <span>Tip4Gen</span>
         </Link>
         <nav className="flex items-center gap-x-4 gap-y-1 flex-wrap text-xs font-mono uppercase tracking-[0.15em] text-fg-muted">
-          {NAV_ITEMS.filter((i) => i.path !== '/admin' || me.data?.isAdmin).map(
-            ({ path, end, label, Icon }) => (
+          {NAV_ITEMS
+            .filter((i) => !i.requiresAuth || isAuthenticated)
+            .filter((i) => i.path !== '/admin' || me.data?.isAdmin)
+            .map(({ path, end, label, Icon }) => (
               <NavLink
                 key={path}
                 to={path}
