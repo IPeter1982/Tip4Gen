@@ -1,6 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
+import { Users } from 'lucide-react'
 import { z } from 'zod'
 import { ApiError } from '../api/errors'
 import {
@@ -75,7 +76,10 @@ export function Team() {
   return (
     <div className="max-w-2xl mx-auto px-6 py-10 space-y-6">
       <header>
-        <p className="text-xs font-mono uppercase tracking-[0.2em] text-accent">Csapat</p>
+        <p className="inline-flex items-center gap-1.5 text-xs font-mono uppercase tracking-[0.2em] text-accent">
+          <Users size={14} />
+          Csapat
+        </p>
         <h1 className="text-4xl font-black uppercase tracking-tight mt-2">
           Csapat-beállítások
         </h1>

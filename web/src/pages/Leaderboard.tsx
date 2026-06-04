@@ -1,6 +1,7 @@
 import { Link, useSearchParams } from 'react-router'
 import {
   AlertTriangle,
+  BarChart3,
   Crosshair,
   Flame,
   Medal,
@@ -26,7 +27,10 @@ export function Leaderboard() {
   return (
     <div className="max-w-3xl mx-auto px-6 py-10 space-y-8">
       <header>
-        <p className="text-xs font-mono uppercase tracking-[0.2em] text-accent">Ranglista</p>
+        <p className="inline-flex items-center gap-1.5 text-xs font-mono uppercase tracking-[0.2em] text-accent">
+          <BarChart3 size={14} />
+          Ranglista
+        </p>
         <h1 className="text-4xl font-bold tracking-tight mt-2 text-fg-default">Állás</h1>
       </header>
 

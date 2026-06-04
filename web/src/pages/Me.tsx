@@ -3,6 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { Link } from 'react-router'
+import { User } from 'lucide-react'
 import { z } from 'zod'
 import { ApiError } from '../api/errors'
 import {
@@ -32,7 +33,10 @@ export function Me() {
   return (
     <div className="max-w-xl mx-auto px-6 py-10 space-y-6">
       <header>
-        <p className="text-xs font-mono uppercase tracking-[0.2em] text-accent">Profil</p>
+        <p className="inline-flex items-center gap-1.5 text-xs font-mono uppercase tracking-[0.2em] text-accent">
+          <User size={14} />
+          Profil
+        </p>
         <h1 className="text-4xl font-black uppercase tracking-tight mt-2 break-words">
           {me.data?.displayName ?? '…'}
         </h1>

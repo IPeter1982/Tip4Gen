@@ -1,6 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useEffect } from 'react'
 import { Controller, useForm } from 'react-hook-form'
+import { Trophy } from 'lucide-react'
 import { z } from 'zod'
 import { useLongTips, useNationalTeams, useSubmitLongTips } from '../api/hooks'
 import { ApiError } from '../api/errors'
@@ -86,7 +87,8 @@ export function LongTips() {
   return (
     <div className="max-w-xl mx-auto px-6 py-10 space-y-6">
       <header>
-        <p className="text-xs font-mono uppercase tracking-[0.2em] text-accent">
+        <p className="inline-flex items-center gap-1.5 text-xs font-mono uppercase tracking-[0.2em] text-accent">
+          <Trophy size={14} />
           Végső győztes
         </p>
         <h1 className="text-4xl font-black uppercase tracking-tight mt-2">

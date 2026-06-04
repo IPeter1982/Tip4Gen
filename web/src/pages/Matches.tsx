@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   Clock,
+  Goal,
   Radio,
   RefreshCw,
   Star,
@@ -90,7 +91,10 @@ export function Matches() {
     <div className="max-w-3xl mx-auto px-6 py-10 space-y-8">
       <header className="flex items-end justify-between gap-4 flex-wrap">
         <div>
-          <p className="text-xs font-mono uppercase tracking-[0.2em] text-accent">Mérkőzések</p>
+          <p className="inline-flex items-center gap-1.5 text-xs font-mono uppercase tracking-[0.2em] text-accent">
+            <Goal size={14} />
+            Mérkőzések
+          </p>
           <h1 className="text-4xl font-bold tracking-tight mt-2 text-fg-default">Tippelés</h1>
         </div>
         <button

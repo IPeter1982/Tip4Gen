@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { BookOpen } from 'lucide-react'
 
 const SECTIONS: { n: string; title: string }[] = [
   { n: '01', title: 'Tippelhető események' },
@@ -308,7 +309,8 @@ export function Szabalyzat() {
 function Hero() {
   return (
     <section className="text-center space-y-5">
-      <p className="text-xs font-mono uppercase tracking-[0.25em] text-accent">
+      <p className="inline-flex items-center gap-1.5 text-xs font-mono uppercase tracking-[0.25em] text-accent">
+        <BookOpen size={14} />
         Hivatalos szabályzat
       </p>
       <h1 className="text-4xl sm:text-5xl font-bold tracking-tight text-fg-default">

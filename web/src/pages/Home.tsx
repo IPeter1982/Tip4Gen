@@ -5,6 +5,7 @@ import {
   ArrowRight,
   CheckCircle2,
   ChevronRight,
+  House,
   LockKeyhole,
   LogIn,
   Shield,
@@ -59,7 +60,7 @@ function Hero() {
   return (
     <header className="text-center space-y-6 pt-4">
       <div className="inline-flex items-center gap-2 text-xs font-mono uppercase tracking-[0.25em] text-accent">
-        <Trophy size={14} />
+        <House size={14} />
         Foci VB 2026 · Tippjáték
       </div>
       <h1 className="text-5xl sm:text-7xl font-bold tracking-tight text-fg-default">Tip4Gen</h1>

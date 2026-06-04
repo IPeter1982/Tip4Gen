@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
+import { ShieldCheck } from 'lucide-react'
 import { useMatches } from '../../api/hooks'
 import type { MatchListItem, MatchStatus } from '../../api/types'
 import { STAGE_LABEL_HU, STATUS_LABEL_HU, formatBudapest } from '../../lib/format'
@@ -30,7 +31,10 @@ export function AdminMatches() {
   return (
     <div className="max-w-5xl mx-auto px-6 py-10 space-y-6">
       <header>
-        <p className="text-xs font-mono uppercase tracking-[0.2em] text-accent">Admin</p>
+        <p className="inline-flex items-center gap-1.5 text-xs font-mono uppercase tracking-[0.2em] text-accent">
+          <ShieldCheck size={14} />
+          Admin
+        </p>
         <h1 className="text-4xl font-black uppercase tracking-tight mt-2">Mérkőzések</h1>
       </header>
 

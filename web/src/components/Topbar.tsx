@@ -3,11 +3,12 @@ import { Link, NavLink } from 'react-router'
 import { Goal } from 'lucide-react'
 import { useMe } from '../api/hooks'
 import { isAuthConfigured } from '../auth/authConfig'
+import { NAV_ITEMS } from '../lib/navIcons'
 import { Avatar } from './Avatar'
 import { ThemeToggle } from './ThemeToggle'
 
 const NAV_LINK_BASE =
-  'transition hover:text-accent aria-[current=page]:text-accent aria-[current=page]:underline aria-[current=page]:decoration-2 aria-[current=page]:underline-offset-[6px]'
+  'inline-flex items-center gap-1.5 transition hover:text-accent aria-[current=page]:text-accent aria-[current=page]:underline aria-[current=page]:decoration-2 aria-[current=page]:underline-offset-[6px]'
 
 export function Topbar() {
   const { isAuthenticated, isLoading, user, loginWithRedirect, logout, error } = useAuth0()
@@ -21,15 +22,18 @@ export function Topbar() {
           <span>Tip4Gen</span>
         </Link>
         <nav className="flex items-center gap-x-4 gap-y-1 flex-wrap text-xs font-mono uppercase tracking-[0.15em] text-fg-muted">
-          <NavLink to="/" end className={NAV_LINK_BASE}>Főoldal</NavLink>
-          <NavLink to="/szabalyzat" className={NAV_LINK_BASE}>Szabályzat</NavLink>
-          <NavLink to="/matches" className={NAV_LINK_BASE}>Mérkőzések</NavLink>
-          <NavLink to="/long-tips" className={NAV_LINK_BASE}>Végső győztes</NavLink>
-          <NavLink to="/team" className={NAV_LINK_BASE}>Csapat</NavLink>
-          <NavLink to="/leaderboard" className={NAV_LINK_BASE}>Ranglista</NavLink>
-          <NavLink to="/me" className={NAV_LINK_BASE}>Profil</NavLink>
-          {me.data?.isAdmin && (
-            <NavLink to="/admin" className={`${NAV_LINK_BASE} text-accent`}>Admin</NavLink>
+          {NAV_ITEMS.filter((i) => i.path !== '/admin' || me.data?.isAdmin).map(
+            ({ path, end, label, Icon }) => (
+              <NavLink
+                key={path}
+                to={path}
+                end={end}
+                className={path === '/admin' ? `${NAV_LINK_BASE} text-accent` : NAV_LINK_BASE}
+              >
+                <Icon size={14} />
+                {label}
+              </NavLink>
+            ),
           )}
         </nav>
         <div className="ml-auto flex items-center gap-2 sm:gap-3 flex-wrap">
