@@ -8,6 +8,7 @@ import {
   useCancelMatch,
   useMatch,
   usePostponeMatch,
+  useRunAiTipperForMatch,
   useSetMatchResult,
 } from '../../api/hooks'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
@@ -84,6 +85,11 @@ export function AdminMatchEditor() {
             status: match.status === 'Awarded' ? 'Awarded' : 'Finished',
           }} />
           <PostponePanel matchId={match.id} currentKickoffUtc={match.kickoffUtc} />
+          <AiTipperPanel
+            matchId={match.id}
+            eligible={match.status === 'Scheduled' && new Date(match.kickoffUtc).getTime() > Date.now()}
+            status={match.status}
+          />
           <CancelPanel matchId={match.id} disabled={match.status === 'Cancelled'} />
         </>
       )}
@@ -352,6 +358,87 @@ function CancelPanel({ matchId, disabled }: { matchId: string; disabled: boolean
         body="Biztosan lemondod a meccset? A pontok törlődnek, a jokerek visszakerülnek. Ez visszafordítható: új eredmény beírásával újraértékelhető."
         destructive
         confirmLabel="Lemondás"
+        onConfirm={confirm}
+        onCancel={() => setOpen(false)}
+      />
+    </section>
+  )
+}
+
+// ----------------------------------------------------------------------------
+// AI tipper force-run
+// ----------------------------------------------------------------------------
+
+function AiTipperPanel({
+  matchId,
+  eligible,
+  status,
+}: {
+  matchId: string
+  eligible: boolean
+  status: string
+}) {
+  const run = useRunAiTipperForMatch()
+  const [open, setOpen] = useState(false)
+  const [reason, setReason] = useState('')
+  const [success, setSuccess] = useState<string | null>(null)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+
+  const confirm = async () => {
+    setSubmitError(null)
+    setSuccess(null)
+    try {
+      const r = await run.mutateAsync({ matchId, reason: reason.trim() || null })
+      setSuccess(
+        `Kész. ${r.aiMembers} AI tag · próbálkozás: ${r.attempted} · sikeres: ${r.written} · 1–1 fallback: ${r.fallbacks} · kihagyva (már volt tipp): ${r.skipped}.`,
+      )
+    } catch (e) {
+      setSubmitError(errorMessage(e))
+    } finally {
+      setOpen(false)
+    }
+  }
+
+  return (
+    <section className="border-2 border-border-strong bg-elevated p-5 space-y-3">
+      <h2 className="text-xs font-mono uppercase tracking-[0.2em] text-fg-subtle">AI tippelők kényszerítése</h2>
+      <p className="text-xs font-mono text-fg-default">
+        Az ütemezett ablak (T-2h / T-90m / T-1h) megkerülésével azonnal lefuttatja az AI tippet minden Locked
+        csapat AI tagjára. Sikeres OpenAI-hívásnál valós tipp, hiba esetén determinisztikus 1–1 fallback kerül
+        be. Csak Scheduled státuszú, jövőbeli kezdésű meccsen elérhető.
+      </p>
+      <div>
+        <label className="block text-xs font-mono uppercase tracking-[0.15em] text-fg-subtle mb-1">
+          Megjegyzés (audit log)
+        </label>
+        <input
+          type="text"
+          maxLength={500}
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          className="w-full border-2 border-border-strong px-3 py-2 font-mono text-sm"
+        />
+      </div>
+      {submitError && <p className="text-xs font-mono text-danger">{submitError}</p>}
+      {success && <p className="text-xs font-mono text-success">{success}</p>}
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        disabled={!eligible || run.isPending}
+        className="w-full border-2 border-accent bg-elevated text-accent py-3 text-sm font-mono uppercase tracking-[0.2em] hover:bg-accent hover:text-on-accent disabled:opacity-40 disabled:cursor-not-allowed"
+      >
+        {!eligible
+          ? `Nem futtatható (${STATUS_LABEL_HU[status] ?? status})`
+          : run.isPending
+          ? 'futtatás…'
+          : 'AI tippelés kényszerítése'}
+      </button>
+
+      <ConfirmDialog
+        open={open}
+        title="AI tippelés kényszerítése"
+        body="Minden Locked csapat AI tagjára azonnal lefut a tippelés. Akinek már van tippje erre a meccsre, nem írunk felül. OpenAI hiba esetén 1–1 fallback kerül be. Folytatod?"
+        confirmLabel="Futtatás"
         onConfirm={confirm}
         onCancel={() => setOpen(false)}
       />

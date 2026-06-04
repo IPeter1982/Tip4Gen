@@ -14,4 +14,5 @@ public enum AdminAuditAction
     LongTipOutcomesSet = 4,
     AiAvatarSet = 5,
     AiAvatarDeleted = 6,
+    AiTipperManualRun = 7,
 }

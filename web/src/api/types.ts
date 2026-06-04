@@ -267,6 +267,14 @@ export type MatchPostponeResponse = {
   newDeadlineUtc: string
 }
 
+export type AiTipperManualRunResponse = {
+  aiMembers: number
+  attempted: number
+  written: number
+  fallbacks: number
+  skipped: number
+}
+
 export type LongTipOutcomes = {
   winnerTeamId: string | null
   winnerTeamName: string | null

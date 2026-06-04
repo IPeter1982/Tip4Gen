@@ -24,7 +24,8 @@ backend/                    ASP.NET Core 9 solution (planned 10, on 9 for speed)
                             TipsController, LongTipsController, TeamsController,
                             LeaderboardController,
                             UsersController (avatar GET + closed-match tip history),
-                            AiTipperAdminController (preview endpoint),
+                            AiTipperAdminController (preview + manual
+                              per-match run that bypasses the T-2h/T-1h policy),
                             AiAvatarController (public binary GET),
                             AiAvatarAdminController (admin PUT/DELETE),
                             MatchesAdminController (result/cancel/postpone),
@@ -283,7 +284,7 @@ Single admin (the project owner). Gated by Auth0 `sub` claim matching the `Auth0
 ## Admin schema + flow gotchas (Phase 8)
 
 - **Audit pattern**: `IAdminAuditWriter.RecordAsync` only stages the `AdminAudit` row on the DbContext — never calls SaveChanges. The admin service that called it owns the transaction. If you write a new admin endpoint and forget the audit call, `grep` is your only defence (no middleware will catch it).
-- **`before` / `after` JSON shape is per-action.** Don't dump full aggregates. `MatchSetResult` snapshots `{status, homeGoals, awayGoals}`; `MatchCancel` adds `scoredTipsCleared` / `jokersRefunded` to the after-shape; `MatchPostpone` snapshots `{kickoffUtc, status}`. Match the relevant slice and nothing more.
+- **`before` / `after` JSON shape is per-action.** Don't dump full aggregates. `MatchSetResult` snapshots `{status, homeGoals, awayGoals}`; `MatchCancel` adds `scoredTipsCleared` / `jokersRefunded` to the after-shape; `MatchPostpone` snapshots `{kickoffUtc, status}`; `AiTipperManualRun` records `before={aiMembers, alreadyHadTip}` / `after={attempted, written, fallbacks}`. Match the relevant slice and nothing more.
 - **`MatchStatus.Awarded` vs `Finished`**: distinct status for FIFA-decided outcomes per §11. `MatchScoringService` treats both as scorable so scoring is identical; the distinction is for UI badges + audit context. Use `Match.AwardResult(home, away)` (not `SetFinalScore`) when the source is admin-entered.
 - **Cancel mechanics**: `MatchAdminService.CancelAsync` does four things in one `SaveChanges` — `match.ClearScore() + UpdateStatus(Cancelled)`, `ExecuteDeleteAsync` on `scored_tips`, `ExecuteUpdateAsync` flipping `tips.joker = false`, then the audit row. The `ExecuteUpdate/Delete` calls bypass the change tracker but run inside the implicit ambient transaction — the audit row's `SaveChanges` commits the lot atomically.
 - **Joker refund** is implicit via `TipRulesValidator`: setting `joker = false` on a cancelled match's tips makes the user's `otherJokerCountForUser` query drop by one on next validation. Tip rows themselves stay as a historical record (§11 doesn't require deletion).
@@ -300,6 +301,7 @@ Single admin (the project owner). Gated by Auth0 `sub` claim matching the `Auth0
 - `AiTippingService` writes one `ai_tip_attempts` row per IAiTipper call (success or failure). The schedule policy reads that count to decide retry vs. skip — without persistent counting, a process restart in the [T-2h, T-1h] window would re-burn quota.
 - The OpenAI prompt currently passes team names as-is. Hungarian team names like "Magyarország" can confuse the model into hallucinating a wrong opponent — production data from worldcup26.ir uses English names so this doesn't bite. If you ever localize team names in the DB, pass both English + Hungarian into `AiTipPromptBuilder.Build`.
 - `OperationCanceledException` catch in `OpenAiTipper.GenerateAsync` uses `when (!ct.IsCancellationRequested)` to distinguish HttpClient timeout (our own deadline → return `Timeout`) from caller-cancel (let it propagate). Don't simplify that guard.
+- **Manual per-match force run** lives at `POST /api/admin/ai-tipper/run/{matchId}` (`AiTippingService.RunForMatchAsync`). It **bypasses `AiTipSchedulePolicy`** entirely — fires the tipper for every Locked-team AI member that doesn't yet have a tip on the match, and on any AI failure (Disabled/Timeout/ProviderError/InvalidResponse) writes the deterministic 1–1 fallback so the slot never stays empty. One `admin_audit` row per call (`AdminAuditAction.AiTipperManualRun`). Eligibility: match status `Scheduled` + kickoff in the future (409 `MatchNotEligible` otherwise); 404 `MatchNotFound` if the id doesn't exist. SPA button lives on `/admin/matches/{id}` (`AiTipperPanel` in `AdminMatchEditor.tsx`) and auto-disables when ineligible.
 
 ## Avatar gotchas
 

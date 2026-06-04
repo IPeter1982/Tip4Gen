@@ -3,6 +3,7 @@ import { useApi } from '../auth/useApi'
 import type {
   AdminAuditResponse,
   AiMode,
+  AiTipperManualRunResponse,
   IndividualLeaderboardRow,
   InviteView,
   LongTipOutcomes,
@@ -406,6 +407,22 @@ export function usePostponeMatch() {
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: ['matches'] })
       qc.invalidateQueries({ queryKey: ['match', vars.matchId] })
+      qc.invalidateQueries({ queryKey: ['admin', 'audit'] })
+    },
+  })
+}
+
+export type RunAiTipperInput = { matchId: string; reason?: string | null }
+
+export function useRunAiTipperForMatch() {
+  const api = useApi()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ matchId, reason }: RunAiTipperInput) =>
+      api.post<AiTipperManualRunResponse>(`/api/admin/ai-tipper/run/${matchId}`, { reason }),
+    onSuccess: (_data, vars) => {
+      // New tips landed → invalidate match-tips (post-deadline panel) + audit log.
+      qc.invalidateQueries({ queryKey: ['match-tips', vars.matchId] })
       qc.invalidateQueries({ queryKey: ['admin', 'audit'] })
     },
   })
