@@ -42,7 +42,7 @@ export function Topbar() {
           {!isAuthConfigured && (
             <span className="text-xs font-mono text-warning">Auth0 nincs beállítva</span>
           )}
-          {error && (
+          {error && !/invalid state/i.test(error.message) && (
             <span className="text-xs font-mono text-danger truncate max-w-[400px]" title={error.message}>
               auth0 hiba: {error.message}
             </span>
