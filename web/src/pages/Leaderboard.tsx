@@ -57,8 +57,6 @@ export function Leaderboard() {
 }
 
 const MEDAL_COLOR = ['text-amber-400', 'text-zinc-300', 'text-orange-700'] as const
-const PODIUM_HEIGHT = ['h-40', 'h-32', 'h-28'] as const
-const PODIUM_ORDER = [1, 0, 2] as const // 2nd, 1st, 3rd
 
 function UsersBoard() {
   const { data, isLoading, error } = useIndividualLeaderboard()
@@ -67,71 +65,41 @@ function UsersBoard() {
   if (error) return <ErrorBox e={error} />
   if (!data || data.length === 0) return <EmptyBox text="Még nincs pontozás." />
 
-  const podium = data.slice(0, 3)
-  const rest = data.slice(3)
-
   return (
-    <div className="space-y-6">
-      {podium.length > 0 && (
-        <div className="grid grid-cols-3 gap-3 items-end">
-          {PODIUM_ORDER.map((idx) => {
-            const row = podium[idx]
-            if (!row) return <div key={`empty-${idx}`} />
-            return <PodiumTile key={row.userId} row={row} place={idx} />
-          })}
-        </div>
-      )}
-
-      {rest.length > 0 && (
-        <ul className="space-y-2">
-          {rest.map((row) => (
-            <UserRowCard key={row.userId} row={row} />
-          ))}
-        </ul>
-      )}
-    </div>
+    <ul className="space-y-2">
+      {data.map((row) => (
+        <UserRowCard key={row.userId} row={row} />
+      ))}
+    </ul>
   )
 }
 
-function PodiumTile({ row, place }: { row: IndividualLeaderboardRow; place: 0 | 1 | 2 }) {
-  const isFirst = place === 0
-  return (
-    <Link
-      to={`/leaderboard/user/${row.userId}`}
-      className={`group flex flex-col items-center justify-end gap-2 rounded-2xl border bg-elevated p-3 transition hover:-translate-y-0.5 ${
-        PODIUM_HEIGHT[place]
-      } ${isFirst ? 'border-accent glow-accent' : row.isMe ? 'border-accent' : 'border-border-subtle'}`}
-    >
-      <Trophy size={isFirst ? 28 : 22} className={MEDAL_COLOR[place]} />
-      <Avatar
-        userId={row.userId}
-        displayName={row.displayName}
-        version={row.avatarVersion}
-        size={isFirst ? 44 : 36}
-      />
-      <span className="text-xs font-mono truncate max-w-full text-fg-default">{row.displayName}</span>
-      <span className={`tabular-nums font-bold ${isFirst ? 'text-xl text-accent' : 'text-base text-fg-default'}`}>
-        {row.totalPoints}
-      </span>
-      {row.longestStreak >= 2 && (
-        <span className="inline-flex items-center gap-0.5 text-[10px] font-mono text-fg-subtle">
-          <Flame size={10} className="text-warning" />
-          {row.longestStreak}
-        </span>
-      )}
-    </Link>
-  )
+// Medal-color tints (gold #F5C842, silver #D8D8E0, bronze #C87941) are theme-
+// independent brand hex values — same exception family as MEDAL_COLOR per
+// CLAUDE.md "Token-only colors" allowed list. Static literal classes (no
+// template interpolation) so Tailwind v4's JIT scanner picks them up. The
+// colors apply ONLY to the rank icon + number; the row surface stays neutral.
+function userRowSurfaceClass(row: IndividualLeaderboardRow): string {
+  return row.isMe ? 'bg-elevated border-accent' : 'bg-elevated border-border-subtle'
+}
+
+function userRankColorClass(row: IndividualLeaderboardRow): string {
+  if (row.rank === 1) return 'text-[#F5C842]'
+  if (row.rank === 2) return 'text-[#D8D8E0]'
+  if (row.rank === 3) return 'text-[#C87941]'
+  return 'text-fg-subtle'
 }
 
 function UserRowCard({ row }: { row: IndividualLeaderboardRow }) {
+  const isPodium = row.rank <= 3
+  const rankColor = userRankColorClass(row)
   return (
     <li
-      className={`flex items-center gap-3 rounded-xl border bg-elevated p-3 transition hover:border-accent/60 ${
-        row.isMe ? 'border-accent glow-accent' : 'border-border-subtle'
-      }`}
+      className={`flex items-center gap-3 rounded-xl border-2 p-3 transition hover:border-accent/60 ${userRowSurfaceClass(row)}`}
     >
-      <span className="w-8 shrink-0 text-center text-sm font-mono font-bold tabular-nums text-fg-subtle">
-        {row.rank}
+      <span className="inline-flex items-center gap-1 w-12 shrink-0 text-sm font-mono font-bold tabular-nums">
+        {isPodium && <Trophy size={14} className={rankColor} />}
+        <span className={rankColor}>{row.rank}.</span>
       </span>
       <Link
         to={`/leaderboard/user/${row.userId}`}
