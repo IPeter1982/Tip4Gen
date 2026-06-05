@@ -5,8 +5,6 @@ public enum LongTermTipRejectionReason
     None = 0,
     Locked,
     NothingProvided,
-    PlayerNameTooLong,
-    PlayerNameBlank,
 }
 
 public record LongTermTipValidationResult(bool IsValid, LongTermTipRejectionReason Reason, string? Message)
@@ -19,13 +17,11 @@ public record LongTermTipValidationResult(bool IsValid, LongTermTipRejectionReas
 
 public static class LongTermTipRulesValidator
 {
-    public const int MaxPlayerNameLength = 120;
-
     public static LongTermTipValidationResult Validate(
         DateTimeOffset now,
         DateTimeOffset tournamentStartsAtUtc,
         Guid? winnerTeamId,
-        string? topScorerName)
+        Guid? topScorerPlayerId)
     {
         if (now >= tournamentStartsAtUtc)
         {
@@ -34,31 +30,11 @@ public static class LongTermTipRulesValidator
                 "Végső győztes tippek lezárultak (a torna első mérkőzésénél).");
         }
 
-        var providingWinner = winnerTeamId.HasValue;
-        var providingTopScorer = topScorerName is not null;
-
-        if (!providingWinner && !providingTopScorer)
+        if (!winnerTeamId.HasValue && !topScorerPlayerId.HasValue)
         {
             return LongTermTipValidationResult.Fail(
                 LongTermTipRejectionReason.NothingProvided,
                 "Legalább egy tipp (győztes vagy gólkirály) szükséges.");
-        }
-
-        if (providingTopScorer)
-        {
-            if (string.IsNullOrWhiteSpace(topScorerName))
-            {
-                return LongTermTipValidationResult.Fail(
-                    LongTermTipRejectionReason.PlayerNameBlank,
-                    "A gólkirály neve nem lehet üres.");
-            }
-
-            if (topScorerName.Length > MaxPlayerNameLength)
-            {
-                return LongTermTipValidationResult.Fail(
-                    LongTermTipRejectionReason.PlayerNameTooLong,
-                    $"A gólkirály neve max {MaxPlayerNameLength} karakter.");
-            }
         }
 
         return LongTermTipValidationResult.Ok;

@@ -3,9 +3,12 @@ import { Link } from 'react-router'
 import {
   useLongTipOutcomes,
   useNationalTeams,
+  usePlayers,
   useSetLongTipOutcomes,
 } from '../../api/hooks'
 import { ApiError } from '../../api/errors'
+import { PlayerSelect } from '../../components/PlayerSelect'
+import { TeamFlag } from '../../components/TeamFlag'
 import { TeamSelect } from '../../components/TeamSelect'
 
 function errorMessage(e: unknown): string {
@@ -17,10 +20,11 @@ function errorMessage(e: unknown): string {
 export function AdminLongTips() {
   const outcomes = useLongTipOutcomes()
   const teams = useNationalTeams()
+  const players = usePlayers()
   const setOutcomes = useSetLongTipOutcomes()
 
   const [winnerTeamId, setWinnerTeamId] = useState<string>('')
-  const [topScorerName, setTopScorerName] = useState<string>('')
+  const [topScorerPlayerId, setTopScorerPlayerId] = useState<string>('')
   const [reason, setReason] = useState<string>('')
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
@@ -28,7 +32,7 @@ export function AdminLongTips() {
   useEffect(() => {
     if (outcomes.data) {
       setWinnerTeamId(outcomes.data.winnerTeamId ?? '')
-      setTopScorerName(outcomes.data.topScorerName ?? '')
+      setTopScorerPlayerId(outcomes.data.topScorerPlayerId ?? '')
     }
   }, [outcomes.data])
 
@@ -39,11 +43,11 @@ export function AdminLongTips() {
     try {
       const r = await setOutcomes.mutateAsync({
         winnerTeamId: winnerTeamId || null,
-        topScorerName: topScorerName.trim() || null,
+        topScorerPlayerId: topScorerPlayerId || null,
         reason: reason.trim() || null,
       })
       setSuccess(
-        `Mentve. Győztes: ${r.winnerTeamName ?? '—'}, gólkirály: ${r.topScorerName ?? '—'}.`,
+        `Mentve. Győztes: ${r.winnerTeamName ?? '—'}, gólkirály: ${r.topScorerPlayerName ?? '—'}.`,
       )
       setReason('')
     } catch (err) {
@@ -69,7 +73,9 @@ export function AdminLongTips() {
         </p>
       </header>
 
-      {(outcomes.isLoading || teams.isLoading) && <p className="font-mono text-fg-subtle">betöltés…</p>}
+      {(outcomes.isLoading || teams.isLoading) && (
+        <p className="font-mono text-fg-subtle">betöltés…</p>
+      )}
       {outcomes.error && (
         <p className="border-2 border-danger bg-danger/10 p-4 font-mono text-sm text-danger">
           ⚠ {errorMessage(outcomes.error)}
@@ -92,19 +98,23 @@ export function AdminLongTips() {
 
           <div>
             <label className="block text-xs font-mono uppercase tracking-[0.15em] text-fg-subtle mb-1">
-              Gólkirály neve
+              Gólkirály
             </label>
-            <input
-              type="text"
-              maxLength={120}
-              value={topScorerName}
-              onChange={(e) => setTopScorerName(e.target.value)}
-              placeholder="pl. Lionel Messi"
-              className="w-full border-2 border-border-strong px-3 py-2 font-mono text-sm"
+            <PlayerSelect
+              players={players.data ?? []}
+              value={topScorerPlayerId || null}
+              onChange={(id) => setTopScorerPlayerId(id ?? '')}
+              disabled={players.isLoading}
+              placeholder={
+                players.isLoading ? 'betöltés…' : '— keress játékost (név vagy ország) —'
+              }
             />
-            <p className="text-xs font-mono text-fg-subtle mt-1">
-              Pontos egyezés szükséges (kis/nagybetű nem számít). Max 120 karakter.
-            </p>
+            {outcomes.data?.topScorerPlayerName && (
+              <p className="text-xs font-mono text-fg-subtle mt-1 inline-flex items-center gap-1.5">
+                jelenlegi: <TeamFlag code={outcomes.data.topScorerTeamCode} size="sm" />
+                <span className="text-fg-default">{outcomes.data.topScorerPlayerName}</span>
+              </p>
+            )}
           </div>
 
           <div>

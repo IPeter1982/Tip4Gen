@@ -5,9 +5,14 @@ using Tip4Gen.Infrastructure.Admin;
 
 namespace Tip4Gen.Api.Controllers;
 
-public record LongTipOutcomesRequest(Guid? WinnerTeamId, string? TopScorerName, string? Reason);
+public record LongTipOutcomesRequest(Guid? WinnerTeamId, Guid? TopScorerPlayerId, string? Reason);
 
-public record LongTipOutcomesResponse(Guid? WinnerTeamId, string? WinnerTeamName, string? TopScorerName);
+public record LongTipOutcomesResponse(
+    Guid? WinnerTeamId,
+    string? WinnerTeamName,
+    Guid? TopScorerPlayerId,
+    string? TopScorerPlayerName,
+    string? TopScorerTeamCode);
 
 [ApiController]
 [Route("api/admin/long-tips/outcomes")]
@@ -21,8 +26,8 @@ public class LongTipsAdminController(
     {
         var snapshot = await outcomes.GetAsync(ct);
         return snapshot is null
-            ? Ok(new LongTipOutcomesResponse(null, null, null))
-            : Ok(new LongTipOutcomesResponse(snapshot.WinnerTeamId, snapshot.WinnerTeamName, snapshot.TopScorerName));
+            ? Ok(new LongTipOutcomesResponse(null, null, null, null, null))
+            : Ok(ToResponse(snapshot));
     }
 
     [HttpPut]
@@ -30,12 +35,11 @@ public class LongTipsAdminController(
     {
         var admin = await currentUser.GetOrCreateAsync(ct);
         var result = await outcomes.SetAsync(
-            new SetOutcomesCommand(admin.Id, body.WinnerTeamId, body.TopScorerName, body.Reason), ct);
+            new SetOutcomesCommand(admin.Id, body.WinnerTeamId, body.TopScorerPlayerId, body.Reason), ct);
 
         return result switch
         {
-            LongTipOutcomesResult.Success s => Ok(new LongTipOutcomesResponse(
-                s.Snapshot.WinnerTeamId, s.Snapshot.WinnerTeamName, s.Snapshot.TopScorerName)),
+            LongTipOutcomesResult.Success s => Ok(ToResponse(s.Snapshot)),
 
             LongTipOutcomesResult.TournamentNotConfigured => Problem(
                 statusCode: StatusCodes.Status409Conflict,
@@ -49,13 +53,17 @@ public class LongTipsAdminController(
                 detail: $"No national team with id {w.TeamId}.",
                 extensions: new Dictionary<string, object?> { ["reason"] = "WinnerTeamNotFound" }),
 
-            LongTipOutcomesResult.TopScorerNameTooLong t => Problem(
+            LongTipOutcomesResult.TopScorerPlayerNotFound p => Problem(
                 statusCode: StatusCodes.Status422UnprocessableEntity,
-                title: "Top scorer name too long",
-                detail: $"Name has {t.Length} characters; max {t.Max}.",
-                extensions: new Dictionary<string, object?> { ["reason"] = "TopScorerNameTooLong" }),
+                title: "Top scorer player not found",
+                detail: $"No player with id {p.PlayerId}.",
+                extensions: new Dictionary<string, object?> { ["reason"] = "TopScorerPlayerNotFound" }),
 
             _ => throw new InvalidOperationException($"Unhandled LongTipOutcomesResult: {result.GetType().Name}"),
         };
     }
+
+    private static LongTipOutcomesResponse ToResponse(LongTipOutcomesSnapshot s) => new(
+        s.WinnerTeamId, s.WinnerTeamName,
+        s.TopScorerPlayerId, s.TopScorerPlayerName, s.TopScorerTeamCode);
 }

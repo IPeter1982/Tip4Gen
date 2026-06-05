@@ -24,13 +24,13 @@ export function Topbar() {
         <nav className="flex items-center gap-x-4 gap-y-1 flex-wrap text-xs font-mono uppercase tracking-[0.15em] text-fg-muted">
           {NAV_ITEMS
             .filter((i) => !i.requiresAuth || isAuthenticated)
-            .filter((i) => i.path !== '/admin' || me.data?.isAdmin)
+            .filter((i) => !i.path.startsWith('/admin') || me.data?.isAdmin)
             .map(({ path, end, label, Icon }) => (
               <NavLink
                 key={path}
                 to={path}
                 end={end}
-                className={path === '/admin' ? `${NAV_LINK_BASE} text-accent` : NAV_LINK_BASE}
+                className={path.startsWith('/admin') ? `${NAV_LINK_BASE} text-accent` : NAV_LINK_BASE}
               >
                 <Icon size={14} />
                 {label}

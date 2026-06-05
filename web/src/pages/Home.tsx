@@ -180,7 +180,7 @@ function OnboardingPanel() {
 
   const hasTeam = !!myTeam.data
   const hasAnyLongTip =
-    !!longTips.data && (!!longTips.data.winnerTeamId || !!longTips.data.topScorerName)
+    !!longTips.data && (!!longTips.data.winnerTeamId || !!longTips.data.topScorerPlayerId)
   const hasAnyTip = (allMatches.data ?? []).some((m) => m.myTip !== null)
   const longTipsLocked = longTips.data?.locked ?? false
 

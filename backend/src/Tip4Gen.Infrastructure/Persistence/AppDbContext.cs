@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Tip4Gen.Domain.Admin;
 using Tip4Gen.Domain.Ai;
 using Tip4Gen.Domain.Notifications;
+using Tip4Gen.Domain.Players;
 using Tip4Gen.Domain.Scoring;
 using Tip4Gen.Domain.Settings;
 using Tip4Gen.Domain.Teams;
@@ -28,6 +29,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<UserPreferences> UserPreferences => Set<UserPreferences>();
     public DbSet<NotificationLog> NotificationLogs => Set<NotificationLog>();
     public DbSet<AiAvatarSetting> AiAvatarSettings => Set<AiAvatarSetting>();
+    public DbSet<Player> Players => Set<Player>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -58,7 +60,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             b.Property(t => t.EndsAtUtc).HasColumnName("ends_at_utc");
             b.Property(t => t.CreatedAt).HasColumnName("created_at").IsRequired();
             b.Property(t => t.WinnerTeamId).HasColumnName("winner_team_id");
-            b.Property(t => t.TopScorerName).HasColumnName("top_scorer_name").HasMaxLength(120);
+            b.Property(t => t.TopScorerPlayerId).HasColumnName("top_scorer_player_id");
             b.HasIndex(t => new { t.ExternalLeagueId, t.Season }).IsUnique();
 
             // Restrict deletion: blocking a national-team delete when it's recorded as
@@ -66,6 +68,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             b.HasOne<NationalTeam>()
                 .WithMany()
                 .HasForeignKey(t => t.WinnerTeamId)
+                .OnDelete(DeleteBehavior.Restrict);
+            // Same posture for the top-scorer FK: deleting the recorded player blocks
+            // until admin clears the outcome.
+            b.HasOne<Player>()
+                .WithMany()
+                .HasForeignKey(t => t.TopScorerPlayerId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -201,8 +209,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                 t.HasCheckConstraint("ck_long_term_tips_type",
                     "type IN ('Winner','TopScorer')");
                 t.HasCheckConstraint("ck_long_term_tips_target_shape",
-                    "(type = 'Winner' AND target_team_id IS NOT NULL AND target_player_name IS NULL) " +
-                    "OR (type = 'TopScorer' AND target_player_name IS NOT NULL AND target_team_id IS NULL)");
+                    "(type = 'Winner' AND target_team_id IS NOT NULL AND target_player_id IS NULL) " +
+                    "OR (type = 'TopScorer' AND target_player_id IS NOT NULL AND target_team_id IS NULL)");
             });
             b.HasKey(t => t.Id);
             b.Property(t => t.Id).HasColumnName("id");
@@ -213,7 +221,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                 .HasMaxLength(16)
                 .IsRequired();
             b.Property(t => t.TargetTeamId).HasColumnName("target_team_id");
-            b.Property(t => t.TargetPlayerName).HasColumnName("target_player_name").HasMaxLength(120);
+            b.Property(t => t.TargetPlayerId).HasColumnName("target_player_id");
             b.Property(t => t.SubmittedAt).HasColumnName("submitted_at").IsRequired();
             b.Property(t => t.UpdatedAt).HasColumnName("updated_at").IsRequired();
 
@@ -224,6 +232,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             b.HasOne<NationalTeam>()
                 .WithMany()
                 .HasForeignKey(t => t.TargetTeamId)
+                .OnDelete(DeleteBehavior.Restrict);
+            b.HasOne<Player>()
+                .WithMany()
+                .HasForeignKey(t => t.TargetPlayerId)
                 .OnDelete(DeleteBehavior.Restrict);
 
             b.HasIndex(t => new { t.UserId, t.Type }).IsUnique();
@@ -480,6 +492,29 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             b.HasIndex(l => new { l.UserId, l.Kind, l.MatchId })
                 .HasDatabaseName("ix_notification_log_dedup")
                 .HasFilter("success = TRUE");
+        });
+
+        modelBuilder.Entity<Player>(b =>
+        {
+            b.ToTable("players");
+            b.HasKey(p => p.Id);
+            b.Property(p => p.Id).HasColumnName("id");
+            b.Property(p => p.NationalTeamId).HasColumnName("national_team_id").IsRequired();
+            b.Property(p => p.Name).HasColumnName("name").HasMaxLength(Player.MaxNameLength).IsRequired();
+            b.Property(p => p.CreatedAt).HasColumnName("created_at").IsRequired();
+
+            b.HasOne<NationalTeam>()
+                .WithMany()
+                .HasForeignKey(p => p.NationalTeamId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // (NationalTeamId, Name) is the natural key — Wikipedia squads don't
+            // include intra-team duplicates in practice; defensive unique index keeps
+            // the importer's idempotent path safe even if one ever shows up.
+            b.HasIndex(p => new { p.NationalTeamId, p.Name })
+                .IsUnique()
+                .HasDatabaseName("ux_players_team_name");
+            b.HasIndex(p => p.NationalTeamId);
         });
 
         modelBuilder.Entity<AiAvatarSetting>(b =>

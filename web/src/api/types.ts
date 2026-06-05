@@ -57,10 +57,20 @@ export type TipResponse = {
 
 export type NationalTeam = { id: string; name: string; code: string | null }
 
+export type Player = {
+  id: string
+  name: string
+  teamId: string
+  teamName: string
+  teamCode: string | null
+}
+
 export type LongTipsResponse = {
   winnerTeamId: string | null
   winnerTeamName: string | null
-  topScorerName: string | null
+  topScorerPlayerId: string | null
+  topScorerPlayerName: string | null
+  topScorerTeamCode: string | null
   winnerSubmittedAt: string | null
   topScorerSubmittedAt: string | null
   lockUtc: string
@@ -228,6 +238,10 @@ export type AdminAuditAction =
   | 'MatchPostpone'
   | 'MatchRescore'
   | 'LongTipOutcomesSet'
+  | 'AiAvatarSet'
+  | 'AiAvatarDeleted'
+  | 'AiTipperManualRun'
+  | 'PlayersImported'
 
 export type AdminAuditRow = {
   id: string
@@ -278,5 +292,20 @@ export type AiTipperManualRunResponse = {
 export type LongTipOutcomes = {
   winnerTeamId: string | null
   winnerTeamName: string | null
-  topScorerName: string | null
+  topScorerPlayerId: string | null
+  topScorerPlayerName: string | null
+  topScorerTeamCode: string | null
+}
+
+export type PlayersImportResponse = {
+  added: number
+  skipped: number
+  unmatchedTeams: number
+  totalAfter: number
+  durationMs: number
+}
+
+export type LastImportInfo = {
+  occurredAt: string
+  afterJson: string | null
 }

@@ -3,21 +3,22 @@ import { useEffect } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { Trophy } from 'lucide-react'
 import { z } from 'zod'
-import { useLongTips, useNationalTeams, useSubmitLongTips } from '../api/hooks'
+import { useLongTips, useNationalTeams, usePlayers, useSubmitLongTips } from '../api/hooks'
 import { ApiError } from '../api/errors'
+import { PlayerSelect } from '../components/PlayerSelect'
+import { TeamFlag } from '../components/TeamFlag'
 import { TeamSelect } from '../components/TeamSelect'
 import { formatBudapest } from '../lib/format'
 
 const schema = z
   .object({
     winnerTeamId: z.string().optional(),
-    topScorerName: z
-      .string()
-      .max(120, 'Maximum 120 karakter')
-      .optional(),
+    topScorerPlayerId: z.string().optional(),
   })
   .refine(
-    (v) => (v.winnerTeamId && v.winnerTeamId.length > 0) || (v.topScorerName && v.topScorerName.trim().length > 0),
+    (v) =>
+      (v.winnerTeamId && v.winnerTeamId.length > 0) ||
+      (v.topScorerPlayerId && v.topScorerPlayerId.length > 0),
     { message: 'Adj meg legalább egy tippet.', path: ['root'] },
   )
 
@@ -29,10 +30,10 @@ function reasonMessage(reason: string): string {
       return 'A végső győztes tippek lezárultak (kezdő mérkőzés rajt).'
     case 'NothingProvided':
       return 'Adj meg legalább egy tippet (győztes vagy gólkirály).'
-    case 'PlayerNameTooLong':
-      return 'A gólkirály neve túl hosszú (max 120 karakter).'
-    case 'PlayerNameBlank':
-      return 'A gólkirály neve nem lehet üres.'
+    case 'TopScorerPlayerNotFound':
+      return 'A kiválasztott játékos már nem létezik. Frissítsd az oldalt.'
+    case 'TeamNotFound':
+      return 'A kiválasztott csapat már nem létezik. Frissítsd az oldalt.'
     default:
       return 'Nem sikerült elmenteni a tippet.'
   }
@@ -41,10 +42,10 @@ function reasonMessage(reason: string): string {
 export function LongTips() {
   const longTips = useLongTips()
   const teams = useNationalTeams()
+  const players = usePlayers()
   const submit = useSubmitLongTips()
 
   const {
-    register,
     handleSubmit,
     setError,
     reset,
@@ -52,7 +53,7 @@ export function LongTips() {
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { winnerTeamId: '', topScorerName: '' },
+    defaultValues: { winnerTeamId: '', topScorerPlayerId: '' },
   })
 
   // Hydrate the form when the GET resolves.
@@ -60,7 +61,7 @@ export function LongTips() {
     if (longTips.data) {
       reset({
         winnerTeamId: longTips.data.winnerTeamId ?? '',
-        topScorerName: longTips.data.topScorerName ?? '',
+        topScorerPlayerId: longTips.data.topScorerPlayerId ?? '',
       })
     }
   }, [longTips.data, reset])
@@ -71,7 +72,7 @@ export function LongTips() {
     try {
       await submit.mutateAsync({
         winnerTeamId: values.winnerTeamId ? values.winnerTeamId : null,
-        topScorerName: values.topScorerName?.trim() ? values.topScorerName.trim() : null,
+        topScorerPlayerId: values.topScorerPlayerId ? values.topScorerPlayerId : null,
       })
     } catch (e) {
       if (e instanceof ApiError && e.reason) {
@@ -149,22 +150,32 @@ export function LongTips() {
 
             <section className="border border-border-strong bg-elevated p-5 space-y-3">
               <label
-                htmlFor="topScorerName"
+                htmlFor="topScorerPlayerId"
                 className="block text-xs font-mono uppercase tracking-[0.15em] text-fg-subtle"
               >
-                Gólkirály neve
+                Gólkirály
               </label>
-              <input
-                id="topScorerName"
-                type="text"
-                disabled={locked}
-                maxLength={120}
-                placeholder="pl. Kylian Mbappe"
-                {...register('topScorerName')}
-                className="w-full border border-border-strong px-3 py-2 font-mono disabled:bg-sunken"
+              <Controller
+                control={control}
+                name="topScorerPlayerId"
+                render={({ field }) => (
+                  <PlayerSelect
+                    id="topScorerPlayerId"
+                    players={players.data ?? []}
+                    value={field.value || null}
+                    onChange={(id) => field.onChange(id ?? '')}
+                    disabled={locked || players.isLoading}
+                    placeholder={
+                      players.isLoading ? 'betöltés…' : '— keress játékost (név vagy ország) —'
+                    }
+                  />
+                )}
               />
-              {errors.topScorerName && (
-                <p className="text-xs font-mono text-danger">{errors.topScorerName.message}</p>
+              {longTips.data.topScorerPlayerName && (
+                <p className="text-xs font-mono text-fg-subtle inline-flex items-center gap-1.5">
+                  jelenlegi: <TeamFlag code={longTips.data.topScorerTeamCode} size="sm" />
+                  <span className="text-fg-default">{longTips.data.topScorerPlayerName}</span>
+                </p>
               )}
               {longTips.data.topScorerSubmittedAt && (
                 <p className="text-xs font-mono text-fg-subtle">

@@ -29,17 +29,23 @@ backend/                    ASP.NET Core 9 solution (planned 10, on 9 for speed)
                             AiAvatarController (public binary GET),
                             AiAvatarAdminController (admin PUT/DELETE),
                             MatchesAdminController (result/cancel/postpone),
-                            AdminAuditController, LongTipsAdminController
+                            AdminAuditController, LongTipsAdminController,
+                            PlayersController (list for the SPA combobox),
+                            PlayersAdminController (POST /import + GET /last-import)
   src/Tip4Gen.Domain        Pure domain types — no EF, no ASP.NET refs
     Users/User.cs           + UserRulesValidator (display name + avatar bytes)
     Settings/AiAvatarSetting.cs  Singleton entity (id = 1) for admin AI avatar
-    Tournaments/            Stage + MatchStatus enums, Tournament, NationalTeam,
+    Tournaments/            Stage + MatchStatus enums, Tournament (winner +
+                            TopScorerPlayerId FKs), NationalTeam,
                             Match, StageMapper, MatchStatusMapper
     Tournaments/Events/     MatchFinalized record + IMatchFinalizedHandler
     Football/               IFootballDataProvider + ProviderFixture/Team/Status
+    Players/                Player entity (Id, NationalTeamId FK, Name),
+                            ParsedPlayer record (parser→importer wire type)
     Tipping/                Tip (UserId nullable; TeamMemberId nullable for AI tips;
                             IsAiFallback, Reasoning), TipRulesValidator,
-                            LongTermTip + LongTermTipRulesValidator
+                            LongTermTip (TargetTeamId XOR TargetPlayerId FKs)
+                            + LongTermTipRulesValidator
     Scoring/                MatchResult, ScoreCategory, ScoringResult,
                             StageMultipliers, MatchScorer (pure),
                             ScoredTip (dual-key: UserId or TeamMemberId)
@@ -77,6 +83,10 @@ backend/                    ASP.NET Core 9 solution (planned 10, on 9 for speed)
                             (SetResult / Cancel / Postpone), LongTipOutcomesService
     Settings/               AiAvatarAdminService (singleton upsert/clear +
                             audit; same DataUrlParser/ValidateAvatar pipeline)
+    Players/                WikipediaSquadsProviderOptions, IWikipediaSquadsProvider
+                            + WikipediaSquadsProvider (MediaWiki parse API client),
+                            WikipediaSquadsParser (pure HtmlAgilityPack walker),
+                            PlayersImportService (idempotent insert + audit row)
     Workers/                BackgroundService host — FixturePoller (Phase 2)
                             + TeamLockJob (Phase 5) + AiTippingJob (Phase 6),
                             co-located in the API process (Phase 8.5 deploy)
@@ -92,7 +102,10 @@ backend/                    ASP.NET Core 9 solution (planned 10, on 9 for speed)
                               MatchScorer, StageMultipliers, TeamRulesValidator,
                               TeamAggregator, TeamLockPolicy, LeaderboardRanker,
                               StreakCalculator, AiTipResponseValidator,
-                              AiTipSchedulePolicy, AiTipPromptBuilder (225 tests)
+                              AiTipSchedulePolicy, AiTipPromptBuilder
+  tests/Tip4Gen.Infrastructure.Tests  xUnit — WikipediaSquadsParser golden tests
+                              (only Infra-bound logic worth pure-testing; HTTP
+                              providers stay untested here)
 web/                        Vite + React 19 + TS frontend
   src/auth/                 AuthProvider, RequireAuth, useApi (typed + ApiError),
                             authConfig
@@ -113,7 +126,8 @@ web/                        Vite + React 19 + TS frontend
   src/pages/                Home, Me, Matches, TipSubmit, LongTips, Team, TeamJoin,
                             Leaderboard, UserTips (closed-match history for one player)
   src/pages/admin/          AdminMatches, AdminMatchEditor, AdminAudit,
-                            AdminLongTips, AdminAiAvatar
+                            AdminLongTips, AdminAiAvatar, AdminPlayers
+                              (one-button idempotent Wikipedia squads importer)
   src/auth/RequireAdmin     Gates admin routes; renders 403 panel for non-admins
   src/components/           Topbar, ConfirmDialog (modal w/ destructive variant),
                             Avatar (img-by-userId or letter-circle fallback;
@@ -122,6 +136,9 @@ web/                        Vite + React 19 + TS frontend
                             TeamLabel (flag + name flex wrapper),
                             TeamSelect (@headlessui/react Listbox so flags
                             render inside <option> rows too),
+                            PlayerSelect (@headlessui/react Combobox — searchable
+                            with a 3-char min-query gate; renders flag + name +
+                            FIFA code on each option),
                             ThemeToggle (Sun/Moon button rendered in Topbar)
   src/theme/                ThemeProvider — class-based dark/light context
                             (`prefers-color-scheme` fallback + localStorage
@@ -138,7 +155,7 @@ web/                        Vite + React 19 + TS frontend
   .env.local                VITE_AUTH0_* (gitignored)
 ```
 
-Dependency direction: **Api → Infrastructure → Domain**; **Tests → Domain**. Don't add ASP.NET or EF to Domain. Background services live in `Tip4Gen.Api/Workers/` and run in the API process (one deployable on Railway).
+Dependency direction: **Api → Infrastructure → Domain**; **Tip4Gen.Domain.Tests → Domain**; **Tip4Gen.Infrastructure.Tests → Infrastructure → Domain**. Don't add ASP.NET or EF to Domain. The only NuGet leak into Infrastructure outside the usual EF + HttpClient set is **HtmlAgilityPack** (used by `WikipediaSquadsParser`) — keep it confined to `Infrastructure/Players/`. Background services live in `Tip4Gen.Api/Workers/` and run in the API process (one deployable on Railway).
 
 ## Dev commands (PowerShell)
 
@@ -169,7 +186,7 @@ dotnet ef database update --project backend/src/Tip4Gen.Infrastructure --startup
 - **Icons** are `lucide-react`, imported directly per icon (no shim component) — Vite tree-shakes. Default sizes: `16` inline labels, `20` buttons, `28+` heroes. Color via `text-*` classes (lucide inherits `currentColor`).
 - **React Router v7** — unified package `react-router` (not `react-router-dom`).
 - **TanStack Query v5** + **react-hook-form** + **Zod** for data fetching and forms. `useApi` returns typed `get/put/post/del` helpers and parses ProblemDetails into `ApiError` (with `reason` extension).
-- **@headlessui/react** powers `TeamSelect` (only consumer so far). Use it when a native `<select>` is too limiting (e.g. needs images in option rows) — don't reach for it for plain text dropdowns.
+- **@headlessui/react** powers two dropdowns: `TeamSelect` (Listbox, fixed-size 48-team list) and `PlayerSelect` (Combobox, ~600-row searchable). Pick **Listbox** when the list is small enough to scroll and you don't need text-search; pick **Combobox** when the user needs to type to narrow. Don't reach for either for plain text dropdowns.
 - **Serilog** wired via `Host.UseSerilog((ctx, _, cfg) => cfg.ReadFrom.Configuration(ctx.Configuration))` — all config lives in `appsettings.json`.
 - **Enums on the wire are strings.** `Program.cs` registers `JsonStringEnumConverter` globally, so any enum returned from a controller serializes by name (`"Forming"`, not `0`). New DTOs can use enum types directly; don't sprinkle `.ToString()` at the controller boundary. Frontend `type` aliases (`type TeamStatus = 'Forming' | 'Locked' | …`) compare-by-string and rely on this. `MatchesController` still does manual `.ToString()` from before the global converter landed — fine, no behavior change, can be cleaned up later.
 - **CORS** policy applies to non-proxied paths only; in dev, Vite proxies `/api` so CORS rarely fires.
@@ -194,6 +211,7 @@ All dev credentials live in `dotnet user-secrets` for `backend/src/Tip4Gen.Api` 
 - `Auth0:Domain` / `Auth0:Audience` / `Auth0:AdminSub` — tenant `dev-yifcd0c5p4s0wcj5.eu.auth0.com`, audience `https://api.tip4gen.local`
 - `WorldCup26Ir:BaseUrl` / `LeagueId` / `Season` — worldcup26.ir (free, anonymous). Defaults baked into `WorldCup26IrOptions` so you don't need to set anything for local dev. `WorldCup26Ir:AuthEmail` / `:AuthPassword` are optional — the provider runs anonymous and only attempts a JWT register+login if the upstream ever returns 401.
 - `OpenAi:ApiKey` — OpenAI project-scoped key (`sk-proj-…`). Optional: when unset, `OpenAiTipper` returns `AiTipResult.Disabled` and the schedule policy still writes the 1–1 fallback at T-1h. `OpenAi:Model` (default `gpt-4o-mini`), `OpenAi:Temperature` (0.7), `OpenAi:TimeoutSeconds` (15) are bindable from the same section.
+- `WikipediaSquads:BaseUrl` / `:PageTitle` / `:TimeoutSeconds` / `:UserAgent` — Wikipedia squad importer config. All defaulted in `WikipediaSquadsProviderOptions` (`https://en.wikipedia.org` + `2026_FIFA_World_Cup_squads`). No credentials needed. Only override the UA if you fork; Wikipedia's ToS requires an identifiable string with a contact email.
 
 Frontend env in `web/.env.local` (also gitignored): `VITE_AUTH0_DOMAIN`, `VITE_AUTH0_CLIENT_ID`, `VITE_AUTH0_AUDIENCE`.
 
@@ -215,6 +233,7 @@ SPA service (nginx)  ──/api private──►  API service (.NET)  ──priv
 - `Auth0__Domain`, `Auth0__Audience`, `Auth0__AdminSub`
 - `WorldCup26Ir__BaseUrl` (optional, defaults to `https://worldcup26.ir`), `WorldCup26Ir__AuthEmail` / `__AuthPassword` (optional — only used if the upstream ever 401s)
 - `OpenAi__ApiKey` (optional — when unset, the tipper short-circuits and the 1–1 fallback still writes at T-1h)
+- `WikipediaSquads__*` (all optional — defaults are baked in; no env var needs to be set for the importer to work in prod)
 - `Cors__AllowedOrigin` = SPA public URL (defensive belt-and-braces; the reverse-proxy means the browser never CORS-talks to the API)
 
 **SPA env vars**:
@@ -253,7 +272,7 @@ We pull fixtures and teams from **worldcup26.ir** — a free, community-run (one
 - Team aggregation: **sum of all 3** member scores per match (`TeamAggregator.ForMatch`) — every tipper counts, no dropping, no tiebreak. A non-tipping member's 0 directly hurts the team total.
 - AI fallback: auto **1–1** tip with `is_ai_fallback=true` if AI provider hasn't returned by **T-1h**.
 - Tip deadline: **kickoff − 1h**, enforced server-side in UTC.
-- Long-term tips (winner, top scorer) lock at **tournament-start kickoff**.
+- Long-term tips (winner, top scorer) lock at **tournament-start kickoff**. Both are stored as FKs — top scorer is `target_player_id` into the `players` table (no free text), so correctness checks are strict GUID equality.
 
 ## Admin
 
@@ -289,15 +308,15 @@ Single admin (the project owner). Gated by Auth0 `sub` claim matching the `Auth0
 ## Admin schema + flow gotchas (Phase 8)
 
 - **Audit pattern**: `IAdminAuditWriter.RecordAsync` only stages the `AdminAudit` row on the DbContext — never calls SaveChanges. The admin service that called it owns the transaction. If you write a new admin endpoint and forget the audit call, `grep` is your only defence (no middleware will catch it).
-- **`before` / `after` JSON shape is per-action.** Don't dump full aggregates. `MatchSetResult` snapshots `{status, homeGoals, awayGoals}`; `MatchCancel` adds `scoredTipsCleared` / `jokersRefunded` to the after-shape; `MatchPostpone` snapshots `{kickoffUtc, status}`; `AiTipperManualRun` records `before={aiMembers, alreadyHadTip}` / `after={attempted, written, fallbacks}`. Match the relevant slice and nothing more.
+- **`before` / `after` JSON shape is per-action.** Don't dump full aggregates. `MatchSetResult` snapshots `{status, homeGoals, awayGoals}`; `MatchCancel` adds `scoredTipsCleared` / `jokersRefunded` to the after-shape; `MatchPostpone` snapshots `{kickoffUtc, status}`; `AiTipperManualRun` records `before={aiMembers, alreadyHadTip}` / `after={attempted, written, fallbacks}`; `LongTipOutcomesSet` snapshots `{winnerTeamId, topScorerPlayerId}` on both sides (FKs only — no denormalized names); `PlayersImported` writes a null `before` and `after={added, skipped, unmatchedTeams, totalAfter, parsedTotal}`. Match the relevant slice and nothing more.
 - **`MatchStatus.Awarded` vs `Finished`**: distinct status for FIFA-decided outcomes per §11. `MatchScoringService` treats both as scorable so scoring is identical; the distinction is for UI badges + audit context. Use `Match.AwardResult(home, away)` (not `SetFinalScore`) when the source is admin-entered.
 - **Cancel mechanics**: `MatchAdminService.CancelAsync` does four things in one `SaveChanges` — `match.ClearScore() + UpdateStatus(Cancelled)`, `ExecuteDeleteAsync` on `scored_tips`, `ExecuteUpdateAsync` flipping `tips.joker = false`, then the audit row. The `ExecuteUpdate/Delete` calls bypass the change tracker but run inside the implicit ambient transaction — the audit row's `SaveChanges` commits the lot atomically.
 - **Joker refund** is implicit via `TipRulesValidator`: setting `joker = false` on a cancelled match's tips makes the user's `otherJokerCountForUser` query drop by one on next validation. Tip rows themselves stay as a historical record (§11 doesn't require deletion).
 - **Postpone never refunds jokers** (§11 explicit). Existing tips remain editable up to the new deadline; the `TipRulesValidator` deadline check is driven by `kickoff_utc` alone, so the new `kickoff - 1h` is automatic.
 - **Postpone validation**: `newKickoffUtc` must be ≥ `now + 1h + 5min` so the resulting deadline isn't already in the past. The 5-min buffer is intentional to avoid edge-case clock skew rejections.
 - **Tournament outcomes are editable**, not locked. Re-calling `PUT /api/admin/long-tips/outcomes` overwrites and writes a new audit row. The individual leaderboard recomputes on every fetch (no cache) so corrections take effect immediately.
-- **Top-scorer match is case-insensitive on trimmed strings** so admin typos like " Lionel Messi " don't dock users who tipped "lionel messi". If you change this, update `IndividualLeaderboardService.ComputeLongTipCorrectness` and document why.
-- **`Tournament.WinnerTeamId`** has `OnDelete(Restrict)` to `teams_national`. Deleting a national team that's recorded as the winner is blocked — safer than nulling the field silently. If a re-seed is needed mid-tournament, clear outcomes via the admin endpoint first.
+- **Top-scorer match is now strict FK equality** (`tip.TargetPlayerId == tournament.TopScorerPlayerId`) — both sides come from the curated `players` table, so typo tolerance moved to the SPA dropdown (PlayerSelect's text search). The earlier case-insensitive trimmed-string comparison is gone. If you re-introduce free text, also re-introduce the trim/lowercase compare in `IndividualLeaderboardService.ComputeLongTipCorrectness`.
+- **`Tournament.WinnerTeamId` and `Tournament.TopScorerPlayerId`** both have `OnDelete(Restrict)` (to `teams_national` and `players` respectively). Deleting a national team or player that's recorded as a tournament outcome is blocked — safer than nulling the field silently. If a re-seed is needed mid-tournament, clear outcomes via the admin endpoint first.
 
 ## AI tipper gotchas (Phase 6)
 
@@ -318,7 +337,7 @@ Single admin (the project owner). Gated by Auth0 `sub` claim matching the `Auth0
 - **Audit payload never contains the bytes.** `AdminAuditAction.AiAvatarSet` / `AiAvatarDeleted` before/after carry `{version, contentType}` only. Dumping the bytea into `admin_audit.jsonb` would blow up the row and the audit-log UI. Mirror this shape if you add more avatar admin actions.
 - **`DataUrlParser` is shared.** Both `MeController.SetAvatar` and `AiAvatarAdminController.Set` call `Tip4Gen.Api.Avatars.DataUrlParser.TryParse`. Pre-decode length cap is `User.MaxAvatarBytes * 4/3 + 256` — cheap O(1) guard before allocating a `byte[]` from a hostile body. If you tweak the limit, update both.
 - **Topbar shows local display name, not Auth0's.** `Topbar.tsx` prefers `me.data?.displayName` over `user?.name` from the Auth0 SDK, falling back only while `me` is loading. The avatar URL requires `me.data.id`, so the rendering already depends on `useMe()` resolving.
-- **Logged-out nav is filtered, not just route-gated.** `Topbar.tsx` chains two filters over `NAV_ITEMS`: `!i.requiresAuth || isAuthenticated`, then `i.path !== '/admin' || me.data?.isAdmin`. Logged-out users only see `/` (Főoldal) and `/szabalyzat` (Szabályzat) — the other entries vanish from the menu, not just from the routes. When adding a new nav link in `lib/navIcons.tsx`, set `requiresAuth: true` unless the page itself is public (no `RequireAuth` wrapper in `App.tsx`). Loading-state trade-off: during `useAuth0().isLoading` the auth-gated links stay hidden — a logged-in user sees a brief "bevillan" on cold load, which is the intended cost of never leaking the protected menu to logged-out visitors.
+- **Logged-out nav is filtered, not just route-gated.** `Topbar.tsx` chains two filters over `NAV_ITEMS`: `!i.requiresAuth || isAuthenticated`, then `!i.path.startsWith('/admin') || me.data?.isAdmin`. Logged-out users only see `/` (Főoldal) and `/szabalyzat` (Szabályzat); admin-only entries (`/admin`, `/admin/players`, …) vanish from the menu for non-admins, not just from the routes. When adding a new nav link in `lib/navIcons.tsx`, set `requiresAuth: true` unless the page itself is public (no `RequireAuth` wrapper in `App.tsx`). Any path that begins with `/admin` automatically counts as admin-only via the prefix check — don't add a new flag. Loading-state trade-off: during `useAuth0().isLoading` the auth-gated links stay hidden — a logged-in user sees a brief "bevillan" on cold load, which is the intended cost of never leaking the protected menu to logged-out visitors.
 
 ## Theme + dark-mode gotchas
 
@@ -338,7 +357,22 @@ Single admin (the project owner). Gated by Auth0 `sub` claim matching the `Auth0
 - **Team codes are real FIFA now (worldcup26.ir).** The upstream returns honest FIFA 3-letter codes (`IRN`, `NED`, `ESP`, `JPN`, `KSA`, `SUI`, `MAR`, etc.). `web/src/lib/teamFlag.ts` *also* still holds the older api-football aliases (`IRA`, `NET`, `SPA`, `JAP`, `SAU`, `SER`, `SWI`, `CAM`, `COS`, `MOR`) — they're harmless dead-weight under the current provider and act as a buffer in case we ever swap upstream again. If you're staring at a missing flag, dump `teams_national.code` first — don't trust your memory of the FIFA spec.
 - **Flag images are runtime CDN.** `<TeamFlag code={...} />` renders `<img src="https://flagcdn.com/{iso}.svg">` with `onError` → render-nothing fallback. No flag assets in the repo. flagcdn supports UK subdivisions (`gb-eng` / `gb-wls` / `gb-sct` / `gb-nir`) so each home nation gets its own flag — that's why `ENG → gb-eng` in the map, not `gb`.
 - **`<TeamLabel team={...} />` is the default for every team-name render site.** Plain `{team.name}` was replaced everywhere (Matches list, TipSubmit header + score-input labels, LiveMatchBanner, AdminMatches, AdminMatchEditor). If you add a new site that renders a team name, use `<TeamLabel />` — don't reinvent the flex layout.
-- **Native `<select>` can't render images in `<option>`.** Both long-tip dropdowns (LongTips + AdminLongTips) use `<TeamSelect />` (Headless UI Listbox). In `LongTips`, the dropdown is wrapped in RHF `Controller` — that's the integration pattern; mirror it if you ever need a Listbox inside an RHF form. The component maps `value=''` ↔ `null` at the boundary so existing form-state shapes (which use empty-string for "no selection") still work.
+- **Native `<select>` can't render images in `<option>`.** The two long-tip dropdowns split:
+  - **Winner team** (48 teams) → `<TeamSelect />` (Headless UI Listbox). Open-and-scroll UX.
+  - **Top scorer** (~600 players) → `<PlayerSelect />` (Headless UI Combobox). Type-to-search with a `MIN_QUERY_LENGTH = 3` gate — under that, the dropdown shows a "Gépelj legalább 3 karaktert" hint instead of the full list (avoids a 600-row scroll wall).
+  In `LongTips`, both are wrapped in RHF `Controller` and map `value=''` ↔ `null` at the boundary so existing form-state shapes (empty-string = no selection) still work. Mirror this if you need either inside another RHF form.
+
+## Players + Wikipedia squads importer gotchas
+
+- **`players` is admin-import-only, not user-editable.** The only writer is `PlayersImportService` behind `POST /api/admin/players/import`; there is no `POST /api/admin/players` for hand-entry. If a player is missing (late call-up, injury substitution after import), admin re-runs the importer. Don't add a manual-create endpoint without also widening `AdminAuditAction` and the SPA flow — the FK contract on long-term tips assumes every row in `players` came through the audited path.
+- **The importer is idempotent and never updates names.** Algorithm: parse Wikipedia → resolve country → if `(NationalTeamId, Name)` already exists, `skipped++`; else `Added`. Names are immutable on a re-import even if Wikipedia changes spacing, because existing `long_term_tips.target_player_id` FKs would silently start pointing at a "renamed" person. If Wikipedia removes a player, the row stays — users who tipped them keep their pick (and lose the bet, fairly).
+- **Country resolution: code → name fallback, both case-insensitive.** `PlayersImportService` builds two dictionaries from `teams_national`: by `code` (FIFA 3-letter) and by `name`. The Wikipedia parser today emits country *names* only (no codes — the H3 id like `Czech_Republic` doesn't carry a FIFA code), so the name path does the heavy lifting; the code path is kept for robustness in case a future parser revision can mine the flag image for `IRN` / `KSA`. If `unmatchedTeams > 0` in the import response, dump the warning logs — usually it's a spelling mismatch (`"Czech Republic"` vs `"Czechia"`).
+- **Parser lives in Infrastructure, not Domain.** `WikipediaSquadsParser` is a pure static class but takes a hard dependency on `HtmlAgilityPack`, which would violate the Domain-stays-pure rule. The shared wire type `ParsedPlayer` lives in `Tip4Gen.Domain/Players/` so Infrastructure → Domain is the only dep direction the importer needs. Golden tests for the parser live in `Tip4Gen.Infrastructure.Tests/Players/`, not `Domain.Tests/`.
+- **MediaWiki parse API, not raw page scrape.** `WikipediaSquadsProvider` GETs `/w/api.php?action=parse&page={PageTitle}&prop=text&format=json&formatversion=2`. This gives a clean, skin-free HTML fragment that's more stable than the user-facing page. Wikipedia's ToS demands an identifiable UA — `WikipediaSquadsProviderOptions.UserAgent` defaults to `Tip4Gen/1.0 (contact: ispanpeter82@gmail.com)`. Don't blank it.
+- **HTML shape the parser depends on**: country `<h3 id="Czech_Republic">…</h3>` followed (after the `div.mw-heading` wrapper) by `<table class="sortable wikitable plainrowheaders">` whose `<tr class="nat-fs-player">` rows have the player name in `<th scope="row">`. The parser keys on the `id` attribute for country (not InnerText — that would also pick up the `[edit]` link), and on `nat-fs-player` for rows (skips header/legend rows). If Wikipedia restructures, the parser tests are the canary.
+- **Migration `AddPlayersAndPlayerFks` deletes pre-existing `TopScorer` rows from `long_term_tips`.** No production tip data existed when this migration shipped (pre-launch). The migration explicitly runs `DELETE FROM long_term_tips WHERE type = 'TopScorer'` before swapping `target_player_name` for `target_player_id`, because the new CHECK constraint requires `target_player_id IS NOT NULL` for that type. If you ever re-apply this migration on a DB with live tip data, that data is lost — don't.
+- **Last-import card reads from `admin_audit`.** `/api/admin/players/last-import` queries the latest `admin_audit` row with `Action = PlayersImported`, returning `{occurredAt, afterJson}`. The SPA `AdminPlayers` page parses `afterJson` for the `{added, skipped, unmatchedTeams, totalAfter}` summary. If you change the audit shape, also update `AdminPlayers.tsx`'s `parseLastSummary`.
+- **Importing is the admin's prod-bootstrap step.** Railway doesn't auto-run the importer; first time you deploy a fresh DB, log in as admin and click "Importálás futtatása" before anyone can tip a top scorer. The migration creates the empty `players` table — the rows are entirely the importer's responsibility.
 
 ## Forms gotcha — Zod + react-hook-form
 
@@ -357,3 +391,4 @@ Single admin (the project owner). Gated by Auth0 `sub` claim matching the `Auth0
 - Don't fabricate dates from training data — today's date comes from the system context. WC 2026 starts **2026-06-11**.
 - Don't widen scope mid-phase. If something doesn't fit in the current phase, note it in the plan and move on.
 - Don't break the `reason` enum in ProblemDetails responses — the frontend maps it to per-field errors. Adding a new variant is fine; renaming an existing one needs a coordinated SPA change.
+- Don't hand-write rows into `players` (SQL, EF seed, anywhere). Every row must come through `PlayersImportService` so the audit trail stays the source of truth; a smuggled row that a user then tips on creates a tip pointing at an unauditable player.

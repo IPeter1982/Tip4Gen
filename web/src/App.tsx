@@ -19,6 +19,7 @@ import { AdminAudit } from './pages/admin/AdminAudit'
 import { AdminLongTips } from './pages/admin/AdminLongTips'
 import { AdminMatchEditor } from './pages/admin/AdminMatchEditor'
 import { AdminMatches } from './pages/admin/AdminMatches'
+import { AdminPlayers } from './pages/admin/AdminPlayers'
 
 export default function App() {
   return (
@@ -138,6 +139,16 @@ export default function App() {
             <RequireAuth>
               <RequireAdmin>
                 <AdminAiAvatar />
+              </RequireAdmin>
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/admin/players"
+          element={
+            <RequireAuth>
+              <RequireAdmin>
+                <AdminPlayers />
               </RequireAdmin>
             </RequireAuth>
           }

@@ -14,6 +14,7 @@ using Tip4Gen.Infrastructure.Football;
 using Tip4Gen.Infrastructure.Leaderboard;
 using Tip4Gen.Infrastructure.Notifications;
 using Tip4Gen.Infrastructure.Persistence;
+using Tip4Gen.Infrastructure.Players;
 using Tip4Gen.Infrastructure.Scoring;
 using Tip4Gen.Infrastructure.Settings;
 using Tip4Gen.Infrastructure.Teams;
@@ -85,6 +86,24 @@ public static class DependencyInjection
         services.AddScoped<IMatchAdminService, MatchAdminService>();
         services.AddScoped<ILongTipOutcomesService, LongTipOutcomesService>();
         services.AddScoped<AiAvatarAdminService>();
+
+        // Wikipedia squads importer. Provider hits en.wikipedia.org's parse API with
+        // an identifiable UA (their ToS requires it); PlayersImportService is the
+        // admin-gated orchestrator behind POST /api/admin/players/import.
+        services.AddOptions<WikipediaSquadsProviderOptions>()
+            .Bind(configuration.GetSection("WikipediaSquads"))
+            .ValidateDataAnnotations();
+
+        services.AddHttpClient<IWikipediaSquadsProvider, WikipediaSquadsProvider>((sp, http) =>
+            {
+                var opts = sp.GetRequiredService<IOptions<WikipediaSquadsProviderOptions>>().Value;
+                http.BaseAddress = new Uri(opts.BaseUrl.TrimEnd('/') + "/");
+                http.Timeout = TimeSpan.FromSeconds(opts.TimeoutSeconds);
+                http.DefaultRequestHeaders.UserAgent.ParseAdd(opts.UserAgent);
+            })
+            .AddStandardResilienceHandler();
+
+        services.AddScoped<IPlayersImportService, PlayersImportService>();
 
         // Notifications (Phase 9). Resend ApiKey is intentionally optional — when unset
         // ResendNotificationSender returns Disabled and the worker logs but doesn't fail.

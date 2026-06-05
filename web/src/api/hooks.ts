@@ -6,6 +6,7 @@ import type {
   AiTipperManualRunResponse,
   IndividualLeaderboardRow,
   InviteView,
+  LastImportInfo,
   LongTipOutcomes,
   LongTipsResponse,
   MatchCancelResponse,
@@ -15,6 +16,8 @@ import type {
   MatchTipsResponse,
   MeResponse,
   NationalTeam,
+  Player,
+  PlayersImportResponse,
   PreferencesResponse,
   TeamLeaderboardRow,
   TeamMatchBreakdownView,
@@ -156,6 +159,17 @@ export function useNationalTeams() {
   })
 }
 
+// ~600 rows on a typical squad import; cache for 10 min like national teams.
+// Client-side filtered in PlayerSelect, so no server-side search endpoint needed.
+export function usePlayers() {
+  const api = useApi()
+  return useQuery({
+    queryKey: ['players'],
+    queryFn: () => api.get<Player[]>('/api/players'),
+    staleTime: 10 * 60_000,
+  })
+}
+
 export function useLongTips() {
   const api = useApi()
   return useQuery({
@@ -186,7 +200,7 @@ export function useSubmitTip() {
 
 export type SubmitLongTipsInput = {
   winnerTeamId?: string | null
-  topScorerName?: string | null
+  topScorerPlayerId?: string | null
 }
 
 export function useSubmitLongTips() {
@@ -474,7 +488,7 @@ export function useLongTipOutcomes() {
 
 export type SetLongTipOutcomesInput = {
   winnerTeamId?: string | null
-  topScorerName?: string | null
+  topScorerPlayerId?: string | null
   reason?: string | null
 }
 
@@ -489,5 +503,29 @@ export function useSetLongTipOutcomes() {
       qc.invalidateQueries({ queryKey: ['leaderboard'] })
       qc.invalidateQueries({ queryKey: ['admin', 'audit'] })
     },
+  })
+}
+
+// ----- Admin: Players importer -----
+
+export function useImportPlayers() {
+  const api = useApi()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => api.post<PlayersImportResponse>('/api/admin/players/import', {}),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['players'] })
+      qc.invalidateQueries({ queryKey: ['admin', 'players', 'last-import'] })
+      qc.invalidateQueries({ queryKey: ['admin', 'audit'] })
+    },
+  })
+}
+
+export function useLastPlayersImport() {
+  const api = useApi()
+  return useQuery({
+    queryKey: ['admin', 'players', 'last-import'],
+    queryFn: () => api.get<LastImportInfo | null>('/api/admin/players/last-import'),
+    staleTime: 0,
   })
 }

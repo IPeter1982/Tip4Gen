@@ -15,4 +15,5 @@ public enum AdminAuditAction
     AiAvatarSet = 5,
     AiAvatarDeleted = 6,
     AiTipperManualRun = 7,
+    PlayersImported = 8,
 }

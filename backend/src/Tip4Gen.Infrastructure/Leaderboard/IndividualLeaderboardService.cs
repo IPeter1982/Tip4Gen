@@ -44,12 +44,12 @@ public class IndividualLeaderboardService(AppDbContext db) : IIndividualLeaderbo
         // Outcomes from the active tournament; nullable until admin enters them.
         var outcomes = await db.Tournaments.AsNoTracking()
             .OrderByDescending(t => t.StartsAtUtc)
-            .Select(t => new { t.WinnerTeamId, t.TopScorerName })
+            .Select(t => new { t.WinnerTeamId, t.TopScorerPlayerId })
             .FirstOrDefaultAsync(ct);
 
         // Each user's long-term tips, so we can compare against outcomes per user.
         var longTips = await db.LongTermTips.AsNoTracking()
-            .Select(l => new LongTipRow(l.UserId, l.Type, l.TargetTeamId, l.TargetPlayerName))
+            .Select(l => new LongTipRow(l.UserId, l.Type, l.TargetTeamId, l.TargetPlayerId))
             .ToListAsync(ct);
         var longTipsByUser = longTips.GroupBy(l => l.UserId).ToDictionary(g => g.Key, g => g.ToList());
 
@@ -76,7 +76,7 @@ public class IndividualLeaderboardService(AppDbContext db) : IIndividualLeaderbo
             var streak = StreakCalculator.LongestStreak(rows.Select(r => r.FinalPoints));
 
             longTipsByUser.TryGetValue(u.Id, out var userLongTips);
-            var (winnerCorrect, topScorerCorrect) = ComputeLongTipCorrectness(outcomes?.WinnerTeamId, outcomes?.TopScorerName, userLongTips);
+            var (winnerCorrect, topScorerCorrect) = ComputeLongTipCorrectness(outcomes?.WinnerTeamId, outcomes?.TopScorerPlayerId, userLongTips);
 
             return new LeaderboardEntry(
                 UserId: u.Id,
@@ -107,12 +107,12 @@ public class IndividualLeaderboardService(AppDbContext db) : IIndividualLeaderbo
     /// Compare a user's long-term tips against the recorded outcomes. Null outcome
     /// → null correctness (ranker treats as neutral). Outcome recorded but user
     /// never tipped → false (they were wrong by default).
-    /// Top-scorer match is case-insensitive on trimmed values to absorb minor input
-    /// variance ("Lionel Messi" vs " lionel messi ") without false negatives.
+    /// Top-scorer match is now a strict FK equality since players come from the
+    /// curated <c>players</c> table — typo tolerance moved to the SPA dropdown.
     /// </summary>
     private static (bool? WinnerCorrect, bool? TopScorerCorrect) ComputeLongTipCorrectness(
         Guid? actualWinnerTeamId,
-        string? actualTopScorerName,
+        Guid? actualTopScorerPlayerId,
         IReadOnlyList<LongTipRow>? userLongTips)
     {
         bool? winnerCorrect = null;
@@ -123,17 +123,14 @@ public class IndividualLeaderboardService(AppDbContext db) : IIndividualLeaderbo
         }
 
         bool? topScorerCorrect = null;
-        if (!string.IsNullOrWhiteSpace(actualTopScorerName))
+        if (actualTopScorerPlayerId is Guid scorerId)
         {
-            var trimmedActual = actualTopScorerName.Trim();
             var topTip = userLongTips?.FirstOrDefault(l => l.Type == LongTermTipType.TopScorer);
-            var tipped = topTip?.TargetPlayerName;
-            topScorerCorrect = !string.IsNullOrWhiteSpace(tipped)
-                && string.Equals(tipped.Trim(), trimmedActual, StringComparison.OrdinalIgnoreCase);
+            topScorerCorrect = topTip?.TargetPlayerId == scorerId;
         }
 
         return (winnerCorrect, topScorerCorrect);
     }
 
-    private sealed record LongTipRow(Guid UserId, LongTermTipType Type, Guid? TargetTeamId, string? TargetPlayerName);
+    private sealed record LongTipRow(Guid UserId, LongTermTipType Type, Guid? TargetTeamId, Guid? TargetPlayerId);
 }

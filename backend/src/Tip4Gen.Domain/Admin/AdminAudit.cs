@@ -14,6 +14,7 @@ public class AdminAudit
 {
     public const string EntityTypeMatch = "Match";
     public const string EntityTypeTournament = "Tournament";
+    public const string EntityTypePlayers = "Players";
 
     public Guid Id { get; private set; }
     public Guid AdminUserId { get; private set; }

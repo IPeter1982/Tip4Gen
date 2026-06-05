@@ -10,6 +10,10 @@ const ACTION_LABEL: Record<AdminAuditAction, string> = {
   MatchPostpone: 'Halasztás',
   MatchRescore: 'Újraértékelés',
   LongTipOutcomesSet: 'Végső győztes eredmény',
+  AiAvatarSet: 'AI profilkép beállítása',
+  AiAvatarDeleted: 'AI profilkép törlése',
+  AiTipperManualRun: 'AI tippelő manuális futtatás',
+  PlayersImported: 'Játékosok importálása',
 }
 
 const PAGE_SIZE = 50

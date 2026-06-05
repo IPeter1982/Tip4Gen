@@ -6,12 +6,14 @@ using Tip4Gen.Infrastructure.Tipping;
 
 namespace Tip4Gen.Api.Controllers;
 
-public record LongTipsRequest(Guid? WinnerTeamId, string? TopScorerName);
+public record LongTipsRequest(Guid? WinnerTeamId, Guid? TopScorerPlayerId);
 
 public record LongTipsResponse(
     Guid? WinnerTeamId,
     string? WinnerTeamName,
-    string? TopScorerName,
+    Guid? TopScorerPlayerId,
+    string? TopScorerPlayerName,
+    string? TopScorerTeamCode,
     DateTimeOffset? WinnerSubmittedAt,
     DateTimeOffset? TopScorerSubmittedAt,
     DateTimeOffset LockUtc,
@@ -41,7 +43,7 @@ public class LongTipsController(CurrentUserService currentUser, ILongTermTipsSer
     public async Task<IActionResult> Upsert([FromBody] LongTipsRequest request, CancellationToken ct)
     {
         var user = await currentUser.GetOrCreateAsync(ct);
-        var cmd = new LongTermTipUpsertCommand(user.Id, request.WinnerTeamId, request.TopScorerName);
+        var cmd = new LongTermTipUpsertCommand(user.Id, request.WinnerTeamId, request.TopScorerPlayerId);
         var result = await longTips.UpsertAsync(cmd, ct);
 
         return result switch
@@ -56,7 +58,14 @@ public class LongTipsController(CurrentUserService currentUser, ILongTermTipsSer
             LongTermTipUpsertResult.TeamNotFound t => Problem(
                 statusCode: StatusCodes.Status404NotFound,
                 title: "Team not found",
-                detail: $"No team with id {t.TeamId}."),
+                detail: $"No team with id {t.TeamId}.",
+                extensions: new Dictionary<string, object?> { ["reason"] = "TeamNotFound" }),
+
+            LongTermTipUpsertResult.PlayerNotFound p => Problem(
+                statusCode: StatusCodes.Status404NotFound,
+                title: "Player not found",
+                detail: $"No player with id {p.PlayerId}.",
+                extensions: new Dictionary<string, object?> { ["reason"] = "TopScorerPlayerNotFound" }),
 
             LongTermTipUpsertResult.Rejected r => Problem(
                 statusCode: StatusCodes.Status422UnprocessableEntity,
@@ -72,7 +81,8 @@ public class LongTipsController(CurrentUserService currentUser, ILongTermTipsSer
     }
 
     private static LongTipsResponse ToResponse(LongTermTipSnapshot s) => new(
-        s.WinnerTeamId, s.WinnerTeamName, s.TopScorerName,
+        s.WinnerTeamId, s.WinnerTeamName,
+        s.TopScorerPlayerId, s.TopScorerPlayerName, s.TopScorerTeamCode,
         s.WinnerSubmittedAt, s.TopScorerSubmittedAt,
         s.LockUtc, s.Locked);
 
@@ -80,8 +90,6 @@ public class LongTipsController(CurrentUserService currentUser, ILongTermTipsSer
     {
         LongTermTipRejectionReason.Locked => "Long-term tips locked",
         LongTermTipRejectionReason.NothingProvided => "No tips provided",
-        LongTermTipRejectionReason.PlayerNameBlank => "Top scorer name required",
-        LongTermTipRejectionReason.PlayerNameTooLong => "Top scorer name too long",
         _ => "Long-term tip rejected",
     };
 }

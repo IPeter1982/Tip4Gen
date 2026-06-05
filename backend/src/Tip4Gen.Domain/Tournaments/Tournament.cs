@@ -13,8 +13,8 @@ public class Tournament
     /// <summary>FIFA-decided winner; populated post-tournament by admin via /api/admin/long-tips/outcomes.</summary>
     public Guid? WinnerTeamId { get; private set; }
 
-    /// <summary>FIFA-decided top scorer name; populated post-tournament by admin. Trimmed, ≤120 chars.</summary>
-    public string? TopScorerName { get; private set; }
+    /// <summary>FIFA-decided top scorer; FK to players. Populated post-tournament by admin.</summary>
+    public Guid? TopScorerPlayerId { get; private set; }
 
     private Tournament() { }
 
@@ -42,9 +42,9 @@ public class Tournament
     /// Either field may be null (admin can record one before the other lands). Editable —
     /// re-calling overwrites both values atomically.
     /// </summary>
-    public void RecordOutcomes(Guid? winnerTeamId, string? topScorerName)
+    public void RecordOutcomes(Guid? winnerTeamId, Guid? topScorerPlayerId)
     {
         WinnerTeamId = winnerTeamId;
-        TopScorerName = string.IsNullOrWhiteSpace(topScorerName) ? null : topScorerName.Trim();
+        TopScorerPlayerId = topScorerPlayerId;
     }
 }

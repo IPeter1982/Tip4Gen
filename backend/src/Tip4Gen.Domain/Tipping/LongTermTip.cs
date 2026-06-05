@@ -6,7 +6,7 @@ public class LongTermTip
     public Guid UserId { get; private set; }
     public LongTermTipType Type { get; private set; }
     public Guid? TargetTeamId { get; private set; }
-    public string? TargetPlayerName { get; private set; }
+    public Guid? TargetPlayerId { get; private set; }
     public DateTimeOffset SubmittedAt { get; private set; }
     public DateTimeOffset UpdatedAt { get; private set; }
 
@@ -20,13 +20,13 @@ public class LongTermTip
             UserId = userId,
             Type = LongTermTipType.Winner,
             TargetTeamId = teamId,
-            TargetPlayerName = null,
+            TargetPlayerId = null,
             SubmittedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow,
         };
     }
 
-    public static LongTermTip ForTopScorer(Guid userId, string playerName)
+    public static LongTermTip ForTopScorer(Guid userId, Guid playerId)
     {
         return new LongTermTip
         {
@@ -34,7 +34,7 @@ public class LongTermTip
             UserId = userId,
             Type = LongTermTipType.TopScorer,
             TargetTeamId = null,
-            TargetPlayerName = playerName,
+            TargetPlayerId = playerId,
             SubmittedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow,
         };
@@ -48,11 +48,11 @@ public class LongTermTip
         UpdatedAt = DateTimeOffset.UtcNow;
     }
 
-    public void UpdateTopScorer(string playerName)
+    public void UpdateTopScorer(Guid playerId)
     {
         if (Type != LongTermTipType.TopScorer)
             throw new InvalidOperationException("Cannot update TopScorer on a non-TopScorer tip.");
-        TargetPlayerName = playerName;
+        TargetPlayerId = playerId;
         UpdatedAt = DateTimeOffset.UtcNow;
     }
 }
