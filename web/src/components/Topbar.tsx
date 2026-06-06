@@ -1,6 +1,7 @@
 import { useAuth0 } from '@auth0/auth0-react'
 import { Link, NavLink } from 'react-router'
-import { Goal } from 'lucide-react'
+import { CloseButton, Popover, PopoverButton, PopoverPanel } from '@headlessui/react'
+import { Goal, Menu, X } from 'lucide-react'
 import { useMe } from '../api/hooks'
 import { isAuthConfigured } from '../auth/authConfig'
 import { NAV_ITEMS } from '../lib/navIcons'
@@ -10,9 +11,16 @@ import { ThemeToggle } from './ThemeToggle'
 const NAV_LINK_BASE =
   'inline-flex items-center gap-1.5 transition hover:text-accent aria-[current=page]:text-accent aria-[current=page]:underline aria-[current=page]:decoration-2 aria-[current=page]:underline-offset-[6px]'
 
+const MOBILE_LINK_BASE =
+  'flex items-center gap-2 rounded-md px-3 py-2 text-sm font-mono uppercase tracking-[0.15em] text-fg-muted transition hover:bg-sunken hover:text-accent aria-[current=page]:bg-accent-soft aria-[current=page]:text-accent-strong'
+
 export function Topbar() {
   const { isAuthenticated, isLoading, user, loginWithRedirect, logout, error } = useAuth0()
   const me = useMe()
+
+  const visibleItems = NAV_ITEMS
+    .filter((i) => !i.requiresAuth || isAuthenticated)
+    .filter((i) => !i.path.startsWith('/admin') || me.data?.isAdmin)
 
   return (
     <header className="sticky top-0 z-30 border-b border-border-subtle bg-elevated/80 backdrop-blur">
@@ -21,22 +29,40 @@ export function Topbar() {
           <Goal size={22} className="text-accent" />
           <span>Tip4Gen</span>
         </Link>
-        <nav className="flex items-center gap-x-4 gap-y-1 flex-wrap text-xs font-mono uppercase tracking-[0.15em] text-fg-muted">
-          {NAV_ITEMS
-            .filter((i) => !i.requiresAuth || isAuthenticated)
-            .filter((i) => !i.path.startsWith('/admin') || me.data?.isAdmin)
-            .map(({ path, end, label, Icon }) => (
-              <NavLink
+        <Popover className="md:hidden">
+          <PopoverButton
+            aria-label="Menü"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border-subtle bg-elevated text-fg-muted transition hover:text-accent hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring-focus data-[open]:text-accent data-[open]:border-accent"
+          >
+            {({ open }) => (open ? <X size={18} /> : <Menu size={18} />)}
+          </PopoverButton>
+          <PopoverPanel className="absolute left-0 right-0 top-full mt-1 z-40 rounded-lg border border-border-subtle bg-elevated shadow-xl p-2 flex flex-col gap-1 mx-4 sm:mx-6">
+            {visibleItems.map(({ path, end, label, Icon }) => (
+              <CloseButton
                 key={path}
+                as={NavLink}
                 to={path}
                 end={end}
-                className={path.startsWith('/admin') ? `${NAV_LINK_BASE} text-accent` : NAV_LINK_BASE}
+                className={path.startsWith('/admin') ? `${MOBILE_LINK_BASE} text-accent` : MOBILE_LINK_BASE}
               >
-                <Icon size={14} />
+                <Icon size={16} />
                 {label}
-              </NavLink>
-            ),
-          )}
+              </CloseButton>
+            ))}
+          </PopoverPanel>
+        </Popover>
+        <nav className="hidden md:flex items-center gap-x-4 text-xs font-mono uppercase tracking-[0.15em] text-fg-muted">
+          {visibleItems.map(({ path, end, label, Icon }) => (
+            <NavLink
+              key={path}
+              to={path}
+              end={end}
+              className={path.startsWith('/admin') ? `${NAV_LINK_BASE} text-accent` : NAV_LINK_BASE}
+            >
+              <Icon size={14} />
+              {label}
+            </NavLink>
+          ))}
         </nav>
         <div className="ml-auto flex items-center gap-2 sm:gap-3 flex-wrap">
           {!isAuthConfigured && (
