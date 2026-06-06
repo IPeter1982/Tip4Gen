@@ -14,6 +14,9 @@ const ACTION_LABEL: Record<AdminAuditAction, string> = {
   AiAvatarDeleted: 'AI profilkép törlése',
   AiTipperManualRun: 'AI tippelő manuális futtatás',
   PlayersImported: 'Játékosok importálása',
+  TeamRenamed: 'Csapat átnevezve',
+  TeamDeleted: 'Csapat törölve',
+  TeamMemberRemoved: 'Csapattag eltávolítva',
 }
 
 const PAGE_SIZE = 50

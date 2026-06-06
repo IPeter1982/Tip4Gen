@@ -242,6 +242,9 @@ export type AdminAuditAction =
   | 'AiAvatarDeleted'
   | 'AiTipperManualRun'
   | 'PlayersImported'
+  | 'TeamRenamed'
+  | 'TeamDeleted'
+  | 'TeamMemberRemoved'
 
 export type AdminAuditRow = {
   id: string
@@ -308,4 +311,43 @@ export type PlayersImportResponse = {
 export type LastImportInfo = {
   occurredAt: string
   afterJson: string | null
+}
+
+// ----- Admin: Teams -----
+
+export type TeamAdminMemberView = {
+  id: string
+  userId: string | null
+  displayName: string
+  avatarVersion: string | null
+  isAi: boolean
+  joinedAt: string
+}
+
+export type TeamAdminView = {
+  id: string
+  name: string
+  status: TeamStatus
+  aiMode: AiMode | null
+  createdAt: string
+  updatedAt: string
+  avatarVersion: string | null
+  memberCount: number
+  humanMemberCount: number
+  aiMemberCount: number
+  members: TeamAdminMemberView[]
+}
+
+export type AdminTeamDeleteResponse = {
+  teamId: string
+  name: string
+  membersRemoved: number
+}
+
+export type AdminTeamMemberRemoveResponse = {
+  teamId: string
+  removedMemberId: string
+  teamCascadeDeleted: boolean
+  statusRevertedToForming: boolean
+  team: TeamAdminView | null
 }

@@ -21,6 +21,7 @@ import { AdminLongTips } from './pages/admin/AdminLongTips'
 import { AdminMatchEditor } from './pages/admin/AdminMatchEditor'
 import { AdminMatches } from './pages/admin/AdminMatches'
 import { AdminPlayers } from './pages/admin/AdminPlayers'
+import { AdminTeams } from './pages/admin/AdminTeams'
 
 export default function App() {
   return (
@@ -158,6 +159,16 @@ export default function App() {
             <RequireAuth>
               <RequireAdmin>
                 <AdminPlayers />
+              </RequireAdmin>
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/admin/teams"
+          element={
+            <RequireAuth>
+              <RequireAdmin>
+                <AdminTeams />
               </RequireAdmin>
             </RequireAuth>
           }

@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useApi } from '../auth/useApi'
 import type {
   AdminAuditResponse,
+  AdminTeamDeleteResponse,
+  AdminTeamMemberRemoveResponse,
   AiMode,
   AiTipperManualRunResponse,
   IndividualLeaderboardRow,
@@ -19,6 +21,7 @@ import type {
   Player,
   PlayersImportResponse,
   PreferencesResponse,
+  TeamAdminView,
   TeamLeaderboardRow,
   TeamMatchBreakdownView,
   TeamView,
@@ -548,5 +551,82 @@ export function useLastPlayersImport() {
     queryKey: ['admin', 'players', 'last-import'],
     queryFn: () => api.get<LastImportInfo | null>('/api/admin/players/last-import'),
     staleTime: 0,
+  })
+}
+
+// ----- Admin: Teams -----
+
+export const ADMIN_TEAMS_KEY = ['admin', 'teams'] as const
+
+export function useAdminTeams() {
+  const api = useApi()
+  return useQuery({
+    queryKey: ADMIN_TEAMS_KEY,
+    queryFn: () => api.get<TeamAdminView[]>('/api/admin/teams'),
+  })
+}
+
+export type RenameAdminTeamInput = { teamId: string; name: string; reason?: string | null }
+
+export function useRenameAdminTeam() {
+  const api = useApi()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ teamId, name, reason }: RenameAdminTeamInput) =>
+      api.put<TeamAdminView>(`/api/admin/teams/${teamId}/name`, { name, reason }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ADMIN_TEAMS_KEY })
+      qc.invalidateQueries({ queryKey: ['leaderboard', 'teams'] })
+      qc.invalidateQueries({ queryKey: ['teams', 'all'] })
+      qc.invalidateQueries({ queryKey: ['team', 'me'] })
+      qc.invalidateQueries({ queryKey: ['admin', 'audit'] })
+    },
+  })
+}
+
+export type DeleteAdminTeamInput = { teamId: string; reason?: string | null }
+
+export function useDeleteAdminTeam() {
+  const api = useApi()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ teamId, reason }: DeleteAdminTeamInput) => {
+      const qs = reason ? `?reason=${encodeURIComponent(reason)}` : ''
+      return api.del<AdminTeamDeleteResponse>(`/api/admin/teams/${teamId}${qs}`)
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ADMIN_TEAMS_KEY })
+      qc.invalidateQueries({ queryKey: ['leaderboard', 'teams'] })
+      qc.invalidateQueries({ queryKey: ['teams', 'all'] })
+      qc.invalidateQueries({ queryKey: ['team', 'me'] })
+      qc.invalidateQueries({ queryKey: ['admin', 'audit'] })
+    },
+  })
+}
+
+export type RemoveAdminTeamMemberInput = {
+  teamId: string
+  memberId: string
+  reason?: string | null
+}
+
+export function useRemoveAdminTeamMember() {
+  const api = useApi()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ teamId, memberId, reason }: RemoveAdminTeamMemberInput) => {
+      const qs = reason ? `?reason=${encodeURIComponent(reason)}` : ''
+      return api.del<AdminTeamMemberRemoveResponse>(
+        `/api/admin/teams/${teamId}/members/${memberId}${qs}`,
+      )
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ADMIN_TEAMS_KEY })
+      qc.invalidateQueries({ queryKey: ['leaderboard', 'teams'] })
+      qc.invalidateQueries({ queryKey: ['leaderboard', 'users'] })
+      qc.invalidateQueries({ queryKey: ['teams', 'all'] })
+      qc.invalidateQueries({ queryKey: ['team', 'me'] })
+      qc.invalidateQueries({ queryKey: ['admin', 'audit'] })
+    },
   })
 }

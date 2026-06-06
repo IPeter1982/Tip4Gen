@@ -54,6 +54,12 @@ public class Team
         UpdatedAt = DateTimeOffset.UtcNow;
     }
 
+    public void Unlock()
+    {
+        Status = TeamStatus.Forming;
+        UpdatedAt = DateTimeOffset.UtcNow;
+    }
+
     public void Disqualify()
     {
         Status = TeamStatus.Disqualified;

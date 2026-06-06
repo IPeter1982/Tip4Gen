@@ -60,6 +60,12 @@ export function AdminMatches() {
           Audit log
         </Link>
         <Link
+          to="/admin/teams"
+          className="border-2 border-border-strong bg-elevated px-3 py-1 text-xs font-mono uppercase tracking-[0.15em] hover:bg-sunken"
+        >
+          Csapatok
+        </Link>
+        <Link
           to="/admin/long-tips"
           className="border-2 border-border-strong bg-elevated px-3 py-1 text-xs font-mono uppercase tracking-[0.15em] hover:bg-sunken"
         >

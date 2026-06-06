@@ -28,6 +28,7 @@ export const NAV_ITEMS: NavItem[] = [
   { path: '/leaderboard', label: 'Ranglista', Icon: BarChart3, requiresAuth: true },
   { path: '/me', label: 'Profil', Icon: User, requiresAuth: true },
   { path: '/admin', label: 'Admin', Icon: ShieldCheck, requiresAuth: true },
+  { path: '/admin/teams', label: 'Csapatok', Icon: Users, requiresAuth: true },
   { path: '/admin/players', label: 'Játékosok', Icon: UserRound, requiresAuth: true },
 ]
 

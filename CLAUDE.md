@@ -18,7 +18,10 @@ backend/                    ASP.NET Core 9 solution (planned 10, on 9 for speed)
                             payloads from the SPA canvas-resize pipeline)
     Controllers/            HealthController, MeController (+ avatar PUT/DELETE),
                             AdminController, FixturesAdminController,
-                            ScoringAdminController, TeamsAdminController,
+                            ScoringAdminController,
+                            TeamsAdminController (POST /lock + GET / list-all +
+                              PUT /{id}/name + DELETE /{id} +
+                              DELETE /{id}/members/{memberId}),
                             NationalTeamsController, MatchesController
                               (+ /tips returns per-tip Score after deadline),
                             TipsController, LongTipsController,
@@ -51,8 +54,10 @@ backend/                    ASP.NET Core 9 solution (planned 10, on 9 for speed)
     Scoring/                MatchResult, ScoreCategory, ScoringResult,
                             StageMultipliers, MatchScorer (pure),
                             ScoredTip (dual-key: UserId or TeamMemberId)
-    Teams/                  Team, TeamMember (UserId nullable for AI slot),
-                            TeamInvite, TeamStatus + AiMode enums,
+    Teams/                  Team (+ Unlock() flips Locked → Forming for the admin
+                              remove-member auto-revert), TeamMember (UserId
+                              nullable for AI slot), TeamInvite,
+                            TeamStatus + AiMode enums,
                             TeamRulesValidator, TeamLockPolicy, TeamAggregator (pure)
     Leaderboard/            LeaderboardEntry, LeaderboardRanker (§9 tiebreakers,
                             shared placement), StreakCalculator (pure)
@@ -73,6 +78,9 @@ backend/                    ASP.NET Core 9 solution (planned 10, on 9 for speed)
     Scoring/                MatchScoringService (idempotent re-score, dual-key),
                             MatchFinalizedScoringHandler (event handler)
     Teams/                  TeamsService (CRUD + invites + join, tagged-union),
+                            TeamsAdminService (admin list/rename/delete +
+                              remove-member with auto-revert-to-Forming +
+                              last-human cascade-delete; audit per call),
                             TeamLockService (Forming → Locked/Disqualified pass),
                             TeamAggregationService (per-match sum-of-3 view)
     Leaderboard/            IndividualLeaderboardService (humans only)
@@ -135,7 +143,11 @@ web/                        Vite + React 19 + TS frontend
                             Leaderboard, UserTips (closed-match history for one player)
   src/pages/admin/          AdminMatches, AdminMatchEditor, AdminAudit,
                             AdminLongTips, AdminAiAvatar, AdminPlayers
-                              (one-button idempotent Wikipedia squads importer)
+                              (one-button idempotent Wikipedia squads importer),
+                            AdminTeams (list-all + rename modal + delete-team
+                              ConfirmDialog + per-member remove with contextual
+                              warning when the team would drop below 3 or lose
+                              its last human)
   src/auth/RequireAdmin     Gates admin routes; renders 403 panel for non-admins
   src/components/           Topbar, ConfirmDialog (modal w/ destructive variant),
                             Avatar (img-by-userId or letter-circle fallback;
@@ -303,6 +315,7 @@ Single admin (the project owner). Gated by Auth0 `sub` claim matching the `Auth0
 - "Max 1 AI per team" is a **partial unique index**: `UNIQUE(team_id) WHERE is_ai = TRUE`. The full table can have many AI rows; the partial index only sees the AI ones.
 - Mutability is **status-only**: `TeamRulesValidator.ValidateMutable(status)` returns Ok for `Forming`, rejects `Locked` / `Disqualified`. There is no tournament-start gate — under-sized teams stay Forming after the start so new members can still join (and `TeamsService.CreateAsync` allows new teams mid-tournament). A team auto-locks via `TeamLockJob` once `status==Forming && now>=tournamentStart && memberCount>=Team.MaxMembers` (`TeamLockPolicy.Decide`). `Disqualified` is no longer reached automatically — kept only as a manual/legacy state.
 - `TeamsService.LeaveAsync` cascades: when the last human leaves, the team and any AI member are removed too, so no orphan AI-only teams linger.
+- **Admin remove-member mirrors the leave cascade with an extra auto-revert.** `TeamsAdminService.RemoveMemberAsync` is the only path that can pull a member out of a `Locked` team (the user-facing `LeaveAsync` rejects via `ValidateMutable`). Logic in order: (1) if removing this row would leave **zero humans**, cascade-delete the team + any AI member just like `LeaveAsync`; (2) otherwise remove only that member; (3) if the team was `Locked` and the surviving member count is now `< Team.MaxMembers`, call `team.Unlock()` so it flips back to `Forming` and the existing direct-join path can refill it (the `TeamLockJob` re-locks once it's full). DB cascades take care of the rest: `team_members.team_id` / `team_invites.team_id` have `ON DELETE CASCADE`; `tips.team_member_id` / `scored_tips.team_member_id` cascade too, so the removed AI's tips disappear automatically. Human tips/scored_tips persist (FK is `user_id`), which is intentional — the user stays on the individual board with their historical points. **No re-scoring call needed**: `TeamLeaderboardService` recomputes on read, so the team's next page-load reflects the new roster (or returns 0 points while it's under-sized).
 - **Two parallel join paths.** `JoinByTokenAsync` (invite-token redemption, hits `team_invites`) and `JoinDirectlyAsync` (browse `/team/all` → `POST /api/teams/{id}/join`, no invite involved) both call into the same `TeamRulesValidator.ValidateMutable` + `ValidateAddMember` chain and produce the same `TeamLocked` / `TeamFull` / `AlreadyInTeam` reasons, so the SPA's `reasonMessage` (now in `web/src/lib/teamReasons.ts`) handles both flows with one map. `team_invites` is **only** touched by the invite-token path; the direct-join path is a plain `INSERT INTO team_members`. If you add a new join-style endpoint (e.g. magic-link, QR), funnel it through the same validator pair so the error contract stays single-source.
 
 ## Tips + ScoredTip schema gotchas (Phase 6)
@@ -317,7 +330,7 @@ Single admin (the project owner). Gated by Auth0 `sub` claim matching the `Auth0
 ## Admin schema + flow gotchas (Phase 8)
 
 - **Audit pattern**: `IAdminAuditWriter.RecordAsync` only stages the `AdminAudit` row on the DbContext — never calls SaveChanges. The admin service that called it owns the transaction. If you write a new admin endpoint and forget the audit call, `grep` is your only defence (no middleware will catch it).
-- **`before` / `after` JSON shape is per-action.** Don't dump full aggregates. `MatchSetResult` snapshots `{status, homeGoals, awayGoals}`; `MatchCancel` adds `scoredTipsCleared` / `jokersRefunded` to the after-shape; `MatchPostpone` snapshots `{kickoffUtc, status}`; `AiTipperManualRun` records `before={aiMembers, alreadyHadTip}` / `after={attempted, written, fallbacks}`; `LongTipOutcomesSet` snapshots `{winnerTeamId, topScorerPlayerId}` on both sides (FKs only — no denormalized names); `PlayersImported` writes a null `before` and `after={added, skipped, unmatchedTeams, totalAfter, parsedTotal}`. Match the relevant slice and nothing more.
+- **`before` / `after` JSON shape is per-action.** Don't dump full aggregates. `MatchSetResult` snapshots `{status, homeGoals, awayGoals}`; `MatchCancel` adds `scoredTipsCleared` / `jokersRefunded` to the after-shape; `MatchPostpone` snapshots `{kickoffUtc, status}`; `AiTipperManualRun` records `before={aiMembers, alreadyHadTip}` / `after={attempted, written, fallbacks}`; `LongTipOutcomesSet` snapshots `{winnerTeamId, topScorerPlayerId}` on both sides (FKs only — no denormalized names); `PlayersImported` writes a null `before` and `after={added, skipped, unmatchedTeams, totalAfter, parsedTotal}`; `TeamRenamed` is `{name}` on both sides; `TeamDeleted` snapshots `{name, status, memberCount, humanMembers, aiMembers}` and writes null `after`; `TeamMemberRemoved` records `before={memberId, displayName, isAi, teamName, teamStatus}` / `after={remainingMembers, statusAfter, teamCascadeDeleted}` — `statusAfter` is null when the whole team cascaded. Match the relevant slice and nothing more.
 - **`MatchStatus.Awarded` vs `Finished`**: distinct status for FIFA-decided outcomes per §11. `MatchScoringService` treats both as scorable so scoring is identical; the distinction is for UI badges + audit context. Use `Match.AwardResult(home, away)` (not `SetFinalScore`) when the source is admin-entered.
 - **Cancel mechanics**: `MatchAdminService.CancelAsync` does four things in one `SaveChanges` — `match.ClearScore() + UpdateStatus(Cancelled)`, `ExecuteDeleteAsync` on `scored_tips`, `ExecuteUpdateAsync` flipping `tips.joker = false`, then the audit row. The `ExecuteUpdate/Delete` calls bypass the change tracker but run inside the implicit ambient transaction — the audit row's `SaveChanges` commits the lot atomically.
 - **Joker refund** is implicit via `TipRulesValidator`: setting `joker = false` on a cancelled match's tips makes the user's `otherJokerCountForUser` query drop by one on next validation. Tip rows themselves stay as a historical record (§11 doesn't require deletion).
