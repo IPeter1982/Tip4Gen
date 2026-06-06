@@ -69,6 +69,14 @@ public abstract record JoinResult
     public sealed record Rejected(TeamValidationResult Validation) : JoinResult;
 }
 
+public abstract record JoinDirectResult
+{
+    public sealed record Success(TeamView Team) : JoinDirectResult;
+    public sealed record NotFound : JoinDirectResult;
+    public sealed record AlreadyInTeam : JoinDirectResult;
+    public sealed record Rejected(TeamValidationResult Validation) : JoinDirectResult;
+}
+
 public record PatchTeamCommand(Guid TeamId, string? Name, AiMode? AiMode, bool ClearAiMode);
 public record AddAiMemberCommand(Guid TeamId, string DisplayName, AiMode Mode);
 
@@ -76,11 +84,13 @@ public interface ITeamsService
 {
     Task<TeamCreateResult> CreateAsync(Guid creatorUserId, string name, CancellationToken ct);
     Task<TeamView?> GetMyTeamAsync(Guid userId, CancellationToken ct);
+    Task<IReadOnlyList<TeamView>> ListAllAsync(CancellationToken ct);
     Task<TeamPatchResult> PatchAsync(Guid actingUserId, PatchTeamCommand cmd, CancellationToken ct);
     Task<TeamLeaveResult> LeaveAsync(Guid actingUserId, Guid teamId, CancellationToken ct);
     Task<AddAiMemberResult> AddAiMemberAsync(Guid actingUserId, AddAiMemberCommand cmd, CancellationToken ct);
     Task<CreateInviteResult> CreateInviteAsync(Guid actingUserId, Guid teamId, CancellationToken ct);
     Task<JoinResult> JoinByTokenAsync(Guid actingUserId, string token, CancellationToken ct);
+    Task<JoinDirectResult> JoinDirectlyAsync(Guid actingUserId, Guid teamId, CancellationToken ct);
     Task<TeamPatchResult> SetAvatarAsync(Guid actingUserId, Guid teamId, byte[] bytes, string contentType, CancellationToken ct);
     Task<TeamPatchResult> ClearAvatarAsync(Guid actingUserId, Guid teamId, CancellationToken ct);
     Task<TeamAvatarBytes?> GetAvatarBytesAsync(Guid teamId, CancellationToken ct);
@@ -117,6 +127,49 @@ public class TeamsService(AppDbContext db, ILogger<TeamsService> logger) : ITeam
             .FirstOrDefaultAsync(m => m.UserId == userId, ct);
         if (membership is null) return null;
         return await ProjectAsync(membership.TeamId, ct);
+    }
+
+    public async Task<IReadOnlyList<TeamView>> ListAllAsync(CancellationToken ct)
+    {
+        var teams = await db.Teams.AsNoTracking()
+            .OrderBy(t => t.Status)
+            .ThenBy(t => t.Name)
+            .Select(t => new { t.Id, t.Name, t.Status, t.AiMode, t.CreatedAt, t.AvatarVersion })
+            .ToListAsync(ct);
+        if (teams.Count == 0) return Array.Empty<TeamView>();
+
+        var teamIds = teams.Select(t => t.Id).ToList();
+        var rows = await (
+            from m in db.TeamMembers.AsNoTracking().Where(m => teamIds.Contains(m.TeamId))
+            from u in db.Users.AsNoTracking().Where(u => u.Id == m.UserId).DefaultIfEmpty()
+            orderby m.JoinedAt
+            select new
+            {
+                m,
+                UserName = u != null ? u.DisplayName : null,
+                UserAvatarVersion = u != null ? u.AvatarVersion : null,
+            }).ToListAsync(ct);
+
+        var membersByTeam = rows
+            .GroupBy(r => r.m.TeamId)
+            .ToDictionary(g => g.Key, g => g.Select(r => new TeamMemberView(
+                Id: r.m.Id,
+                UserId: r.m.UserId,
+                DisplayName: r.m.IsAi ? r.m.AiDisplayName! : (r.UserName ?? "?"),
+                AvatarVersion: r.m.IsAi ? null : r.UserAvatarVersion,
+                IsAi: r.m.IsAi,
+                JoinedAt: r.m.JoinedAt)).ToList());
+
+        return teams.Select(t => new TeamView(
+            t.Id,
+            t.Name,
+            t.Status,
+            t.AiMode,
+            t.CreatedAt,
+            t.AvatarVersion,
+            membersByTeam.TryGetValue(t.Id, out var members)
+                ? members
+                : (IReadOnlyList<TeamMemberView>)Array.Empty<TeamMemberView>())).ToList();
     }
 
     public async Task<TeamPatchResult> PatchAsync(Guid actingUserId, PatchTeamCommand cmd, CancellationToken ct)
@@ -257,6 +310,33 @@ public class TeamsService(AppDbContext db, ILogger<TeamsService> logger) : ITeam
 
         logger.LogInformation("User {UserId} joined team {TeamId} via invite {Token}", actingUserId, team.Id, token);
         return new JoinResult.Success(await ProjectAsync(team.Id, ct));
+    }
+
+    public async Task<JoinDirectResult> JoinDirectlyAsync(Guid actingUserId, Guid teamId, CancellationToken ct)
+    {
+        var team = await db.Teams.FirstOrDefaultAsync(t => t.Id == teamId, ct);
+        if (team is null) return new JoinDirectResult.NotFound();
+
+        var mutability = CheckMutability(team);
+        if (!mutability.IsValid) return new JoinDirectResult.Rejected(mutability);
+
+        var alreadyMember = await db.TeamMembers.AnyAsync(m => m.UserId == actingUserId, ct);
+        if (alreadyMember) return new JoinDirectResult.AlreadyInTeam();
+
+        var memberCounts = await db.TeamMembers
+            .Where(m => m.TeamId == team.Id)
+            .GroupBy(_ => 1)
+            .Select(g => new { Total = g.Count(), Ai = g.Count(m => m.IsAi) })
+            .FirstOrDefaultAsync(ct) ?? new { Total = 0, Ai = 0 };
+
+        var capacity = TeamRulesValidator.ValidateAddMember(memberCounts.Total, memberCounts.Ai, isAi: false);
+        if (!capacity.IsValid) return new JoinDirectResult.Rejected(capacity);
+
+        db.TeamMembers.Add(TeamMember.ForHuman(team.Id, actingUserId));
+        await db.SaveChangesAsync(ct);
+
+        logger.LogInformation("User {UserId} joined team {TeamId} directly (no invite)", actingUserId, team.Id);
+        return new JoinDirectResult.Success(await ProjectAsync(team.Id, ct));
     }
 
     private static TeamValidationResult CheckMutability(Team team) =>

@@ -1,9 +1,9 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
-import { Users } from 'lucide-react'
+import { List, Users } from 'lucide-react'
+import { Link } from 'react-router'
 import { z } from 'zod'
-import { ApiError } from '../api/errors'
 import {
   useAddAiMember,
   useCreateInvite,
@@ -20,6 +20,7 @@ import { Avatar } from '../components/Avatar'
 import { TeamAvatar } from '../components/TeamAvatar'
 import { formatBudapest, formatCountdown } from '../lib/format'
 import { resizeToDataUrl } from '../lib/imageResize'
+import { errorMessage, STATUS_LABEL } from '../lib/teamReasons'
 
 const AI_MODE_LABEL: Record<AiMode, string> = {
   Conservative: 'Óvatos',
@@ -27,62 +28,28 @@ const AI_MODE_LABEL: Record<AiMode, string> = {
   Bold: 'Merész',
 }
 
-const STATUS_LABEL: Record<TeamView['status'], string> = {
-  Forming: 'Alakuló',
-  Locked: 'Lezárva',
-  Disqualified: 'Kizárva',
-}
-
-function reasonMessage(reason: string): string {
-  switch (reason) {
-    case 'NameBlank':
-      return 'A csapatnévnek nem szabad üresnek lennie.'
-    case 'NameTooLong':
-      return 'A csapatnév maximum 80 karakter lehet.'
-    case 'TournamentStarted':
-      return 'A torna már elkezdődött; a csapat-beállítások véglegesek.'
-    case 'TeamLocked':
-      return 'A csapat lezárult; ekkor már nem módosítható.'
-    case 'TeamFull':
-      return 'A csapat már elérte a 3 fős maximumot.'
-    case 'AiSlotTaken':
-      return 'A csapatban már van AI tag.'
-    case 'UserAlreadyInTeam':
-    case 'AlreadyInTeam':
-      return 'Már tagja vagy egy másik csapatnak.'
-    case 'AvatarMissing':
-      return 'Nincs kép kiválasztva.'
-    case 'AvatarUnsupportedFormat':
-      return 'Csak JPEG, PNG vagy WebP képek tölthetők fel.'
-    case 'AvatarTooLarge':
-      return 'A kép maximum 50 KB lehet.'
-    case 'AvatarInvalidDataUrl':
-      return 'Érvénytelen kép-adat.'
-    default:
-      return 'A művelet nem hajtható végre.'
-  }
-}
-
-function errorMessage(e: unknown): string {
-  if (e instanceof ApiError && e.reason) return reasonMessage(e.reason)
-  if (e instanceof ApiError) return e.message
-  if (e instanceof Error) return e.message
-  return String(e)
-}
-
 export function Team() {
   const myTeam = useMyTeam()
 
   return (
     <div className="max-w-2xl mx-auto px-6 py-10 space-y-6">
-      <header>
-        <p className="inline-flex items-center gap-1.5 text-xs font-mono uppercase tracking-[0.2em] text-accent">
-          <Users size={14} />
-          Csapat
-        </p>
-        <h1 className="text-4xl font-black uppercase tracking-tight mt-2">
-          Csapat-beállítások
-        </h1>
+      <header className="flex items-start justify-between gap-4">
+        <div>
+          <p className="inline-flex items-center gap-1.5 text-xs font-mono uppercase tracking-[0.2em] text-accent">
+            <Users size={14} />
+            Csapat
+          </p>
+          <h1 className="text-4xl font-black uppercase tracking-tight mt-2">
+            Csapat-beállítások
+          </h1>
+        </div>
+        <Link
+          to="/team/all"
+          className="shrink-0 inline-flex items-center gap-2 border border-border-strong bg-elevated px-4 py-2 text-xs font-mono uppercase tracking-[0.15em] text-fg-default hover:border-accent hover:text-accent"
+        >
+          <List size={16} />
+          Összes csapat
+        </Link>
       </header>
 
       {myTeam.isLoading && <p className="font-mono text-fg-subtle">betöltés…</p>}

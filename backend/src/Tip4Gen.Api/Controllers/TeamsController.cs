@@ -44,6 +44,13 @@ public class TeamsController(
         return team is null ? NoContent() : Ok(team);
     }
 
+    [HttpGet]
+    public async Task<IActionResult> ListAll(CancellationToken ct)
+    {
+        var list = await teams.ListAllAsync(ct);
+        return Ok(list);
+    }
+
     [HttpPatch("{teamId:guid}")]
     public async Task<IActionResult> Patch(Guid teamId, [FromBody] PatchTeamRequest request, CancellationToken ct)
     {
@@ -202,6 +209,25 @@ public class TeamsController(
         };
     }
 
+    [HttpPost("{teamId:guid}/join")]
+    public async Task<IActionResult> JoinDirect(Guid teamId, CancellationToken ct)
+    {
+        var user = await currentUser.GetOrCreateAsync(ct);
+        var result = await teams.JoinDirectlyAsync(user.Id, teamId, ct);
+        return result switch
+        {
+            JoinDirectResult.Success s => Ok(s.Team),
+            JoinDirectResult.NotFound => NotFoundProblem(
+                "A csapat nem található.",
+                reason: "TeamNotFound"),
+            JoinDirectResult.AlreadyInTeam => Conflict(
+                "Már tagja vagy egy másik csapatnak.",
+                reason: "AlreadyInTeam"),
+            JoinDirectResult.Rejected r => Rejected(r.Validation),
+            _ => throw new InvalidOperationException($"Unhandled JoinDirectResult: {result.GetType().Name}"),
+        };
+    }
+
     private IActionResult Rejected(TeamValidationResult validation) =>
         Problem(
             statusCode: StatusCodes.Status422UnprocessableEntity,
@@ -215,6 +241,16 @@ public class TeamsController(
     private ObjectResult Conflict(string detail, string reason) =>
         (ObjectResult)Problem(
             statusCode: StatusCodes.Status409Conflict,
+            title: reason,
+            detail: detail,
+            extensions: new Dictionary<string, object?>
+            {
+                ["reason"] = reason,
+            });
+
+    private ObjectResult NotFoundProblem(string detail, string reason) =>
+        (ObjectResult)Problem(
+            statusCode: StatusCodes.Status404NotFound,
             title: reason,
             detail: detail,
             extensions: new Dictionary<string, object?>

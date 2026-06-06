@@ -21,7 +21,9 @@ backend/                    ASP.NET Core 9 solution (planned 10, on 9 for speed)
                             ScoringAdminController, TeamsAdminController,
                             NationalTeamsController, MatchesController
                               (+ /tips returns per-tip Score after deadline),
-                            TipsController, LongTipsController, TeamsController,
+                            TipsController, LongTipsController,
+                            TeamsController (+ GET / browse all teams +
+                              POST /{id}/join invite-less direct join),
                             LeaderboardController,
                             UsersController (avatar GET + closed-match tip history),
                             AiTipperAdminController (preview + manual
@@ -122,8 +124,12 @@ web/                        Vite + React 19 + TS frontend
   src/lib/navIcons.tsx      NAV_ITEMS (single source of truth for Topbar
                             links + per-route icons); `requiresAuth` flag
                             hides links from logged-out users
+  src/lib/teamReasons.ts    STATUS_LABEL + reasonMessage (ApiError.reason
+                            → Hungarian) + errorMessage helpers, shared
+                            by Team.tsx and TeamAll.tsx
   src/components/Topbar.tsx Filters NAV_ITEMS by `requiresAuth` + isAdmin
-  src/pages/                Home, Me, Matches, TipSubmit, LongTips, Team, TeamJoin,
+  src/pages/                Home, Me, Matches, TipSubmit, LongTips,
+                            Team, TeamAll (browse + direct-join), TeamJoin,
                             Leaderboard, UserTips (closed-match history for one player)
   src/pages/admin/          AdminMatches, AdminMatchEditor, AdminAudit,
                             AdminLongTips, AdminAiAvatar, AdminPlayers
@@ -295,6 +301,7 @@ Single admin (the project owner). Gated by Auth0 `sub` claim matching the `Auth0
 - "Max 1 AI per team" is a **partial unique index**: `UNIQUE(team_id) WHERE is_ai = TRUE`. The full table can have many AI rows; the partial index only sees the AI ones.
 - Mutability is **status-only**: `TeamRulesValidator.ValidateMutable(status)` returns Ok for `Forming`, rejects `Locked` / `Disqualified`. There is no tournament-start gate — under-sized teams stay Forming after the start so new members can still join (and `TeamsService.CreateAsync` allows new teams mid-tournament). A team auto-locks via `TeamLockJob` once `status==Forming && now>=tournamentStart && memberCount>=Team.MaxMembers` (`TeamLockPolicy.Decide`). `Disqualified` is no longer reached automatically — kept only as a manual/legacy state.
 - `TeamsService.LeaveAsync` cascades: when the last human leaves, the team and any AI member are removed too, so no orphan AI-only teams linger.
+- **Two parallel join paths.** `JoinByTokenAsync` (invite-token redemption, hits `team_invites`) and `JoinDirectlyAsync` (browse `/team/all` → `POST /api/teams/{id}/join`, no invite involved) both call into the same `TeamRulesValidator.ValidateMutable` + `ValidateAddMember` chain and produce the same `TeamLocked` / `TeamFull` / `AlreadyInTeam` reasons, so the SPA's `reasonMessage` (now in `web/src/lib/teamReasons.ts`) handles both flows with one map. `team_invites` is **only** touched by the invite-token path; the direct-join path is a plain `INSERT INTO team_members`. If you add a new join-style endpoint (e.g. magic-link, QR), funnel it through the same validator pair so the error contract stays single-source.
 
 ## Tips + ScoredTip schema gotchas (Phase 6)
 

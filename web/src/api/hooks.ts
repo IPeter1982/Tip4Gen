@@ -217,6 +217,7 @@ export function useSubmitLongTips() {
 // ----- Teams -----
 
 export const TEAM_ME_KEY = ['team', 'me'] as const
+export const TEAMS_ALL_KEY = ['teams', 'all'] as const
 
 export function useMyTeam() {
   const api = useApi()
@@ -228,6 +229,26 @@ export function useMyTeam() {
     queryFn: async () => {
       const team = await api.get<TeamView | undefined>('/api/teams/me')
       return team ?? null
+    },
+  })
+}
+
+export function useAllTeams() {
+  const api = useApi()
+  return useQuery({
+    queryKey: TEAMS_ALL_KEY,
+    queryFn: () => api.get<TeamView[]>('/api/teams'),
+  })
+}
+
+export function useJoinTeamDirect() {
+  const api = useApi()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (teamId: string) => api.post<TeamView>(`/api/teams/${teamId}/join`),
+    onSuccess: (team) => {
+      qc.setQueryData(TEAM_ME_KEY, team)
+      qc.invalidateQueries({ queryKey: TEAMS_ALL_KEY })
     },
   })
 }

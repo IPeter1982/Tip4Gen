@@ -11,6 +11,7 @@ import { Me } from './pages/Me'
 import { NotFound } from './pages/NotFound'
 import { Szabalyzat } from './pages/Szabalyzat'
 import { Team } from './pages/Team'
+import { TeamAll } from './pages/TeamAll'
 import { TeamJoin } from './pages/TeamJoin'
 import { TipSubmit } from './pages/TipSubmit'
 import { UserTips } from './pages/UserTips'
@@ -58,6 +59,14 @@ export default function App() {
           element={
             <RequireAuth>
               <Team />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/team/all"
+          element={
+            <RequireAuth>
+              <TeamAll />
             </RequireAuth>
           }
         />
