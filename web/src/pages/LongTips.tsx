@@ -3,10 +3,19 @@ import { useEffect } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { Trophy } from 'lucide-react'
 import { z } from 'zod'
-import { useLongTips, useNationalTeams, usePlayers, useSubmitLongTips } from '../api/hooks'
+import {
+  useAllLongTips,
+  useLongTips,
+  useNationalTeams,
+  usePlayers,
+  useSubmitLongTips,
+} from '../api/hooks'
 import { ApiError } from '../api/errors'
+import type { LongTipPublicEntry } from '../api/types'
+import { Avatar } from '../components/Avatar'
 import { PlayerSelect } from '../components/PlayerSelect'
 import { TeamFlag } from '../components/TeamFlag'
+import { TeamLabel } from '../components/TeamLabel'
 import { TeamSelect } from '../components/TeamSelect'
 import { formatBudapest } from '../lib/format'
 
@@ -196,8 +205,80 @@ export function LongTips() {
               {submit.isPending || isSubmitting ? 'küldés…' : 'Mentés'}
             </button>
           </form>
+
+          {locked && <PublicLongTipsSection />}
         </>
       )}
     </div>
+  )
+}
+
+function PublicLongTipsSection() {
+  const all = useAllLongTips(true)
+
+  return (
+    <section className="space-y-3">
+      <h2 className="text-xs font-mono uppercase tracking-[0.2em] text-fg-subtle">
+        Mindenki tippje
+      </h2>
+
+      {all.isLoading && <p className="font-mono text-fg-subtle">betöltés…</p>}
+      {all.error && (
+        <p className="border border-danger bg-danger/10 p-4 font-mono text-sm text-danger">
+          ⚠ {all.error instanceof Error ? all.error.message : String(all.error)}
+        </p>
+      )}
+
+      {all.data && all.data.items.length === 0 && (
+        <p className="border border-border-subtle bg-elevated p-6 text-center font-mono text-fg-subtle">
+          Még senki nem tippelt.
+        </p>
+      )}
+
+      {all.data && all.data.items.length > 0 && (
+        <ul className="divide-y divide-border-subtle border border-border-subtle bg-elevated">
+          {all.data.items.map((entry) => (
+            <PublicLongTipRow key={entry.userId} entry={entry} />
+          ))}
+        </ul>
+      )}
+    </section>
+  )
+}
+
+function PublicLongTipRow({ entry }: { entry: LongTipPublicEntry }) {
+  return (
+    <li className="flex items-center gap-3 flex-wrap p-3">
+      <div className="flex items-center gap-2 min-w-0 flex-1">
+        <Avatar
+          userId={entry.userId}
+          displayName={entry.displayName}
+          version={entry.avatarVersion}
+          size={28}
+        />
+        <span className="truncate text-sm text-fg-default">{entry.displayName}</span>
+      </div>
+      <div className="flex items-center gap-3 flex-wrap text-xs font-mono">
+        <span className="inline-flex items-center gap-1.5">
+          <span className="text-fg-subtle uppercase tracking-[0.15em]">győztes:</span>
+          {entry.winnerTeamId && entry.winnerTeamName ? (
+            <TeamLabel team={{ name: entry.winnerTeamName, code: entry.winnerTeamCode }} />
+          ) : (
+            <span className="text-fg-subtle italic">nincs tipp</span>
+          )}
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="text-fg-subtle uppercase tracking-[0.15em]">gólkirály:</span>
+          {entry.topScorerPlayerId && entry.topScorerPlayerName ? (
+            <>
+              <TeamFlag code={entry.topScorerTeamCode} size="sm" />
+              <span className="text-fg-default">{entry.topScorerPlayerName}</span>
+            </>
+          ) : (
+            <span className="text-fg-subtle italic">nincs tipp</span>
+          )}
+        </span>
+      </div>
+    </li>
   )
 }

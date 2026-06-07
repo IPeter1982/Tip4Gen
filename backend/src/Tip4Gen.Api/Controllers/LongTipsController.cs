@@ -19,6 +19,19 @@ public record LongTipsResponse(
     DateTimeOffset LockUtc,
     bool Locked);
 
+public record LongTipPublicEntry(
+    Guid UserId,
+    string DisplayName,
+    string? AvatarVersion,
+    Guid? WinnerTeamId,
+    string? WinnerTeamName,
+    string? WinnerTeamCode,
+    Guid? TopScorerPlayerId,
+    string? TopScorerPlayerName,
+    string? TopScorerTeamCode);
+
+public record LongTipPublicListResponse(IReadOnlyList<LongTipPublicEntry> Items);
+
 [ApiController]
 [Route("api/long-tips")]
 [Authorize]
@@ -37,6 +50,39 @@ public class LongTipsController(CurrentUserService currentUser, ILongTermTipsSer
                 detail: "Tournament must be seeded before long-term tips can be read.");
         }
         return Ok(ToResponse(snapshot));
+    }
+
+    [HttpGet("all")]
+    public async Task<IActionResult> GetAll(CancellationToken ct)
+    {
+        var user = await currentUser.GetOrCreateAsync(ct);
+        var result = await longTips.GetAllPublicAsync(user.Id, ct);
+
+        return result switch
+        {
+            LongTermTipPublicListResult.Success s => Ok(new LongTipPublicListResponse(
+                s.Rows.Select(r => new LongTipPublicEntry(
+                    r.UserId, r.DisplayName, r.AvatarVersion,
+                    r.WinnerTeamId, r.WinnerTeamName, r.WinnerTeamCode,
+                    r.TopScorerPlayerId, r.TopScorerPlayerName, r.TopScorerTeamCode)).ToList())),
+
+            LongTermTipPublicListResult.NotYetUnlocked n => Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "Long-term tips not yet revealed",
+                detail: "Mindenki tippje a torna kezdetekor lesz látható.",
+                extensions: new Dictionary<string, object?>
+                {
+                    ["reason"] = "NotYetUnlocked",
+                    ["lockUtc"] = n.LockUtc,
+                }),
+
+            LongTermTipPublicListResult.TournamentNotConfigured => Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "No tournament configured",
+                detail: "Tournament must be seeded before long-term tips can be read."),
+
+            _ => throw new InvalidOperationException($"Unhandled result: {result.GetType().Name}"),
+        };
     }
 
     [HttpPut]

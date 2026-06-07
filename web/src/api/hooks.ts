@@ -10,6 +10,7 @@ import type {
   InviteView,
   LastImportInfo,
   LongTipOutcomes,
+  LongTipPublicListResponse,
   LongTipsResponse,
   MatchCancelResponse,
   MatchListItem,
@@ -178,6 +179,19 @@ export function useLongTips() {
   return useQuery({
     queryKey: ['long-tips'],
     queryFn: () => api.get<LongTipsResponse>('/api/long-tips'),
+  })
+}
+
+// Backend gates this on lock (returns 409 NotYetUnlocked otherwise), so the
+// `enabled` flag keeps the SPA from probing before the parent knows we're past
+// lock — avoids a noisy 409 in the network tab on every /long-tips visit.
+export function useAllLongTips(enabled: boolean) {
+  const api = useApi()
+  return useQuery({
+    queryKey: ['long-tips', 'all'],
+    queryFn: () => api.get<LongTipPublicListResponse>('/api/long-tips/all'),
+    enabled,
+    staleTime: 60_000,
   })
 }
 

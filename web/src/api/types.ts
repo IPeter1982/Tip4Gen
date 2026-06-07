@@ -77,6 +77,22 @@ export type LongTipsResponse = {
   locked: boolean
 }
 
+export type LongTipPublicEntry = {
+  userId: string
+  displayName: string
+  avatarVersion: string | null
+  winnerTeamId: string | null
+  winnerTeamName: string | null
+  winnerTeamCode: string | null
+  topScorerPlayerId: string | null
+  topScorerPlayerName: string | null
+  topScorerTeamCode: string | null
+}
+
+export type LongTipPublicListResponse = {
+  items: LongTipPublicEntry[]
+}
+
 export type MatchTip = {
   userId: string | null
   teamMemberId: string | null

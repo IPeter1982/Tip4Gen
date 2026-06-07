@@ -24,7 +24,9 @@ backend/                    ASP.NET Core 9 solution (planned 10, on 9 for speed)
                               DELETE /{id}/members/{memberId}),
                             NationalTeamsController, MatchesController
                               (+ /tips returns per-tip Score after deadline),
-                            TipsController, LongTipsController,
+                            TipsController, LongTipsController (+ GET /all
+                              lists every other user's winner + top scorer
+                              after tournament lock; 409 NotYetUnlocked before),
                             TeamsController (+ GET / browse all teams +
                               POST /{id}/join invite-less direct join),
                             LeaderboardController,
@@ -72,7 +74,9 @@ backend/                    ASP.NET Core 9 solution (planned 10, on 9 for speed)
                             (anonymous-first; lazy /auth/register+authenticate
                             on 401, token cached in memory)
     Tournaments/            FixtureSyncService (idempotent upsert + event dispatch)
-    Tipping/                TipsService, LongTermTipsService (tagged-union results),
+    Tipping/                TipsService, LongTermTipsService (tagged-union results;
+                              + GetAllPublicAsync for the post-lock reveal,
+                              server-gated on tournament.StartsAtUtc),
                             UserTipHistoryService (closed-match drilldown from
                             individual leaderboard — LEFT JOIN scored_tips)
     Scoring/                MatchScoringService (idempotent re-score, dual-key),
@@ -138,7 +142,8 @@ web/                        Vite + React 19 + TS frontend
   src/components/Topbar.tsx Filters NAV_ITEMS by `requiresAuth` + isAdmin;
                             inline nav on `md+`, Headless UI Popover-driven
                             hamburger menu under `md` (same `visibleItems` list)
-  src/pages/                Home, Me, Matches, TipSubmit, LongTips,
+  src/pages/                Home, Me, Matches, TipSubmit, LongTips (form
+                              + post-lock `Mindenki tippje` reveal section),
                             Team, TeamAll (browse + direct-join), TeamJoin,
                             Leaderboard, UserTips (closed-match history for one player)
   src/pages/admin/          AdminMatches, AdminMatchEditor, AdminAudit,
@@ -339,6 +344,8 @@ Single admin (the project owner). Gated by Auth0 `sub` claim matching the `Auth0
 - **Tournament outcomes are editable**, not locked. Re-calling `PUT /api/admin/long-tips/outcomes` overwrites and writes a new audit row. The individual leaderboard recomputes on every fetch (no cache) so corrections take effect immediately.
 - **Top-scorer match is now strict FK equality** (`tip.TargetPlayerId == tournament.TopScorerPlayerId`) — both sides come from the curated `players` table, so typo tolerance moved to the SPA dropdown (PlayerSelect's text search). The earlier case-insensitive trimmed-string comparison is gone. If you re-introduce free text, also re-introduce the trim/lowercase compare in `IndividualLeaderboardService.ComputeLongTipCorrectness`.
 - **`Tournament.WinnerTeamId` and `Tournament.TopScorerPlayerId`** both have `OnDelete(Restrict)` (to `teams_national` and `players` respectively). Deleting a national team or player that's recorded as a tournament outcome is blocked — safer than nulling the field silently. If a re-seed is needed mid-tournament, clear outcomes via the admin endpoint first.
+- **Long-term tip reveal is server-gated, not just SPA-gated.** `GET /api/long-tips/all` (rendered as the *Mindenki tippje* section on `/long-tips`) returns `409 NotYetUnlocked` + `lockUtc` extension until `DateTimeOffset.UtcNow >= tournament.StartsAtUtc` — same gate as `LongTermTipRulesValidator`. Don't move the visibility check to the SPA alone: a hostile client would otherwise scrape everyone's picks pre-lock and skew the tournament. The SPA's `useAllLongTips(enabled)` hook also `enabled`-gates on `longTips.data?.locked` so the network tab stays clean of expected 409s. If you ever add a second post-lock reveal endpoint (e.g. team-aggregated long tips), reuse the same `LongTermTipPublicListResult.NotYetUnlocked` shape so the SPA's reason-mapping stays single-source.
+- **Public reveal filters the caller out** (`UserId != currentUserId` in `LongTermTipsService.GetAllPublicAsync`) and drops users who tipped neither (winner *and* top scorer both null). Sort is `OrderBy(DisplayName, StringComparer.OrdinalIgnoreCase)` — change deliberately, the list is rendered as-is. The caller's own pick is already shown by the form above the list, so re-including them would just be visual duplication. If you ever need the full roster (admin tooling, exports), add a separate endpoint rather than relaxing the self-filter on this one.
 
 ## AI tipper gotchas (Phase 6)
 
