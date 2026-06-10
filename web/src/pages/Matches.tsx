@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ComponentType } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router'
+import { Switch } from '@headlessui/react'
 import {
   AlertTriangle,
   CheckCircle2,
@@ -25,6 +26,8 @@ import {
 } from '../lib/format'
 
 type Phase = 'upcoming' | 'past' | 'all'
+
+const HIDE_TIPPED_STORAGE_KEY = 'tip4gen.matches.hideTipped'
 
 const PHASES: { value: Phase; label: string }[] = [
   { value: 'upcoming', label: 'Soron következő' },
@@ -78,16 +81,30 @@ export function Matches() {
     return () => clearInterval(id)
   }, [])
 
+  const [hideTipped, setHideTipped] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false
+    return localStorage.getItem(HIDE_TIPPED_STORAGE_KEY) === '1'
+  })
+  useEffect(() => {
+    localStorage.setItem(HIDE_TIPPED_STORAGE_KEY, hideTipped ? '1' : '0')
+  }, [hideTipped])
+
+  const visible = useMemo(() => {
+    if (!data) return []
+    if (phase !== 'upcoming' || !hideTipped) return data
+    return data.filter((m) => m.myTip === null)
+  }, [data, phase, hideTipped])
+
   const grouped = useMemo(() => {
     const out = new Map<string, MatchListItem[]>()
-    for (const m of data ?? []) {
+    for (const m of visible) {
       const key = formatBudapestDate(m.kickoffUtc)
       const list = out.get(key) ?? []
       list.push(m)
       out.set(key, list)
     }
     return [...out.entries()]
-  }, [data])
+  }, [visible])
 
   const [flashId, setFlashId] = useState<string | null>(null)
   useEffect(() => {
@@ -145,6 +162,27 @@ export function Matches() {
         ))}
       </div>
 
+      {phase === 'upcoming' && (
+        <div className="flex items-center gap-2.5">
+          <Switch
+            checked={hideTipped}
+            onChange={setHideTipped}
+            className={`relative inline-flex h-5 w-9 items-center rounded-full transition ${
+              hideTipped ? 'bg-accent' : 'bg-sunken'
+            }`}
+          >
+            <span
+              className={`inline-block h-3.5 w-3.5 transform rounded-full bg-elevated transition ${
+                hideTipped ? 'translate-x-[18px]' : 'translate-x-[2px]'
+              }`}
+            />
+          </Switch>
+          <span className="text-xs font-mono uppercase tracking-[0.15em] text-fg-muted">
+            Tippelt mérkőzések elrejtése
+          </span>
+        </div>
+      )}
+
       {error && (
         <p className="rounded-xl border border-danger/40 bg-danger/10 p-4 font-mono text-sm text-danger flex items-center gap-2">
           <AlertTriangle size={16} />
@@ -156,7 +194,9 @@ export function Matches() {
 
       {!isLoading && grouped.length === 0 && (
         <p className="rounded-2xl border border-border-subtle bg-elevated p-8 text-center font-mono text-fg-subtle">
-          Nincs megjeleníthető mérkőzés ebben a nézetben.
+          {phase === 'upcoming' && hideTipped
+            ? 'Minden közelgő mérkőzésre tippeltél már.'
+            : 'Nincs megjeleníthető mérkőzés ebben a nézetben.'}
         </p>
       )}
 
