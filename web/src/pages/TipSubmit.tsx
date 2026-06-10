@@ -96,7 +96,7 @@ export function TipSubmit() {
             submitting={submit.isPending}
             onSubmit={async (values) => {
               await submit.mutateAsync({ matchId: match.id, ...values })
-              navigate('/matches')
+              navigate('/matches', { state: { focusMatchId: match.id } })
             }}
           />
           <AllTipsPanel matchId={match.id} />

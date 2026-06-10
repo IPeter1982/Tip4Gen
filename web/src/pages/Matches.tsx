@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ComponentType } from 'react'
-import { Link, useSearchParams } from 'react-router'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router'
 import {
   AlertTriangle,
   CheckCircle2,
@@ -69,6 +69,8 @@ export function Matches() {
   const [params, setParams] = useSearchParams()
   const phase = (params.get('phase') as Phase) || 'upcoming'
   const { data, isLoading, error, refetch, isFetching } = useMatches(phase)
+  const location = useLocation()
+  const navigate = useNavigate()
 
   const [now, setNow] = useState(() => new Date())
   useEffect(() => {
@@ -86,6 +88,25 @@ export function Matches() {
     }
     return [...out.entries()]
   }, [data])
+
+  const [flashId, setFlashId] = useState<string | null>(null)
+  useEffect(() => {
+    const focusId = (location.state as { focusMatchId?: string } | null)?.focusMatchId
+    if (!focusId || !data) return
+    if (!data.some((m) => m.id === focusId)) return
+
+    const raf = requestAnimationFrame(() => {
+      document.getElementById(`match-${focusId}`)?.scrollIntoView({ block: 'center', behavior: 'auto' })
+    })
+    setFlashId(focusId)
+    const timeout = window.setTimeout(() => setFlashId(null), 1500)
+    navigate(location.pathname + location.search, { replace: true, state: null })
+
+    return () => {
+      cancelAnimationFrame(raf)
+      window.clearTimeout(timeout)
+    }
+  }, [data, location.state, location.pathname, location.search, navigate])
 
   return (
     <div className="max-w-3xl mx-auto px-6 py-10 space-y-8">
@@ -145,7 +166,7 @@ export function Matches() {
             <h2 className="text-xs font-mono uppercase tracking-[0.2em] text-fg-subtle pl-1">{date}</h2>
             <ul className="space-y-3">
               {matches.map((m) => (
-                <MatchRow key={m.id} match={m} now={now} />
+                <MatchRow key={m.id} match={m} now={now} flashFocus={flashId === m.id} />
               ))}
             </ul>
           </section>
@@ -155,18 +176,28 @@ export function Matches() {
   )
 }
 
-function MatchRow({ match, now }: { match: MatchListItem; now: Date }) {
+function MatchRow({
+  match,
+  now,
+  flashFocus,
+}: {
+  match: MatchListItem
+  now: Date
+  flashFocus: boolean
+}) {
   const chip = tipStateChip(match, now)
   const deadlinePassed = new Date(match.deadlineUtc).getTime() <= now.getTime()
   const kickoff = formatBudapestTime(match.kickoffUtc)
   const finished = match.status === 'Finished' || match.status === 'Awarded'
   const canTip = !deadlinePassed && match.status === 'Scheduled'
   const isLive = match.status === 'Live'
+  const highlight = isLive || flashFocus
 
   return (
     <li
+      id={`match-${match.id}`}
       className={`rounded-2xl border bg-elevated transition hover:-translate-y-0.5 hover:border-accent/60 ${
-        isLive ? 'border-accent glow-accent' : 'border-border-subtle'
+        highlight ? 'border-accent glow-accent' : 'border-border-subtle'
       }`}
     >
       <Link to={`/matches/${match.id}/tip`} className="block p-4 sm:p-5">
