@@ -147,7 +147,7 @@ function TeamsBoard() {
   if (isLoading) return <p className="font-mono text-fg-subtle">betöltés…</p>
   if (error) return <ErrorBox e={error} />
   if (!data || data.length === 0) {
-    return <EmptyBox text="Még nincsenek lezárt csapatok." />
+    return <EmptyBox text="Még nincsenek csapatok." />
   }
 
   return (
@@ -181,6 +181,15 @@ function TeamRow({ row }: { row: TeamLeaderboardRow }) {
             size={32}
           />
           <span className="text-base font-bold truncate text-fg-default">{row.teamName}</span>
+          {row.memberCount === 3 ? (
+            <span className="text-[10px] font-mono uppercase tracking-[0.15em] bg-accent-soft text-accent-strong px-2 py-0.5 shrink-0 rounded">
+              megtelt
+            </span>
+          ) : (
+            <span className="text-[10px] font-mono uppercase tracking-[0.15em] bg-sunken text-fg-muted px-2 py-0.5 shrink-0 rounded">
+              csatlakozhatsz · {row.memberCount}/3
+            </span>
+          )}
           {row.isMyTeam && (
             <span className="text-[10px] font-mono uppercase tracking-[0.15em] bg-accent-soft text-accent-strong px-2 py-0.5 shrink-0 rounded">
               csapatom

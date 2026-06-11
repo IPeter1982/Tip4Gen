@@ -187,6 +187,8 @@ export type TeamLeaderboardRow = {
   teamId: string
   teamName: string
   teamAvatarVersion: string | null
+  status: TeamStatus
+  memberCount: number
   totalPoints: number
   members: TeamLeaderboardMember[]
   isMyTeam: boolean

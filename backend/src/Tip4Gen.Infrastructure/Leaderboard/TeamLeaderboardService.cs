@@ -17,6 +17,8 @@ public sealed record TeamLeaderboardRow(
     Guid TeamId,
     string TeamName,
     string? TeamAvatarVersion,
+    TeamStatus Status,
+    int MemberCount,
     int TotalPoints,
     IReadOnlyList<TeamLeaderboardMember> Members,
     bool IsMyTeam);
@@ -42,8 +44,8 @@ public class TeamLeaderboardService(AppDbContext db) : ITeamLeaderboardService
     public async Task<IReadOnlyList<TeamLeaderboardRow>> GetAsync(Guid? currentUserId, CancellationToken ct)
     {
         var teams = await db.Teams.AsNoTracking()
-            .Where(t => t.Status == TeamStatus.Locked)
-            .Select(t => new { t.Id, t.Name, t.AvatarVersion })
+            .Where(t => t.Status != TeamStatus.Disqualified)
+            .Select(t => new { t.Id, t.Name, t.AvatarVersion, t.Status })
             .ToListAsync(ct);
 
         if (teams.Count == 0) return [];
@@ -95,13 +97,6 @@ public class TeamLeaderboardService(AppDbContext db) : ITeamLeaderboardService
         foreach (var team in teams)
         {
             var members = membersByTeam.GetValueOrDefault(team.Id) ?? [];
-            if (members.Count != Team.MaxMembers)
-            {
-                // A Locked team must have Team.MaxMembers members per TeamLockPolicy. If it
-                // doesn't, skip it from team scoring (the individual board still counts them).
-                teamTotals[team.Id] = 0;
-                continue;
-            }
 
             // Find every match where any member (human or AI) of this team has a
             // scored tip — that's the set of matches the team competes on.
@@ -116,21 +111,41 @@ public class TeamLeaderboardService(AppDbContext db) : ITeamLeaderboardService
             int teamTotal = 0;
             foreach (var matchId in matchIds)
             {
-                var input = members.Select(m =>
+                if (members.Count == Team.MaxMembers)
                 {
-                    int pts = 0;
-                    if (m.UserId.HasValue && userMatchPoints.TryGetValue((m.UserId.Value, matchId), out var hPts))
-                        pts = hPts;
-                    else if (m.IsAi && memberMatchPoints.TryGetValue((m.Id, matchId), out var aPts))
-                        pts = aPts;
-                    return new TeamAggregator.MemberPoints(m.Id, pts);
-                }).ToList();
+                    // Full team: use the §8 sum-of-3 aggregator as the single source of truth.
+                    var input = members.Select(m =>
+                    {
+                        int pts = 0;
+                        if (m.UserId.HasValue && userMatchPoints.TryGetValue((m.UserId.Value, matchId), out var hPts))
+                            pts = hPts;
+                        else if (m.IsAi && memberMatchPoints.TryGetValue((m.Id, matchId), out var aPts))
+                            pts = aPts;
+                        return new TeamAggregator.MemberPoints(m.Id, pts);
+                    }).ToList();
 
-                var aggregate = TeamAggregator.ForMatch(input);
-                teamTotal += aggregate.TotalPoints;
+                    var aggregate = TeamAggregator.ForMatch(input);
+                    teamTotal += aggregate.TotalPoints;
 
-                foreach (var memberAgg in aggregate.Members)
-                    totalByMember[memberAgg.MemberId] += memberAgg.Points;
+                    foreach (var memberAgg in aggregate.Members)
+                        totalByMember[memberAgg.MemberId] += memberAgg.Points;
+                }
+                else
+                {
+                    // Under-sized Forming team: TeamAggregator.ForMatch requires exactly 3
+                    // members, so sum the actual member points directly. Same result a full
+                    // team would get with two zero-point fillers — just stated explicitly.
+                    foreach (var m in members)
+                    {
+                        int pts = 0;
+                        if (m.UserId.HasValue && userMatchPoints.TryGetValue((m.UserId.Value, matchId), out var hPts))
+                            pts = hPts;
+                        else if (m.IsAi && memberMatchPoints.TryGetValue((m.Id, matchId), out var aPts))
+                            pts = aPts;
+                        teamTotal += pts;
+                        totalByMember[m.Id] += pts;
+                    }
+                }
             }
 
             teamTotals[team.Id] = teamTotal;
@@ -172,6 +187,8 @@ public class TeamLeaderboardService(AppDbContext db) : ITeamLeaderboardService
                 TeamId: team.Id,
                 TeamName: team.Name,
                 TeamAvatarVersion: team.AvatarVersion,
+                Status: team.Status,
+                MemberCount: memberViews.Count,
                 TotalPoints: total,
                 Members: memberViews,
                 IsMyTeam: myTeamId == team.Id));
