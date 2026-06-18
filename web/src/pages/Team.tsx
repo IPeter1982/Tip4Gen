@@ -13,6 +13,7 @@ import {
   useLongTips,
   useMyTeam,
   usePatchTeam,
+  useSetTeamAiMode,
   useSetTeamAvatar,
 } from '../api/hooks'
 import type { AiMode, TeamView } from '../api/types'
@@ -183,7 +184,7 @@ function TeamPanel({ team }: { team: TeamView }) {
       )}
 
       {hasAi && (
-        <AiModePanel team={team} editable={editable} />
+        <AiModePanel team={team} />
       )}
 
       {editable && <InvitePanel teamId={team.id} />}
@@ -559,8 +560,8 @@ function AddAiPanel({ teamId }: { teamId: string }) {
   )
 }
 
-function AiModePanel({ team, editable }: { team: TeamView; editable: boolean }) {
-  const patch = usePatchTeam()
+function AiModePanel({ team }: { team: TeamView }) {
+  const setAiMode = useSetTeamAiMode()
   const [mode, setMode] = useState<AiMode>(team.aiMode ?? 'Balanced')
   const [err, setErr] = useState<string | null>(null)
 
@@ -568,10 +569,14 @@ function AiModePanel({ team, editable }: { team: TeamView; editable: boolean }) 
     setMode(team.aiMode ?? 'Balanced')
   }, [team.aiMode])
 
+  // AI mode is editable independently of the team-lock / tournament-start gates so
+  // captains can re-tune the AI mid-tournament. Only Disqualified teams are blocked.
+  const editable = team.status !== 'Disqualified'
+
   const onSave = async () => {
     setErr(null)
     try {
-      await patch.mutateAsync({ teamId: team.id, aiMode: mode })
+      await setAiMode.mutateAsync({ teamId: team.id, mode })
     } catch (e) {
       setErr(errorMessage(e))
     }
@@ -607,7 +612,7 @@ function AiModePanel({ team, editable }: { team: TeamView; editable: boolean }) 
         <button
           type="button"
           onClick={onSave}
-          disabled={mode === team.aiMode || patch.isPending}
+          disabled={mode === team.aiMode || setAiMode.isPending}
           className="border border-accent bg-accent text-on-accent px-4 py-2 text-xs font-mono uppercase tracking-[0.15em] hover:bg-accent-strong hover:border-accent disabled:opacity-40 disabled:cursor-not-allowed"
         >
           stílus mentése

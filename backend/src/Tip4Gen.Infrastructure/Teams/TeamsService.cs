@@ -77,7 +77,7 @@ public abstract record JoinDirectResult
     public sealed record Rejected(TeamValidationResult Validation) : JoinDirectResult;
 }
 
-public record PatchTeamCommand(Guid TeamId, string? Name, AiMode? AiMode, bool ClearAiMode);
+public record PatchTeamCommand(Guid TeamId, string? Name);
 public record AddAiMemberCommand(Guid TeamId, string DisplayName, AiMode Mode);
 
 public interface ITeamsService
@@ -86,6 +86,7 @@ public interface ITeamsService
     Task<TeamView?> GetMyTeamAsync(Guid userId, CancellationToken ct);
     Task<IReadOnlyList<TeamView>> ListAllAsync(CancellationToken ct);
     Task<TeamPatchResult> PatchAsync(Guid actingUserId, PatchTeamCommand cmd, CancellationToken ct);
+    Task<TeamPatchResult> SetAiModeAsync(Guid actingUserId, Guid teamId, AiMode mode, CancellationToken ct);
     Task<TeamLeaveResult> LeaveAsync(Guid actingUserId, Guid teamId, CancellationToken ct);
     Task<AddAiMemberResult> AddAiMemberAsync(Guid actingUserId, AddAiMemberCommand cmd, CancellationToken ct);
     Task<CreateInviteResult> CreateInviteAsync(Guid actingUserId, Guid teamId, CancellationToken ct);
@@ -190,11 +191,28 @@ public class TeamsService(AppDbContext db, ILogger<TeamsService> logger) : ITeam
             team.Rename(cmd.Name);
         }
 
-        if (cmd.ClearAiMode)
-            team.SetAiMode(null);
-        else if (cmd.AiMode.HasValue)
-            team.SetAiMode(cmd.AiMode.Value);
+        await db.SaveChangesAsync(ct);
+        return new TeamPatchResult.Success(await ProjectAsync(team.Id, ct));
+    }
 
+    /// <summary>
+    /// AI tipping mode is editable independently of team-lock/tournament-start gates so
+    /// captains can re-tune mid-tournament. Only blocked when the team is Disqualified.
+    /// </summary>
+    public async Task<TeamPatchResult> SetAiModeAsync(Guid actingUserId, Guid teamId, AiMode mode, CancellationToken ct)
+    {
+        var team = await db.Teams.FirstOrDefaultAsync(t => t.Id == teamId, ct);
+        if (team is null) return new TeamPatchResult.NotFound();
+
+        var isMember = await db.TeamMembers.AnyAsync(m => m.TeamId == team.Id && m.UserId == actingUserId, ct);
+        if (!isMember) return new TeamPatchResult.NotMember();
+
+        if (team.Status == TeamStatus.Disqualified)
+            return new TeamPatchResult.Rejected(TeamValidationResult.Fail(
+                TeamRejectionReason.TeamLocked,
+                "A csapat ki van zárva; az AI mód már nem módosítható."));
+
+        team.SetAiMode(mode);
         await db.SaveChangesAsync(ct);
         return new TeamPatchResult.Success(await ProjectAsync(team.Id, ct));
     }

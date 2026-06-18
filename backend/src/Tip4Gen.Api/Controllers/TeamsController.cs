@@ -8,7 +8,8 @@ using Tip4Gen.Infrastructure.Teams;
 namespace Tip4Gen.Api.Controllers;
 
 public record CreateTeamRequest(string Name);
-public record PatchTeamRequest(string? Name, AiMode? AiMode, bool ClearAiMode = false);
+public record PatchTeamRequest(string? Name);
+public record SetTeamAiModeRequest(AiMode Mode);
 public record AddAiMemberRequest(string DisplayName, AiMode Mode);
 public record SetTeamAvatarRequest(string DataUrl);
 
@@ -55,8 +56,28 @@ public class TeamsController(
     public async Task<IActionResult> Patch(Guid teamId, [FromBody] PatchTeamRequest request, CancellationToken ct)
     {
         var user = await currentUser.GetOrCreateAsync(ct);
-        var cmd = new PatchTeamCommand(teamId, request.Name, request.AiMode, request.ClearAiMode);
+        var cmd = new PatchTeamCommand(teamId, request.Name);
         var result = await teams.PatchAsync(user.Id, cmd, ct);
+        return result switch
+        {
+            TeamPatchResult.Success s => Ok(s.Team),
+            TeamPatchResult.NotFound => NotFound(),
+            TeamPatchResult.NotMember => Forbid(),
+            TeamPatchResult.Rejected r => Rejected(r.Validation),
+            _ => throw new InvalidOperationException($"Unhandled TeamPatchResult: {result.GetType().Name}"),
+        };
+    }
+
+    /// <summary>
+    /// Update the AI tipping mode for a team. Separate from <see cref="Patch"/> because
+    /// this endpoint is allowed even after the team locks / the tournament starts —
+    /// only Disqualified teams are rejected.
+    /// </summary>
+    [HttpPut("{teamId:guid}/ai-mode")]
+    public async Task<IActionResult> SetAiMode(Guid teamId, [FromBody] SetTeamAiModeRequest request, CancellationToken ct)
+    {
+        var user = await currentUser.GetOrCreateAsync(ct);
+        var result = await teams.SetAiModeAsync(user.Id, teamId, request.Mode, ct);
         return result switch
         {
             TeamPatchResult.Success s => Ok(s.Team),

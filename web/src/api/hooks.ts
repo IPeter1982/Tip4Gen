@@ -284,8 +284,6 @@ export function useCreateTeam() {
 export type PatchTeamInput = {
   teamId: string
   name?: string
-  aiMode?: AiMode
-  clearAiMode?: boolean
 }
 
 export function usePatchTeam() {
@@ -294,6 +292,18 @@ export function usePatchTeam() {
   return useMutation({
     mutationFn: ({ teamId, ...body }: PatchTeamInput) =>
       api.patch<TeamView>(`/api/teams/${teamId}`, body),
+    onSuccess: (team) => qc.setQueryData(TEAM_ME_KEY, team),
+  })
+}
+
+export type SetTeamAiModeInput = { teamId: string; mode: AiMode }
+
+export function useSetTeamAiMode() {
+  const api = useApi()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ teamId, mode }: SetTeamAiModeInput) =>
+      api.put<TeamView>(`/api/teams/${teamId}/ai-mode`, { mode }),
     onSuccess: (team) => qc.setQueryData(TEAM_ME_KEY, team),
   })
 }
