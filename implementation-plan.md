@@ -192,7 +192,7 @@ Phases run roughly sequentially, but tasks within a phase are often parallelizab
 
 - [x] DB schema: `teams` (id, name, ai_mode nullable, status), `team_members` (team_id, user_id nullable, is_ai bool, ai_display_name nullable), `team_invites` (token, expires_at, used_at). CHECK constraints on status/ai_mode/AI shape. **UNIQUE(user_id) on team_members** (PG NULL-distinct, so multiple AI rows don't collide) + **partial UNIQUE(team_id) WHERE is_ai=TRUE** for max-one-AI.
 - [x] Domain types: `Team`, `TeamMember`, `TeamInvite`, `TeamStatus`, `AiMode` enums, `TeamRulesValidator` (name + mutability + capacity), `TeamLockPolicy` (pure status decision), `TeamAggregator` (pure sum of all 3 member points — every tipper counts).
-- [x] API endpoints (all Authorize): `POST /api/teams`, `GET /api/teams/me`, `PATCH /api/teams/{id}`, `POST /api/teams/{id}/leave`, `POST /api/teams/{id}/ai-member`, `POST /api/teams/{id}/invites`, `POST /api/teams/join/{token}`. ProblemDetails + `reason` extension on every rejection (mirrors Phase 3 contract).
+- [x] API endpoints (all Authorize): `POST /api/teams`, `GET /api/teams/me`, `PATCH /api/teams/{id}`, `PUT /api/teams/{id}/ai-mode` (post-lock editable; Disqualified is the only rejection), `POST /api/teams/{id}/leave`, `POST /api/teams/{id}/ai-member`, `POST /api/teams/{id}/invites`, `POST /api/teams/join/{token}`. ProblemDetails + `reason` extension on every rejection (mirrors Phase 3 contract).
 - [x] Validation: one-team-per-user (DB unique on user_id), max 4 (TeamRulesValidator.ValidateAddMember), max 1 AI (partial unique index), team mutable only while `Forming` AND before tournament start (tournament-start lock wins the diagnostic).
 - [x] `TeamLockService.LockAllAsync` — idempotent pass: every Forming team at/past `tournaments.starts_at_utc` flips to `Locked` (if 4 members) or `Disqualified` (if <4). Cheap early-out when nothing is Forming.
 - [x] `TeamLockJob` BackgroundService in Workers — polls every 5 min, logs only on state changes.
@@ -214,7 +214,7 @@ Phases run roughly sequentially, but tasks within a phase are often parallelizab
   - **No team yet** → `CreateTeamPanel` (RHF + Zod, 80-char limit, surfaces server `reason` enum)
   - **Forming team** → manage panels: members list (incl. empty slots), rename, optional AI add (Conservative/Balanced/Bold mode + persona name), invite-link generator with copy-to-clipboard + 7-day expiry display, leave with confirm
   - **Locked / Disqualified** → read-only members list with status banner
-- [x] AI stylepicker (`AiModePanel`) lets the captain change the AI mode after the AI is added; disabled once the team is no longer mutable.
+- [x] AI stylepicker (`AiModePanel`) lets the captain change the AI mode after the AI is added; stays editable post-lock and mid-tournament via the dedicated `PUT /ai-mode` endpoint — only disabled for `Disqualified` teams.
 - [x] Lock countdown banner driven by `LongTipsResponse.lockUtc` (tournament start) with 1s-tick countdown — same `formatCountdown` helper as `/matches`.
 - [x] `/team/join/:token` route — auto-redeems on mount (guarded with a ref so React 19 double-effects don't double-call), navigates to `/team` on success, shows Hungarian rejection messages otherwise.
 - [x] `useApi.patch` added so `PATCH /api/teams/{id}` matches the existing get/put/post/del helper shape.
