@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
-import { Link, useNavigate, useParams } from 'react-router'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import { z } from 'zod'
 import {
   AlertTriangle,
@@ -68,13 +68,17 @@ function reasonToFieldError(reason: string): {
 export function TipSubmit() {
   const { matchId } = useParams()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const returnQs = searchParams.toString()
+  const returnTo = returnQs ? `/matches?${returnQs}` : '/matches'
   const { data: match, isLoading, error } = useMatch(matchId)
   const submit = useSubmitTip()
 
   return (
     <div className="max-w-2xl mx-auto px-6 py-10 space-y-6">
       <Link
-        to="/matches"
+        to={returnTo}
+        state={matchId ? { focusMatchId: matchId } : undefined}
         className="inline-flex items-center gap-1.5 text-xs font-mono uppercase tracking-[0.15em] text-fg-subtle hover:text-accent transition"
       >
         <ArrowLeft size={14} />
@@ -96,7 +100,7 @@ export function TipSubmit() {
             submitting={submit.isPending}
             onSubmit={async (values) => {
               await submit.mutateAsync({ matchId: match.id, ...values })
-              navigate('/matches', { state: { focusMatchId: match.id } })
+              navigate(returnTo, { state: { focusMatchId: match.id } })
             }}
           />
           <AllTipsPanel matchId={match.id} />

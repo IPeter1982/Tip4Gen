@@ -74,6 +74,7 @@ export function Matches() {
   const { data, isLoading, error, refetch, isFetching } = useMatches(phase)
   const location = useLocation()
   const navigate = useNavigate()
+  const tipSearch = location.search
 
   const [now, setNow] = useState(() => new Date())
   useEffect(() => {
@@ -206,7 +207,13 @@ export function Matches() {
             <h2 className="text-xs font-mono uppercase tracking-[0.2em] text-fg-subtle pl-1">{date}</h2>
             <ul className="space-y-3">
               {matches.map((m) => (
-                <MatchRow key={m.id} match={m} now={now} flashFocus={flashId === m.id} />
+                <MatchRow
+                  key={m.id}
+                  match={m}
+                  now={now}
+                  flashFocus={flashId === m.id}
+                  tipSearch={tipSearch}
+                />
               ))}
             </ul>
           </section>
@@ -220,10 +227,12 @@ function MatchRow({
   match,
   now,
   flashFocus,
+  tipSearch,
 }: {
   match: MatchListItem
   now: Date
   flashFocus: boolean
+  tipSearch: string
 }) {
   const chip = tipStateChip(match, now)
   const deadlinePassed = new Date(match.deadlineUtc).getTime() <= now.getTime()
@@ -240,7 +249,7 @@ function MatchRow({
         highlight ? 'border-accent glow-accent' : 'border-border-subtle'
       }`}
     >
-      <Link to={`/matches/${match.id}/tip`} className="block p-4 sm:p-5">
+      <Link to={`/matches/${match.id}/tip${tipSearch}`} className="block p-4 sm:p-5">
         <div className="flex items-center gap-3 text-[11px] font-mono uppercase tracking-[0.15em] text-fg-subtle">
           <span className="inline-flex items-center gap-1">
             <Trophy size={12} />
