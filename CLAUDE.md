@@ -299,6 +299,7 @@ We pull fixtures and teams from **worldcup26.ir** — a free, community-run (one
 - AI fallback: auto **1–1** tip with `is_ai_fallback=true` if AI provider hasn't returned by **T-1h**.
 - Tip deadline: **kickoff − 1h**, enforced server-side in UTC.
 - Long-term tips (winner, top scorer) lock at **tournament-start kickoff**. Both are stored as FKs — top scorer is `target_player_id` into the `players` table (no free text), so correctness checks are strict GUID equality.
+- **§5 long-tip bonuses (+50 winner, +30 top scorer) are added at leaderboard read-time**, not in `scored_tips`. `Tip4Gen.Domain.Scoring.LongTipBonus.Compute(winnerCorrect, topScorerCorrect)` is the single source; both `IndividualLeaderboardService` and `TeamLeaderboardService` call it after computing the booleans and fold the result into `TotalPoints` (team boards fold into `teamTotal` + `totalByMember[m.Id]` per §7 — AI members can't tip long-term, so they contribute 0). Null outcomes ⇒ 0 bonus, so the branch is safe pre-tournament-end. The §9 `WinnerCorrect` / `TopScorerCorrect` tiebreakers stay unchanged; they now only fire when two rows land on the exact same augmented total (rare but possible). No admin re-score needed after `PUT /api/admin/long-tips/outcomes` — the leaderboard endpoints recompute on every read.
 
 ## Admin
 

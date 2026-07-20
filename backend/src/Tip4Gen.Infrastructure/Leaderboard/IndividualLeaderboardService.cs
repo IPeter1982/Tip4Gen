@@ -71,12 +71,13 @@ public class IndividualLeaderboardService(AppDbContext db) : IIndividualLeaderbo
             byUser.TryGetValue(u.Id, out var rows);
             rows ??= [];
 
-            var total = rows.Sum(r => r.FinalPoints);
+            var matchPoints = rows.Sum(r => r.FinalPoints);
             var exact = rows.Count(r => r.Category == ScoreCategory.Exact);
             var streak = StreakCalculator.LongestStreak(rows.Select(r => r.FinalPoints));
 
             longTipsByUser.TryGetValue(u.Id, out var userLongTips);
             var (winnerCorrect, topScorerCorrect) = ComputeLongTipCorrectness(outcomes?.WinnerTeamId, outcomes?.TopScorerPlayerId, userLongTips);
+            var total = matchPoints + LongTipBonus.Compute(winnerCorrect, topScorerCorrect);
 
             return new LeaderboardEntry(
                 UserId: u.Id,

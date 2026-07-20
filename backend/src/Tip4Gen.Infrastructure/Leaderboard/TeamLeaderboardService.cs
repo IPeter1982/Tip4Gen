@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
+using Tip4Gen.Domain.Scoring;
 using Tip4Gen.Domain.Teams;
+using Tip4Gen.Domain.Tipping;
 using Tip4Gen.Infrastructure.Persistence;
 
 namespace Tip4Gen.Infrastructure.Leaderboard;
@@ -72,6 +74,24 @@ public class TeamLeaderboardService(AppDbContext db) : ITeamLeaderboardService
 
         var userIds = memberRows.Where(r => r.UserId.HasValue).Select(r => r.UserId!.Value).Distinct().ToList();
         var aiMemberIds = memberRows.Where(r => r.IsAi).Select(r => r.Id).Distinct().ToList();
+
+        // §5 bonuses (+50 winner, +30 top scorer) flow into the team total per §7:
+        // each human member's bonus is added in full. AI members can't tip long-term.
+        // Outcomes may be null until admin records them — LongTipBonus.Compute treats
+        // that as neutral (returns 0), so this branch is safe pre-tournament-end too.
+        var outcomes = await db.Tournaments.AsNoTracking()
+            .OrderByDescending(t => t.StartsAtUtc)
+            .Select(t => new { t.WinnerTeamId, t.TopScorerPlayerId })
+            .FirstOrDefaultAsync(ct);
+
+        var longTipsByUser = userIds.Count == 0
+            ? new Dictionary<Guid, List<(LongTermTipType Type, Guid? TargetTeamId, Guid? TargetPlayerId)>>()
+            : (await db.LongTermTips.AsNoTracking()
+                .Where(l => userIds.Contains(l.UserId))
+                .Select(l => new { l.UserId, l.Type, l.TargetTeamId, l.TargetPlayerId })
+                .ToListAsync(ct))
+                .GroupBy(l => l.UserId)
+                .ToDictionary(g => g.Key, g => g.Select(l => (l.Type, l.TargetTeamId, l.TargetPlayerId)).ToList());
 
         // Pull scored tips for any member of these teams in one round-trip. Each row has
         // exactly one of (UserId, TeamMemberId) set — we build two parallel lookups so
@@ -148,6 +168,18 @@ public class TeamLeaderboardService(AppDbContext db) : ITeamLeaderboardService
                 }
             }
 
+            // Per-human-member §5 bonus (winner + top scorer). Added once per member,
+            // not per match — long-term tips are tournament-scoped, not match-scoped.
+            foreach (var m in members.Where(m => m.UserId.HasValue))
+            {
+                longTipsByUser.TryGetValue(m.UserId!.Value, out var tips);
+                var (wc, tsc) = EvaluateLongTips(outcomes?.WinnerTeamId, outcomes?.TopScorerPlayerId, tips);
+                var bonus = LongTipBonus.Compute(wc, tsc);
+                if (bonus == 0) continue;
+                teamTotal += bonus;
+                totalByMember[m.Id] += bonus;
+            }
+
             teamTotals[team.Id] = teamTotal;
         }
 
@@ -196,5 +228,29 @@ public class TeamLeaderboardService(AppDbContext db) : ITeamLeaderboardService
             prevTotal = total;
         }
         return rows;
+    }
+
+    // Mirrors IndividualLeaderboardService.ComputeLongTipCorrectness — kept local
+    // because each service owns a slightly different long-tip row shape.
+    private static (bool? WinnerCorrect, bool? TopScorerCorrect) EvaluateLongTips(
+        Guid? actualWinnerTeamId,
+        Guid? actualTopScorerPlayerId,
+        IReadOnlyList<(LongTermTipType Type, Guid? TargetTeamId, Guid? TargetPlayerId)>? tips)
+    {
+        bool? winnerCorrect = null;
+        if (actualWinnerTeamId is Guid winnerId)
+        {
+            var t = tips?.FirstOrDefault(x => x.Type == LongTermTipType.Winner);
+            winnerCorrect = t is { } tip && tip.TargetTeamId == winnerId;
+        }
+
+        bool? topScorerCorrect = null;
+        if (actualTopScorerPlayerId is Guid scorerId)
+        {
+            var t = tips?.FirstOrDefault(x => x.Type == LongTermTipType.TopScorer);
+            topScorerCorrect = t?.TargetPlayerId == scorerId;
+        }
+
+        return (winnerCorrect, topScorerCorrect);
     }
 }
